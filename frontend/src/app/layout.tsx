@@ -1,4 +1,4 @@
-import { ColorSchemeScript, Container, mantineHtmlProps, MantineProvider } from '@mantine/core';
+import { Container, mantineHtmlProps, MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -24,13 +24,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       {...mantineHtmlProps}
     >
-      <head>
-        {/* For Dark/Light Mode. Visit: https://mantine.dev/theming/color-schemes/  */}
-        <ColorSchemeScript
-          type={typeof window === 'undefined' ? 'text/javascript' : 'text/plain'}
-          suppressHydrationWarning
-        />
-      </head>
+      <head />
+      {/* For Dark/Light Mode. Visit: https://mantine.dev/theming/color-schemes/  */}
       <body>
         <MantineProvider>
           <Container fluid p={0}>
