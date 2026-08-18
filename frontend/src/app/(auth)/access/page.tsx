@@ -165,7 +165,7 @@ export default function AccessPage() {
 
                 {value === "signup" ? (
                     <>
-                        <form onSubmit={signupForm.onSubmit(() => router.push("/dashboard"))}>
+                        <form onSubmit={signupForm.onSubmit(() => router.push("/setup"))}>
                             <Flex direction="row" gap="md" w="100%" justify="space-between" mb="md">
                                 <TextInput
                                     label="First Name"
@@ -209,7 +209,7 @@ export default function AccessPage() {
                                             {...signupForm.getInputProps('password')}
                                             onChange={(event) => {
                                                 setSignupPassword(event.currentTarget.value);
-                                                signupForm.setFieldValue('password', event.currentTarget.value);
+                                                signupForm.setFieldValue('password', event.currentTarget.value, { forceUpdate: false });
                                                 signupForm.validateField('confirmPassword')
                                             }}
                                         />
