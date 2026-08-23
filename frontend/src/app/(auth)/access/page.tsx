@@ -5,6 +5,7 @@ import { useForm } from "@mantine/form";
 import { Check, Lock, Mail, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 /* For password validation */
 function PasswordRequirement({ meets, label }: { meets: boolean; label: string }) {
@@ -31,14 +32,25 @@ function getStrength(password: string) {
     return Math.max(100 - (100 / (requirements.length + 1)) * multiplier, 10);
 }
 
+// user code generator, may change 
+function generateUserCode() {
+    return `U${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
 export default function AccessPage() {
     const [value, setValue] = useState('signin');
     const router = useRouter();
+    const supabase = createClient();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const [popoverOpened, setPopoverOpened] = useState(false);
     const [signupPassword, setSignupPassword] = useState('');
     const strength = getStrength(signupPassword);
     const color = strength === 100 ? 'teal' : strength > 50 ? 'yellow' : 'red';
+
+    const [signinLoading, setSigninLoading] = useState(false);
+    const [signinError, setSigninError] = useState<string | null>(null);
+    const [signupLoading, setSignupLoading] = useState(false);
+    const [signupError, setSignupError] = useState<string | null>(null);
 
     /* Form validation for Sign In */
     const signinForm = useForm({
@@ -77,6 +89,60 @@ export default function AccessPage() {
 
     const handleForgotPassword = async () => {
         router.push("/forgot-password");
+    };
+
+    const handleSignIn = async (values: typeof signinForm.values) => {
+        setSigninError(null);
+        setSigninLoading(true);
+
+        const { error } = await supabase.auth.signInWithPassword({
+            email: values.email,
+            password: values.password,
+        });
+
+        setSigninLoading(false);
+
+        if (error) {
+            setSigninError(
+                error.message.toLowerCase().includes('invalid login credentials')
+                    ? 'Incorrect email or password.'
+                    : error.message
+            );
+            return;
+        }
+
+        // to get past /access, middleware will redirect if needed
+        router.push("/dashboard");
+        router.refresh();
+    };
+
+    const handleSignUp = async (values: typeof signupForm.values) => {
+        setSignupError(null);
+        setSignupLoading(true);
+
+        const { error } = await supabase.auth.signUp({
+            email: values.email,
+            password: values.password,
+            options: {
+                data: { display_name: `${values.firstName} ${values.lastName}` },
+                emailRedirectTo: `${window.location.origin}/callback`,
+            },
+        });
+
+        setSignupLoading(false);
+
+        if (error) {
+            if (error.message.toLowerCase().includes('already registered')) {
+                signupForm.setFieldError('email', 'An account with this email already exists.');
+            } else if (error.message.toLowerCase().includes('password')) {
+                signupForm.setFieldError('password', error.message);
+            } else {
+                setSignupError(error.message);
+            }
+            return;
+        }
+
+        setSignupError('Check you email for account confirmation before signing in')
     };
 
     return (
@@ -121,7 +187,7 @@ export default function AccessPage() {
                 </Group>
 
                 {value === "signin" ? (
-                    <form onSubmit={signinForm.onSubmit(() => router.push("/dashboard"))}>
+                    <form onSubmit={signinForm.onSubmit(handleSignIn)}>
                         <>
                             <TextInput
                                 label="Email"
@@ -150,8 +216,11 @@ export default function AccessPage() {
                                     Forgot Password?
                                 </Anchor>
                             </Group>
+                            {signinError && (
+                                <Text c="red" size="sm" mb="md">{signinError}</Text>
+                            )}
                             <Flex direction="column" gap="md" w="100%" mt="md">
-                                <Button variant="outline" radius="lg" type="submit">
+                                <Button variant="outline" radius="lg" type="submit" loading={signinLoading}>
                                     Sign In
                                 </Button>
                                 <Divider label="OR" labelPosition="center" />
@@ -165,7 +234,7 @@ export default function AccessPage() {
 
                 {value === "signup" ? (
                     <>
-                        <form onSubmit={signupForm.onSubmit(() => router.push("/setup"))}>
+                        <form onSubmit={signupForm.onSubmit(handleSignUp)}>
                             <Flex direction="row" gap="md" w="100%" justify="space-between" mb="md">
                                 <TextInput
                                     label="First Name"
@@ -232,8 +301,11 @@ export default function AccessPage() {
                                 {...signupForm.getInputProps('confirmPassword')}
                                 mb="md"
                             />
+                            {signupError && (
+                                <Text c="red" size="sm" mb="md">{signupError}</Text>
+                            )}
                             <Flex direction="column" gap="md" w="100%" mt="lg">
-                                <Button variant="outline" radius="lg" type="submit">
+                                <Button variant="outline" radius="lg" type="submit" loading={signupLoading}>
                                     Sign Up
                                 </Button>
                                 <Divider label="Or" labelPosition="center" />
