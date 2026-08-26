@@ -142,7 +142,7 @@ export default function AccessPage() {
             return;
         }
 
-        setSignupError('Check you email for account confirmation before signing in')
+        setSignupError('We will send an automated confirmation email if an account does not already exist with this email.')
     };
 
     return (
