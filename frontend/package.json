@@ -12,6 +12,8 @@
     "@mantine/core": "^9.5.1",
     "@mantine/form": "^9.5.1",
     "@mantine/hooks": "^9.5.1",
+    "@mantine/modals": "^9.5.2",
+    "@mantine/notifications": "^9.5.2",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "groq-sdk": "^1.5.0",

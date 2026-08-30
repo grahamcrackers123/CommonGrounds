@@ -1,5 +1,9 @@
+import Navbar from '@/components/navbar';
 import { Container, mantineHtmlProps, MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
+import { ModalsProvider } from '@mantine/modals';
+import { Notifications } from '@mantine/notifications';
+import '@mantine/notifications/styles.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
@@ -28,9 +32,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       {/* For Dark/Light Mode. Visit: https://mantine.dev/theming/color-schemes/  */}
       <body>
         <MantineProvider>
-          <Container fluid p={0}>
-            {children}
-          </Container>
+          <ModalsProvider>
+            <Notifications />
+            <Container fluid p={0}>
+              <Navbar>{children}</Navbar>
+            </Container>
+          </ModalsProvider>
         </MantineProvider>
       </body>
     </html>

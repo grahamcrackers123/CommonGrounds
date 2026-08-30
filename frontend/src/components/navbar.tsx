@@ -1,10 +1,9 @@
 "use client";
 
-import { AppShell, Group, Text, UnstyledButton } from '@mantine/core';
+import { AppShell, Avatar, Burger, Button, Flex, Group, Text, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Circle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 function FillCircle({ active, label, onClick }: { active: boolean, label: string, onClick: () => void }) {
     return (
@@ -19,18 +18,32 @@ function FillCircle({ active, label, onClick }: { active: boolean, label: string
     );
 }
 
-export default function Navbar() {
-    const [active, setActive] = useState('Dashboard');
+export default function Navbar({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
     const [opened, { toggle }] = useDisclosure(false);
     const router = useRouter();
 
-    const handleNavigation = (label: string) => {
-        setActive(label);
+    const navlinks = [
+        { label: "Dashboard", path: "/dashboard" },
+        { label: "Ask Wasi", path: "/askwasi" },
+        { label: "Quest Calendar", path: "/questcalendar" },
+        { label: "Focus Room", path: "/focusroom" },
+        { label: "Pet Garden", path: "/petgarden" },
+        { label: "Reward Shop", path: "/rewardshop" },
+        { label: "Progress Map", path: "/progressmap" },
+        { label: "Settings", path: "/settings" }
+    ];
 
-        const path = label.toLowerCase().replace(/\s+/g, '-');
-
-        router.push(path);
+    const handleNavigation = (link: { label: string; path: string }) => {
+        router.push(link.path);
     };
+
+    const hideNavbar = ['/access', '/forgot-password', '/setup'];
+
+    if (hideNavbar.includes(pathname)) {
+        // Prevent from rendering the navbar for the paths from above array
+        return <>{children}</>;
+    }
 
     return (
         <AppShell
@@ -38,20 +51,45 @@ export default function Navbar() {
             header={{ height: 60 }}
             navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !opened } }}
         >
-            <AppShell.Header h={60} p="md">
+            <AppShell.Header h={60} p="md" zIndex={200}>
+                <Flex h="100%" align="center" justify="space-between" gap="sm">
+                    <Group hiddenFrom="sm" gap="sm">
+                        <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
+                        <Text fw={700} size='xl'>CommonGrounds</Text>
+                    </Group>
+                    <Burger
+                        opened={opened}
+                        onClick={toggle}
+                        hiddenFrom="sm"
+                        size="sm"
+                        lineSize={2}
+                    />
+                </Flex>
             </AppShell.Header>
-            <AppShell.Navbar p="md">
-                <FillCircle active={active === "Dashboard"} label="Dashboard" onClick={() => handleNavigation("Dashboard")} />
-                <FillCircle active={active === "Ask Wasi"} label="Ask Wasi" onClick={() => handleNavigation("Ask Wasi")} />
-                <FillCircle active={active === "Quest Calendar"} label="Quest Calendar" onClick={() => handleNavigation("Quest Calendar")} />
-                <FillCircle active={active === "Focus Room"} label="Focus Room" onClick={() => handleNavigation("Focus Room")} />
-                <FillCircle active={active === "Pet Garden"} label="Pet Garden" onClick={() => handleNavigation("Pet Garden")} />
-                <FillCircle active={active === "Reward Shop"} label="Reward Shop" onClick={() => handleNavigation("Reward Shop")} />
-                <FillCircle active={active === "Progress Map"} label="Progress Map" onClick={() => handleNavigation("Progress Map")} />
-                <FillCircle active={active === "Settings"} label="Settings" onClick={() => handleNavigation("Settings")} />
+            <AppShell.Navbar pr="md" pl="md" pb='md' pt={{ base: 70, sm: 'md' }}>
+                <Group visibleFrom="sm" style={{ justifyContent: 'flex-start', alignItems: 'flex-start', width: '100%', gap: '10px', marginBottom: '20px' }}>
+                    <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
+                    <Text fw={700} size='xl'>CommonGrounds</Text>
+                </Group>
+                <Flex gap='5px' direction='column'>
+                    {navlinks.map((link) => (
+                        <FillCircle
+                            key={link.label}
+                            active={pathname === link.path}
+                            label={link.label}
+                            onClick={() => handleNavigation(link)}
+                        />
+                    ))}
+                </Flex>
+                {/*Temporary Placeholder for the Logout Button. This would be moved to a different page; Settings or Profile*/}
+                <Flex align='end' justify='end' mt='auto'>
+                    <Button variant='outline' fullWidth>
+                        Log Out
+                    </Button>
+                </Flex>
             </AppShell.Navbar>
-            <AppShell.Main p="md">
-                {/* Main content goes here */}
+            <AppShell.Main>
+                {children}
             </AppShell.Main>
         </AppShell>
     );

@@ -1,11 +1,11 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { Anchor, Box, Button, Checkbox, Divider, Flex, Group, PasswordInput, Popover, Progress, SegmentedControl, Text, TextInput, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { Check, Lock, Mail, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 /* For password validation */
 function PasswordRequirement({ meets, label }: { meets: boolean; label: string }) {
@@ -146,10 +146,10 @@ export default function AccessPage() {
     };
 
     return (
-        <Flex direction="row" h="100vh" w="100%">
-            <Flex direction="column" gap="md" h="100vh" w="50%" p="md" />
+        <Flex direction="row" mih="100vh" w="100%">
+            <Flex direction="column" gap="md" mih="100vh" w="50%" p="md" />
 
-            <Flex direction="column" gap="md" h="100vh" w="50%" p="md" justify="center" bg="#EAF3FF">
+            <Flex direction="column" gap="md" mih="100vh" w="50%" p="md" justify="center" bg="#EAF3FF">
                 <Flex justify="center" mb="xl">
                     <Title order={1}>
                         CommonGrounds
