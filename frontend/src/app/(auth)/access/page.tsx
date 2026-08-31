@@ -145,6 +145,23 @@ export default function AccessPage() {
         setSignupError('We will send an automated confirmation email if an account does not already exist with this email.')
     };
 
+    const handleGoogleAuth = async (access: 'signin' | 'signup') => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: `${window.location.origin}/callback`
+            },
+        });
+
+        if (error) {
+            if (access === 'signin') {
+                setSigninError(error.message);
+            } else {
+                setSignupError(error.message)
+            }
+        }
+    };
+
     return (
         <Flex direction="row" mih="100vh" w="100%">
             <Flex direction="column" gap="md" mih="100vh" w="50%" p="md" />
@@ -224,7 +241,7 @@ export default function AccessPage() {
                                     Sign In
                                 </Button>
                                 <Divider label="OR" labelPosition="center" />
-                                <Button variant="outline" radius="lg">
+                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signin')}>
                                     Continue with Google
                                 </Button>
                             </Flex>
@@ -309,7 +326,7 @@ export default function AccessPage() {
                                     Sign Up
                                 </Button>
                                 <Divider label="Or" labelPosition="center" />
-                                <Button variant="outline" radius="lg">
+                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signup')}>
                                     Sign Up with Google
                                 </Button>
                             </Flex>
