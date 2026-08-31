@@ -1,7 +1,7 @@
-import Navbar from "@/components/navbar";
+import { Text } from "@mantine/core";
 
 export default function DashboardPage() {
     return (
-        <Navbar />
+        <Text>Dashbboard Page</Text>
     );
 }

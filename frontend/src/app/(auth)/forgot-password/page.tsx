@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
     };
 
     return (
-        <Container fluid px="md" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Container fluid px="md" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
             <Paper
                 w={350}
                 radius="lg"
