@@ -4,6 +4,7 @@ import { AppShell, Avatar, Burger, Button, Flex, Group, Text, UnstyledButton } f
 import { useDisclosure } from '@mantine/hooks';
 import { Circle } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 function FillCircle({ active, label, onClick }: { active: boolean, label: string, onClick: () => void }) {
     return (
@@ -22,6 +23,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [opened, { toggle }] = useDisclosure(false);
     const router = useRouter();
+    const supabase = createClient();
 
     const navlinks = [
         { label: "Dashboard", path: "/dashboard" },
@@ -33,6 +35,12 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         { label: "Progress Map", path: "/progressmap" },
         { label: "Settings", path: "/settings" }
     ];
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/access');
+        router.refresh();
+    };
 
     const handleNavigation = (link: { label: string; path: string }) => {
         router.push(link.path);
@@ -83,7 +91,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                 </Flex>
                 {/*Temporary Placeholder for the Logout Button. This would be moved to a different page; Settings or Profile*/}
                 <Flex align='end' justify='end' mt='auto'>
-                    <Button variant='outline' fullWidth>
+                    <Button variant='outline' fullWidth onClick={handleLogout}>
                         Log Out
                     </Button>
                 </Flex>
