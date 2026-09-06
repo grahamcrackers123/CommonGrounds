@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { Anchor, Box, Button, Checkbox, Divider, Flex, Group, PasswordInput, Popover, Progress, SegmentedControl, Text, TextInput, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { useMediaQuery } from "@mantine/hooks";
 import { Check, Lock, Mail, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -38,6 +39,7 @@ function generateUserCode() {
 }
 
 export default function AccessPage() {
+    const isMobile = useMediaQuery('(max-width: 768px)');
     const [value, setValue] = useState('signin');
     const router = useRouter();
     const supabase = createClient();
@@ -120,7 +122,7 @@ export default function AccessPage() {
         setSignupError(null);
         setSignupLoading(true);
 
-        const { error } = await supabase.auth.signUp({
+        const { data: { user }, error } = await supabase.auth.signUp({
             email: values.email,
             password: values.password,
             options: {
@@ -140,6 +142,15 @@ export default function AccessPage() {
                 setSignupError(error.message);
             }
             return;
+        }
+
+        if (user) {
+            const { error: insertError } = await supabase.from('profiles').insert({
+                id: user.id,
+                user_code: generateUserCode(),
+                display_name: `${values.firstName} ${values.lastName}`,
+            });
+            if (insertError) console.error('profile insert error:', insertError);
         }
 
         setSignupError('We will send an automated confirmation email if an account does not already exist with this email.')
@@ -168,7 +179,7 @@ export default function AccessPage() {
 
             <Flex direction="column" gap="md" mih="100vh" w="50%" p="md" justify="center" bg="#EAF3FF">
                 <Flex justify="center" mb="xl">
-                    <Title order={1}>
+                    <Title order={1} fz={{ base: 'xl', md: '2xl' }} fw={700}>
                         CommonGrounds
                     </Title>
                 </Flex>
@@ -176,17 +187,22 @@ export default function AccessPage() {
                 <Group justify="center" align="center" gap="md">
                     {value === "signin" ? (
                         <Flex direction="column" align="center">
-                            <Text fw="bold" size="xl">
+                            <Text fw="bold" fz={{ base: 'md', md: 'xl' }}>
                                 Welcome back!
                             </Text>
-                            <Text color="dimmed" size="xl">
+                            <Text color="dimmed" fz={{ base: 'md', md: 'xl' }} ta="center">
                                 Please enter your details.
                             </Text>
                         </Flex>
                     ) : (
-                        <Text color="dimmed" size="xl">
-                            Create an account to get started!
-                        </Text>
+                        <Flex direction="column" align="center">
+                            <Text fw="bold" fz={{ base: 'md', md: 'xl' }}>
+                                Welcome!
+                            </Text>
+                            <Text color="dimmed" fz={{ base: 'md', md: 'xl' }} ta="center">
+                                Create an account to get started!
+                            </Text>
+                        </Flex>
                     )}
 
                     <SegmentedControl
@@ -214,6 +230,7 @@ export default function AccessPage() {
                                 key={signinForm.key('email')}
                                 {...signinForm.getInputProps('email')}
                                 mb="md"
+                                size={isMobile ? 'xs' : 'md'}
                             />
                             <PasswordInput
                                 label="Password"
@@ -223,13 +240,15 @@ export default function AccessPage() {
                                 key={signinForm.key('password')}
                                 {...signinForm.getInputProps('password')}
                                 mb="md"
+                                size={isMobile ? 'xs' : 'md'}
                             />
                             <Group justify="space-between" align="center" mb="md">
                                 <Checkbox
                                     label="Remember me"
                                     {...signinForm.getInputProps('rememberMe', { type: 'checkbox' })}
+                                    size={isMobile ? 'xs' : 'md'}
                                 />
-                                <Anchor component="button" type="button" size="sm" onClick={handleForgotPassword}>
+                                <Anchor component="button" type="button" size="sm" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
                                     Forgot Password?
                                 </Anchor>
                             </Group>
@@ -237,11 +256,11 @@ export default function AccessPage() {
                                 <Text c="red" size="sm" mb="md">{signinError}</Text>
                             )}
                             <Flex direction="column" gap="md" w="100%" mt="md">
-                                <Button variant="outline" radius="lg" type="submit" loading={signinLoading}>
+                                <Button variant="outline" radius="lg" type="submit" loading={signinLoading} size={isMobile ? 'xs' : 'md'}>
                                     Sign In
                                 </Button>
                                 <Divider label="OR" labelPosition="center" />
-                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signin')}>
+                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signin')} size={isMobile ? 'xs' : 'md'}>
                                     Continue with Google
                                 </Button>
                             </Flex>
@@ -261,6 +280,7 @@ export default function AccessPage() {
                                     w="100%"
                                     key={signupForm.key('firstName')}
                                     {...signupForm.getInputProps('firstName')}
+                                    size={isMobile ? 'xs' : 'md'}
                                 />
                                 <TextInput
                                     label="Last Name"
@@ -270,6 +290,7 @@ export default function AccessPage() {
                                     w="100%"
                                     key={signupForm.key('lastName')}
                                     {...signupForm.getInputProps('lastName')}
+                                    size={isMobile ? 'xs' : 'md'}
                                 />
                             </Flex>
 
@@ -281,6 +302,7 @@ export default function AccessPage() {
                                 key={signupForm.key('email')}
                                 {...signupForm.getInputProps('email')}
                                 mb="md"
+                                size={isMobile ? 'xs' : 'md'}
                             />
                             <Popover opened={popoverOpened} position="bottom" width="target" transitionProps={{ transition: 'pop' }}>
                                 <Popover.Target>
@@ -298,6 +320,7 @@ export default function AccessPage() {
                                                 signupForm.setFieldValue('password', event.currentTarget.value, { forceUpdate: false });
                                                 signupForm.validateField('confirmPassword')
                                             }}
+                                            size={isMobile ? 'xs' : 'md'}
                                         />
                                     </div>
                                 </Popover.Target>
@@ -317,16 +340,17 @@ export default function AccessPage() {
                                 key={signupForm.key('confirmPassword')}
                                 {...signupForm.getInputProps('confirmPassword')}
                                 mb="md"
+                                size={isMobile ? 'xs' : 'md'}
                             />
                             {signupError && (
-                                <Text c="red" size="sm" mb="md">{signupError}</Text>
+                                <Text c="red" size="sm" mb="md" fz={{ base: 'xs', md: 'sm' }}>{signupError}</Text>
                             )}
                             <Flex direction="column" gap="md" w="100%" mt="lg">
-                                <Button variant="outline" radius="lg" type="submit" loading={signupLoading}>
+                                <Button variant="outline" radius="lg" type="submit" loading={signupLoading} size={isMobile ? 'xs' : 'md'}>
                                     Sign Up
                                 </Button>
                                 <Divider label="Or" labelPosition="center" />
-                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signup')}>
+                                <Button variant="outline" radius="lg" onClick={() => handleGoogleAuth('signup')} size={isMobile ? 'xs' : 'md'}>
                                     Sign Up with Google
                                 </Button>
                             </Flex>

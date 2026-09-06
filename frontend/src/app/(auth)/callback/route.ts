@@ -11,7 +11,20 @@ export async function GET(request: Request) {
     if (!error) {
       // not sure if san ireredirect after iclick yung confirmation link sa email
       // sa /setup sya tentatively
-      return NextResponse.redirect(`${origin}/setup`)
+      // return NextResponse.redirect(`${origin}/setup`)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('setup_complete')
+        .eq('id', user?.id ?? '')
+        .maybeSingle();
+
+      return NextResponse.redirect(
+        new URL(profile?.setup_complete ? '/dashboard' : '/setup', origin)
+      )
     }
   }
 
