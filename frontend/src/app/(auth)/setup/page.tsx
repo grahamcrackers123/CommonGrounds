@@ -7,10 +7,12 @@ import { notifications } from "@mantine/notifications";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SetupPage() {
     const [active, setActive] = useState(0);
     const router = useRouter();
+    const supabase = createClient();
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
     const totalSteps = 5;
     const isLastStep = active === totalSteps - 1;
@@ -38,25 +40,84 @@ export default function SetupPage() {
 
     const enabledSlots = slots.filter(slot => slot.enabled === true);
 
-    const handleNextStep = () => {
-        const fieldsToValidate = stepFields[active] ?? [];
-        const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
-        if (hasErrors) return;
-        setActive((prev) => {
-            const next = prev + 1;
-            if (next === totalSteps) {
-                notifications.show({
-                    title: 'Success!',
-                    message: 'Setup complete.',
-                    color: 'green',
-                });
-                router.push('/dashboard');
-                return prev;
-            }
-            return next;
-        });
-    };
+    const handleNextStep = async () => {
+    const fieldsToValidate = stepFields[active] ?? [];
 
+    const hasErrors = fieldsToValidate.some(
+        (field) => setUpForm.validateField(field).hasError
+    );
+
+    if (hasErrors) return;
+
+    // Move to the next step if this is not the final step
+    if (active < totalSteps - 1) {
+        setActive((prev) => prev + 1);
+        return;
+    }
+
+    // Get the currently signed-in user
+    const {
+        data: { user },
+        error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+        notifications.show({
+            title: 'Error',
+            message: 'You must be signed in to complete setup.',
+            color: 'red',
+        });
+        return;
+    }
+
+    // Save setup information to the user's profile
+    const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+            level: setUpForm.values.level,
+            school: setUpForm.values.school,
+            program: setUpForm.values.program,
+            enrollment_status: setUpForm.values.enrollmentStatus,
+            study_time: setUpForm.values.studyTime,
+            focus_length: setUpForm.values.focusLength,
+            subjects: setUpForm.values.subjects,
+            weekly_availability: enabledSlots,
+            coursework_priorities: priorities,
+            notification_prefs: {
+                deadlineReminders: setUpForm.values.deadlineReminders,
+                focusReminders: setUpForm.values.focusReminders,
+                burnoutNudges: setUpForm.values.burnoutNudges,
+                rewardAlerts: setUpForm.values.rewardAlerts,
+                friendInvites: setUpForm.values.friendInvites,
+            },
+            setup_complete: true,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+    if (updateError) {
+       console.error(
+    'Setup save error:',
+    JSON.stringify(updateError, null, 2)
+);
+
+        notifications.show({
+            title: 'Could not save setup',
+            message: updateError.message,
+            color: 'red',
+        });
+
+        return;
+    }
+
+    notifications.show({
+        title: 'Success!',
+        message: 'Setup complete.',
+        color: 'green',
+    });
+
+    router.push('/dashboard');
+};
     const openConfirmationModal = () => modals.openConfirmModal({
         title: 'Please Confirm your Setup',
         size: 'sm',
@@ -237,10 +298,9 @@ export default function SetupPage() {
                                     <Text size='sm' fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                                         <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
-                                            <Chip radius="lg" variant='light' value='30 mins'>30 mins</Chip>
-                                            <Chip radius="lg" variant='light' value='45 mins'>45 mins</Chip>
-                                            <Chip radius="lg" variant='light' value='60 mins'>60 mins</Chip>
-                                            <Chip radius="lg" variant='light' value='Custom'>Custom</Chip>
+                                            <Chip radius="lg" variant='light' value='30'>30 mins</Chip>
+                                            <Chip radius="lg" variant='light' value='45'>45 mins</Chip>
+                                            <Chip radius="lg" variant='light' value='60'>60 mins</Chip>
                                         </Chip.Group>
                                     </Flex>
                                 </Flex>
