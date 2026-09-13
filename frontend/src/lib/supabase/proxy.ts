@@ -36,9 +36,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+
   const path = request.nextUrl.pathname
 
-  if (!user && path !== '/access') {
+  if (!user && path !== '/access' && path !== '/callback') {
     return NextResponse.redirect(new URL('/access', request.url))
   }
 
