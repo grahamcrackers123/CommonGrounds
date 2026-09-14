@@ -165,14 +165,23 @@ Be supportive, concise, and practical.
     ]
 
     // 8. Stream the response from Groq
-    const timeout = setTimeout(() => {}, TIMEOUT_MS)
+const controller = new AbortController()
 
-    try {
-   const completion = await groq.chat.completions.create({
-    messages,
-    model: 'openai/gpt-oss-20b',
-    stream: true,
-})
+const timeout = setTimeout(() => {
+    controller.abort()
+}, TIMEOUT_MS)
+
+try {
+    const completion = await groq.chat.completions.create(
+        {
+            messages,
+            model: 'openai/gpt-oss-20b',
+            stream: true,
+        },
+        {
+            signal: controller.signal,
+        }
+    )
 
         const encoder = new TextEncoder()
         let assistantContent = ''
