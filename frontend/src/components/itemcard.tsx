@@ -19,7 +19,7 @@ interface ItemCardProps {
     onBuy: (item: ShopItemBase) => void;
 }
 
-export default function ItemCard({ item, canAfford, owned, imageWidth = 80, imageHeight = 80, onBuy }: ItemCardProps) {
+export default function ItemCard({ item, owned, imageWidth = 80, imageHeight = 80, onBuy }: ItemCardProps) {
     return (
         <Box
             h='180px'
