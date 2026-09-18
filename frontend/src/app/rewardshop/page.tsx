@@ -1,14 +1,17 @@
 "use client";
 
 import ItemCard, { type ShopItemBase } from "@/components/itemcard";
+import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Container, Flex, Group, Image, Paper, Stack, Text, UnstyledButton } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type TabSection = 'Eggs' | 'Pet Style' | 'Garden Decor';
 const tabs: TabSection[] = ['Eggs', 'Pet Style', 'Garden Decor'];
-const itemKey = (tab: TabSection, id: number) => `${tab}-${id}`;
+
+type ItemCategory = 'egg' | 'pet' | 'garden';
+const itemKey = (category: ItemCategory, id: number) => `${category}-${id}`;
 
 interface Egg {
     id: number;
@@ -64,9 +67,30 @@ export default function RewardShopPage() {
     const [activeTab, setActiveTab] = useState<TabSection>('Eggs');
     const [coins, setCoins] = useState(0);
     const [ownedItems, setOwnedItems] = useState<string[]>([]);
-    const isOwned = (tab: TabSection, id: number) => ownedItems.includes(itemKey(tab, id));
+    const isOwned = (category: ItemCategory, id: number) => ownedItems.includes(itemKey(category, id));
 
-    const openPurchaseModal = (tab: TabSection, item: ShopItemBase) => {
+    // loads the coin balance
+    useEffect(() => {
+        fetch('/api/rewards/balance')
+            .then((res) => res.json())
+            .then((data) => setCoins(data.coins ?? 0))
+            .catch(() => {
+                notifications.show({ title: 'Error', message: 'Could not load your coin balance.', color: 'red' });
+            });
+    }, []);
+
+    // loads items user own
+    useEffect(() => {
+        const supabase = createClient();
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data, error } = await supabase.from('user_items').select('item_key').eq('user_id', user.id);
+            if (!error && data) setOwnedItems(data.map((row) => row.item_key));
+        })();
+    }, []);
+
+    const openPurchaseModal = (category: ItemCategory, item: ShopItemBase) => {
         const canAfford = coins >= item.price;
         modals.openConfirmModal({
             title: 'Please Confirm your Purchase',
@@ -92,9 +116,25 @@ export default function RewardShopPage() {
             ),
             confirmProps: { color: canAfford ? 'blue' : 'gray', disabled: !canAfford },
             labels: { confirm: 'Confirm', cancel: 'Cancel' },
-            onConfirm: () => {
-                setOwnedItems((prev) => [...prev, itemKey(tab, item.id)]);
-                setCoins((c) => c - item.price);
+            onConfirm: async () => {
+                const res = await fetch('/api/rewards/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId: itemKey(category, item.id) }),
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    notifications.show({
+                        title: 'Purchase Failed',
+                        message: data.error ?? 'Something went wrong.',
+                        color: 'red',
+                    });
+                    return;
+                }
+
+                setOwnedItems((prev) => [...prev, itemKey(category, item.id)]);
+                setCoins(data.coins);
                 notifications.show({
                     title: 'Successful Purchase',
                     message: 'Your purchase was successful.',
@@ -146,8 +186,8 @@ export default function RewardShopPage() {
                                         key={item.id}
                                         item={item}
                                         canAfford={coins >= item.price}
-                                        owned={isOwned(activeTab, item.id)}
-                                        onBuy={(it) => openPurchaseModal(activeTab, it)}
+                                        owned={isOwned('egg', item.id)}
+                                        onBuy={(it) => openPurchaseModal('egg', it)}
                                     />
                                 ))}
                             </Group>
@@ -160,8 +200,8 @@ export default function RewardShopPage() {
                                         key={item.id}
                                         item={item}
                                         canAfford={coins >= item.price}
-                                        owned={isOwned(activeTab, item.id)}
-                                        onBuy={(it) => openPurchaseModal(activeTab, it)}
+                                        owned={isOwned('pet', item.id)}
+                                        onBuy={(it) => openPurchaseModal('pet', it)}
                                     />
                                 ))}
                             </Group>
@@ -174,8 +214,8 @@ export default function RewardShopPage() {
                                         key={item.id}
                                         item={item}
                                         canAfford={coins >= item.price}
-                                        owned={isOwned(activeTab, item.id)}
-                                        onBuy={(it) => openPurchaseModal(activeTab, it)}
+                                        owned={isOwned('garden', item.id)}
+                                        onBuy={(it) => openPurchaseModal('garden', it)}
                                         imageWidth={200}
                                         imageHeight={80}
                                     />
@@ -190,7 +230,7 @@ export default function RewardShopPage() {
                                 <Box style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                     <Image src='/assets/currency/student-coin.png' alt='' w='20px' h='20px' />
                                     <Text fw={500} fz={{ xs: 'xs', sm: 'sm', md: 'md' }}>
-                                        {coins} {/* Display the number of coins the user has */}
+                                        {coins}
                                     </Text>
                                 </Box>
                             </Box>

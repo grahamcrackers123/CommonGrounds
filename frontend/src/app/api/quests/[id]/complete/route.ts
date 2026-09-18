@@ -14,19 +14,20 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data, error } = await supabase
-    .from('quests')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single()
+  const { data, error } = await supabase.rpc('complete_quest', { p_quest_id: id })
 
   if (error) {
-    return NextResponse.json({ error: 'Quest not found' }, { status: 404 })
+    const status =
+      error.message === 'quest not found' ? 404 :
+      error.message === 'quest already completed' ? 400 : 500
+    return NextResponse.json({ error: error.message }, { status })
   }
 
-  return NextResponse.json({ quest: data })
+  const result = data?.[0]
+  return NextResponse.json({
+    quest: { id: result.quest_id, status: result.status, completed_at: result.completed_at },
+    coins: result.new_coin_balance,
+    // level/xp/leveledUp are null/false if the user has no active pet yet
+    pet: { level: result.pet_level, xp: result.pet_xp, leveledUp: result.leveled_up },
+  })
 }
