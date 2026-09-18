@@ -389,22 +389,22 @@ export default function SetupPage() {
                                         />
                                         <Button size={isMobile ? 'xs' : 'md'} radius="lg" onClick={addCoursework} leftSection={<Plus size={16} />} style={{ flexShrink: 0 }}>Add</Button>
                                     </Flex>
-                                    <Text fw={500} fz={{ base: 'xs', md: 'sm' }}>Priority Rules:</Text>
+                                    <Text fw={500} fz={{ base: 'xs', md: 'md' }} mb='5px'>Priority Rules:</Text>
                                     <Flex direction='column' w='100%' gap='md'>
                                         {courseworkTypes.length === 0 ? (
                                             <Text fz={{ base: 'sm', md: 'md' }} c='dimmed'>Add coursework types above to set their priority.</Text>
                                         ) : (
                                             courseworkTypes.map((type) => (
                                                 <Flex key={type} direction={{ base: 'column', sm: 'row' }} w={{ base: '100%', md: '60%' }} gap={{ base: '0', sm: 'md' }} style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
-                                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>{type}</Text>
+                                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500}>{type}</Text>
                                                     <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
                                                             onChange={(v) => setPriorities((prev) => ({ ...prev, [type]: v }))}
                                                         >
-                                                            <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'md'}>High</Chip>
-                                                            <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'md'}>Medium</Chip>
-                                                            <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'md'}>Low</Chip>
+                                                            <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'sm'}>High</Chip>
+                                                            <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
+                                                            <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'sm'}>Low</Chip>
                                                         </Chip.Group>
                                                     </Flex>
                                                 </Flex>
