@@ -248,7 +248,7 @@ export default function AccessPage() {
                                     {...signinForm.getInputProps('rememberMe', { type: 'checkbox' })}
                                     size={isMobile ? 'xs' : 'md'}
                                 />
-                                <Anchor component="button" type="button" size="sm" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
+                                <Anchor component="button" type="button" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
                                     Forgot Password?
                                 </Anchor>
                             </Group>
