@@ -1,4 +1,5 @@
 import Navbar from '@/components/navbar';
+import ThemeProvider from '@/components/theme-provider';
 import {
   Container,
   createTheme,
@@ -59,13 +60,15 @@ export default function RootLayout({
           theme={theme}
           defaultColorScheme="light"
         >
-          <ModalsProvider>
-            <Notifications />
+          <ThemeProvider>
+            <ModalsProvider>
+              <Notifications />
 
-            <Container fluid p={0}>
-              <Navbar>{children}</Navbar>
-            </Container>
-          </ModalsProvider>
+              <Container fluid p={0}>
+                <Navbar>{children}</Navbar>
+              </Container>
+            </ModalsProvider>
+          </ThemeProvider>
         </MantineProvider>
       </body>
     </html>

@@ -1,7 +1,6 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-
 import {
     Anchor,
     Box,
@@ -10,6 +9,7 @@ import {
     Divider,
     Flex,
     Group,
+    MantineProvider,
     PasswordInput,
     Popover,
     Progress,
@@ -18,10 +18,8 @@ import {
     TextInput,
     Title,
 } from "@mantine/core";
-
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
-
 import {
     Check,
     Lock,
@@ -29,7 +27,6 @@ import {
     User,
     X,
 } from "lucide-react";
-
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -55,10 +52,7 @@ function PasswordRequirement({
             size="sm"
         >
             {meets ? <Check size={14} /> : <X size={14} />}
-
-            <Box ml={10}>
-                {label}
-            </Box>
+            <Box ml={10}>{label}</Box>
         </Text>
     );
 }
@@ -67,7 +61,7 @@ function PasswordRequirement({
 /* Password requirements */
 /* ----------------------------- */
 
-const requirements = [
+const requirements: { re: RegExp; label: string }[] = [
     {
         re: /[0-9]/,
         label: "Includes number",
@@ -81,7 +75,7 @@ const requirements = [
         label: "Includes uppercase letter",
     },
     {
-        re: /[$&+,:;=?@#|'<>.^\*()%!-]/,
+        re: /[$&+,:;=?@#|'<>.^*()%!-]/,
         label: "Includes special symbol",
     },
 ];
@@ -131,7 +125,6 @@ export default function AccessPage() {
     );
 
     const router = useRouter();
-
     const supabase = createClient();
 
     const [value, setValue] = useState("signin");
@@ -303,8 +296,7 @@ export default function AccessPage() {
             "LOGIN SESSION DEBUG:",
             {
                 hasSession: !!session,
-                userId:
-                    session?.user?.id,
+                userId: session?.user?.id,
                 sessionError:
                     sessionError?.message,
             }
@@ -329,8 +321,7 @@ export default function AccessPage() {
          * Supabase session persistence test.
          */
 
-        window.location.href =
-            "/dashboard";
+        window.location.href = "/dashboard";
     };
 
     /* ----------------------------- */
@@ -403,6 +394,7 @@ export default function AccessPage() {
          * Keep the existing profile insert
          * behavior from the original page.
          */
+
         if (user) {
             const { error: insertError } =
                 await supabase
@@ -436,17 +428,15 @@ export default function AccessPage() {
         access: "signin" | "signup"
     ) => {
         const { error } =
-            await supabase.auth.signInWithOAuth(
-                {
-                    provider: "google",
+            await supabase.auth.signInWithOAuth({
+                provider: "google",
 
-                    options: {
-                        redirectTo:
-                            window.location.origin +
-                            "/callback",
-                    },
-                }
-            );
+                options: {
+                    redirectTo:
+                        window.location.origin +
+                        "/callback",
+                },
+            });
 
         if (error) {
             if (access === "signin") {
@@ -466,201 +456,161 @@ export default function AccessPage() {
     /* ----------------------------- */
 
     return (
-        <Flex
-            direction="row"
-            mih="100vh"
-            w="100%"
-        >
-            {/* Left side */}
-
+        <MantineProvider forceColorScheme="light">
             <Flex
-                direction="column"
-                gap="md"
+                direction="row"
                 mih="100vh"
-                w="50%"
-                p="md"
-            />
-
-            {/* Right side */}
-
-            <Flex
-                direction="column"
-                gap="md"
-                mih="100vh"
-                w="50%"
-                p="md"
-                justify="center"
-                bg="#EAF3FF"
+                w="100%"
             >
-                {/* Logo / title */}
+                {/* Left side */}
 
                 <Flex
-                    justify="center"
-                    mb="xl"
-                >
-                    <Title
-                        order={1}
-                        fz={{
-                            base: "xl",
-                            md: "2xl",
-                        }}
-                        fw={700}
-                    >
-                        CommonGrounds
-                    </Title>
-                </Flex>
-
-                {/* Welcome message */}
-
-                <Group
-                    justify="center"
-                    align="center"
+                    direction="column"
                     gap="md"
+                    mih="100vh"
+                    w="50%"
+                    p="md"
+                />
+
+                {/* Right side */}
+
+                <Flex
+                    direction="column"
+                    gap="md"
+                    mih="100vh"
+                    w="50%"
+                    p="md"
+                    justify="center"
+                    bg="white"
                 >
-                    {value === "signin" ? (
-                        <Flex
-                            direction="column"
-                            align="center"
-                        >
-                            <Text
-                                fw="bold"
-                                fz={{
-                                    base: "md",
-                                    md: "xl",
-                                }}
-                            >
-                                Welcome back!
-                            </Text>
+                    {/* Logo / title */}
 
-                            <Text
-                                c="dimmed"
-                                fz={{
-                                    base: "md",
-                                    md: "xl",
-                                }}
-                                ta="center"
-                            >
-                                Please enter your
-                                details.
-                            </Text>
-                        </Flex>
-                    ) : (
-                        <Flex
-                            direction="column"
-                            align="center"
-                        >
-                            <Text
-                                fw="bold"
-                                fz={{
-                                    base: "md",
-                                    md: "xl",
-                                }}
-                            >
-                                Welcome!
-                            </Text>
-
-                            <Text
-                                c="dimmed"
-                                fz={{
-                                    base: "md",
-                                    md: "xl",
-                                }}
-                                ta="center"
-                            >
-                                Create an account
-                                to get started!
-                            </Text>
-                        </Flex>
-                    )}
-
-                    {/* Sign-in / Sign-up switch */}
-
-                    <SegmentedControl
-                        color="blue"
-                        bg="white"
-                        radius="lg"
-                        autoContrast
-                        data={[
-                            {
-                                label: "Sign In",
-                                value: "signin",
-                            },
-                            {
-                                label: "Sign Up",
-                                value: "signup",
-                            },
-                        ]}
-                        value={value}
-                        onChange={setValue}
-                        w="100%"
-                    />
-                </Group>
-
-                {/* ========================= */}
-                {/* SIGN IN */}
-                {/* ========================= */}
-
-                {value === "signin" && (
-                    <form
-                        onSubmit={signinForm.onSubmit(
-                            handleSignIn
-                        )}
+                    <Flex
+                        justify="center"
+                        mb="xl"
                     >
-                        <TextInput
-                            label="Email"
-                            placeholder="Enter your email"
-                            leftSection={
-                                <Mail size={18} />
-                            }
-                            radius="lg"
-                            key={signinForm.key(
-                                "email"
-                            )}
-                            {...signinForm.getInputProps(
-                                "email"
-                            )}
-                            mb="md"
-                            size={
-                                isMobile
-                                    ? "xs"
-                                    : "md"
-                            }
-                        />
-
-                        <PasswordInput
-                            label="Password"
-                            placeholder="Enter your password"
-                            leftSection={
-                                <Lock size={18} />
-                            }
-                            radius="lg"
-                            key={signinForm.key(
-                                "password"
-                            )}
-                            {...signinForm.getInputProps(
-                                "password"
-                            )}
-                            mb="md"
-                            size={
-                                isMobile
-                                    ? "xs"
-                                    : "md"
-                            }
-                        />
-
-                        <Group
-                            justify="space-between"
-                            align="center"
-                            mb="md"
+                        <Title
+                            order={1}
+                            fz={{
+                                base: "xl",
+                                md: "2xl",
+                            }}
+                            fw={700}
                         >
-                            <Checkbox
-                                label="Remember me"
-                                {...signinForm.getInputProps(
-                                    "rememberMe",
-                                    {
-                                        type: "checkbox",
-                                    }
+                            CommonGrounds
+                        </Title>
+                    </Flex>
+
+                    {/* Welcome message */}
+
+                    <Group
+                        justify="center"
+                        align="center"
+                        gap="md"
+                    >
+                        {value === "signin" ? (
+                            <Flex
+                                direction="column"
+                                align="center"
+                            >
+                                <Text
+                                    fw="bold"
+                                    fz={{
+                                        base: "md",
+                                        md: "xl",
+                                    }}
+                                >
+                                    Welcome back!
+                                </Text>
+
+                                <Text
+                                    c="dimmed"
+                                    fz={{
+                                        base: "md",
+                                        md: "xl",
+                                    }}
+                                    ta="center"
+                                >
+                                    Please enter your
+                                    details.
+                                </Text>
+                            </Flex>
+                        ) : (
+                            <Flex
+                                direction="column"
+                                align="center"
+                            >
+                                <Text
+                                    fw="bold"
+                                    fz={{
+                                        base: "md",
+                                        md: "xl",
+                                    }}
+                                >
+                                    Welcome!
+                                </Text>
+
+                                <Text
+                                    c="dimmed"
+                                    fz={{
+                                        base: "md",
+                                        md: "xl",
+                                    }}
+                                    ta="center"
+                                >
+                                    Create an account
+                                    to get started!
+                                </Text>
+                            </Flex>
+                        )}
+
+                        {/* Sign-in / Sign-up switch */}
+
+                        <SegmentedControl
+                            color="blue"
+                            bg="white"
+                            radius="lg"
+                            autoContrast
+                            data={[
+                                {
+                                    label: "Sign In",
+                                    value: "signin",
+                                },
+                                {
+                                    label: "Sign Up",
+                                    value: "signup",
+                                },
+                            ]}
+                            value={value}
+                            onChange={setValue}
+                            w="100%"
+                        />
+                    </Group>
+
+                    {/* ========================= */}
+                    {/* SIGN IN */}
+                    {/* ========================= */}
+
+                    {value === "signin" && (
+                        <form
+                            onSubmit={signinForm.onSubmit(
+                                handleSignIn
+                            )}
+                        >
+                            <TextInput
+                                label="Email"
+                                placeholder="Enter your email"
+                                leftSection={
+                                    <Mail size={18} />
+                                }
+                                radius="lg"
+                                key={signinForm.key(
+                                    "email"
                                 )}
+                                {...signinForm.getInputProps(
+                                    "email"
+                                )}
+                                mb="md"
                                 size={
                                     isMobile
                                         ? "xs"
@@ -668,350 +618,392 @@ export default function AccessPage() {
                                 }
                             />
 
-                            <Anchor
-                                component="button"
-                                type="button"
-                                onClick={
-                                    handleForgotPassword
+                            <PasswordInput
+                                label="Password"
+                                placeholder="Enter your password"
+                                leftSection={
+                                    <Lock size={18} />
                                 }
+                                radius="lg"
+                                key={signinForm.key(
+                                    "password"
+                                )}
+                                {...signinForm.getInputProps(
+                                    "password"
+                                )}
+                                mb="md"
                                 size={
                                     isMobile
                                         ? "xs"
                                         : "md"
                                 }
-                            >
-                                Forgot Password?
-                            </Anchor>
-                        </Group>
+                            />
 
-                        {signinError && (
-                            <Text
-                                c="red"
-                                size="sm"
+                            <Group
+                                justify="space-between"
+                                align="center"
                                 mb="md"
                             >
-                                {signinError}
-                            </Text>
-                        )}
-
-                        <Flex
-                            direction="column"
-                            gap="md"
-                            w="100%"
-                            mt="md"
-                        >
-                            <Button
-                                variant="outline"
-                                radius="lg"
-                                type="submit"
-                                loading={
-                                    signinLoading
-                                }
-                                size={
-                                    isMobile
-                                        ? "xs"
-                                        : "md"
-                                }
-                            >
-                                Sign In
-                            </Button>
-
-                            <Divider
-                                label="OR"
-                                labelPosition="center"
-                            />
-
-                            <Button
-                                variant="outline"
-                                radius="lg"
-                                type="button"
-                                onClick={() =>
-                                    handleGoogleAuth(
-                                        "signin"
-                                    )
-                                }
-                                size={
-                                    isMobile
-                                        ? "xs"
-                                        : "md"
-                                }
-                            >
-                                Continue with Google
-                            </Button>
-                        </Flex>
-                    </form>
-                )}
-
-                {/* ========================= */}
-                {/* SIGN UP */}
-                {/* ========================= */}
-
-                {value === "signup" && (
-                    <form
-                        onSubmit={signupForm.onSubmit(
-                            handleSignUp
-                        )}
-                    >
-                        <Flex
-                            direction="row"
-                            gap="md"
-                            w="100%"
-                            justify="space-between"
-                            mb="md"
-                        >
-                            <TextInput
-                                label="First Name"
-                                placeholder="Enter your first name"
-                                leftSection={
-                                    <User size={18} />
-                                }
-                                radius="lg"
-                                w="100%"
-                                key={signupForm.key(
-                                    "firstName"
-                                )}
-                                {...signupForm.getInputProps(
-                                    "firstName"
-                                )}
-                                size={
-                                    isMobile
-                                        ? "xs"
-                                        : "md"
-                                }
-                            />
-
-                            <TextInput
-                                label="Last Name"
-                                placeholder="Enter your last name"
-                                leftSection={
-                                    <User size={18} />
-                                }
-                                radius="lg"
-                                w="100%"
-                                key={signupForm.key(
-                                    "lastName"
-                                )}
-                                {...signupForm.getInputProps(
-                                    "lastName"
-                                )}
-                                size={
-                                    isMobile
-                                        ? "xs"
-                                        : "md"
-                                }
-                            />
-                        </Flex>
-
-                        <TextInput
-                            label="Email"
-                            placeholder="Enter email"
-                            leftSection={
-                                <Mail size={18} />
-                            }
-                            radius="lg"
-                            key={signupForm.key(
-                                "email"
-                            )}
-                            {...signupForm.getInputProps(
-                                "email"
-                            )}
-                            mb="md"
-                            size={
-                                isMobile
-                                    ? "xs"
-                                    : "md"
-                            }
-                        />
-
-                        <Popover
-                            opened={popoverOpened}
-                            position="bottom"
-                            width="target"
-                            transitionProps={{
-                                transition: "pop",
-                            }}
-                        >
-                            <Popover.Target>
-                                <div
-                                    onFocusCapture={() =>
-                                        setPopoverOpened(
-                                            true
-                                        )
+                                <Checkbox
+                                    label="Remember me"
+                                    {...signinForm.getInputProps(
+                                        "rememberMe",
+                                        {
+                                            type: "checkbox",
+                                        }
+                                    )}
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
                                     }
-                                    onBlurCapture={() =>
-                                        setPopoverOpened(
-                                            false
-                                        )
+                                />
+
+                                <Anchor
+                                    component="button"
+                                    type="button"
+                                    onClick={
+                                        handleForgotPassword
+                                    }
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
                                     }
                                 >
-                                    <PasswordInput
-                                        label="Password"
-                                        placeholder="Enter password"
-                                        leftSection={
-                                            <Lock
-                                                size={18}
-                                            />
-                                        }
-                                        radius="lg"
-                                        mb="md"
-                                        key={signupForm.key(
-                                            "password"
-                                        )}
-                                        {...signupForm.getInputProps(
-                                            "password"
-                                        )}
-                                        onChange={(
-                                            event
-                                        ) => {
-                                            const password =
-                                                event
-                                                    .currentTarget
-                                                    .value;
+                                    Forgot Password?
+                                </Anchor>
+                            </Group>
 
-                                            setSignupPassword(
-                                                password
-                                            );
+                            {signinError && (
+                                <Text
+                                    c="red"
+                                    size="sm"
+                                    mb="md"
+                                >
+                                    {signinError}
+                                </Text>
+                            )}
 
-                                            signupForm.setFieldValue(
-                                                "password",
-                                                password,
-                                                {
-                                                    forceUpdate:
-                                                        false,
-                                                }
-                                            );
+                            <Flex
+                                direction="column"
+                                gap="md"
+                                w="100%"
+                                mt="md"
+                            >
+                                <Button
+                                    variant="outline"
+                                    radius="lg"
+                                    type="submit"
+                                    loading={
+                                        signinLoading
+                                    }
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
+                                    }
+                                >
+                                    Sign In
+                                </Button>
 
-                                            signupForm.validateField(
-                                                "confirmPassword"
-                                            );
-                                        }}
-                                        size={
-                                            isMobile
-                                                ? "xs"
-                                                : "md"
-                                        }
-                                    />
-                                </div>
-                            </Popover.Target>
-
-                            <Popover.Dropdown>
-                                <Progress
-                                    color={color}
-                                    value={strength}
-                                    size={5}
-                                    mb="xs"
+                                <Divider
+                                    label="OR"
+                                    labelPosition="center"
                                 />
 
-                                <PasswordRequirement
-                                    label="Includes at least 6 characters"
-                                    meets={
-                                        signupPassword.length >
-                                        5
+                                <Button
+                                    variant="outline"
+                                    radius="lg"
+                                    type="button"
+                                    onClick={() =>
+                                        handleGoogleAuth(
+                                            "signin"
+                                        )
+                                    }
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
+                                    }
+                                >
+                                    Continue with Google
+                                </Button>
+                            </Flex>
+                        </form>
+                    )}
+
+                    {/* ========================= */}
+                    {/* SIGN UP */}
+                    {/* ========================= */}
+
+                    {value === "signup" && (
+                        <form
+                            onSubmit={signupForm.onSubmit(
+                                handleSignUp
+                            )}
+                        >
+                            <Flex
+                                direction="row"
+                                gap="md"
+                                w="100%"
+                                justify="space-between"
+                                mb="md"
+                            >
+                                <TextInput
+                                    label="First Name"
+                                    placeholder="Enter your first name"
+                                    leftSection={
+                                        <User size={18} />
+                                    }
+                                    radius="lg"
+                                    w="100%"
+                                    key={signupForm.key(
+                                        "firstName"
+                                    )}
+                                    {...signupForm.getInputProps(
+                                        "firstName"
+                                    )}
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
                                     }
                                 />
 
-                                {requirements.map(
-                                    (
-                                        requirement,
-                                        index
-                                    ) => (
-                                        <PasswordRequirement
-                                            key={index}
-                                            label={
-                                                requirement.label
-                                            }
-                                            meets={requirement.re.test(
-                                                signupPassword
-                                            )}
-                                        />
-                                    )
-                                )}
-                            </Popover.Dropdown>
-                        </Popover>
+                                <TextInput
+                                    label="Last Name"
+                                    placeholder="Enter your last name"
+                                    leftSection={
+                                        <User size={18} />
+                                    }
+                                    radius="lg"
+                                    w="100%"
+                                    key={signupForm.key(
+                                        "lastName"
+                                    )}
+                                    {...signupForm.getInputProps(
+                                        "lastName"
+                                    )}
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
+                                    }
+                                />
+                            </Flex>
 
-                        <PasswordInput
-                            label="Confirm Password"
-                            placeholder="Confirm password"
-                            leftSection={
-                                <Lock size={18} />
-                            }
-                            radius="lg"
-                            key={signupForm.key(
-                                "confirmPassword"
-                            )}
-                            {...signupForm.getInputProps(
-                                "confirmPassword"
-                            )}
-                            mb="md"
-                            size={
-                                isMobile
-                                    ? "xs"
-                                    : "md"
-                            }
-                        />
-
-                        {signupError && (
-                            <Text
-                                c="red"
-                                size="sm"
-                                mb="md"
-                                fz={{
-                                    base: "xs",
-                                    md: "sm",
-                                }}
-                            >
-                                {signupError}
-                            </Text>
-                        )}
-
-                        <Flex
-                            direction="column"
-                            gap="md"
-                            w="100%"
-                            mt="lg"
-                        >
-                            <Button
-                                variant="outline"
-                                radius="lg"
-                                type="submit"
-                                loading={
-                                    signupLoading
+                            <TextInput
+                                label="Email"
+                                placeholder="Enter email"
+                                leftSection={
+                                    <Mail size={18} />
                                 }
+                                radius="lg"
+                                key={signupForm.key(
+                                    "email"
+                                )}
+                                {...signupForm.getInputProps(
+                                    "email"
+                                )}
+                                mb="md"
                                 size={
                                     isMobile
                                         ? "xs"
                                         : "md"
                                 }
-                            >
-                                Sign Up
-                            </Button>
-
-                            <Divider
-                                label="Or"
-                                labelPosition="center"
                             />
 
-                            <Button
-                                variant="outline"
-                                radius="lg"
-                                type="button"
-                                onClick={() =>
-                                    handleGoogleAuth(
-                                        "signup"
-                                    )
+                            <Popover
+                                opened={popoverOpened}
+                                position="bottom"
+                                width="target"
+                                transitionProps={{
+                                    transition: "pop",
+                                }}
+                            >
+                                <Popover.Target>
+                                    <div
+                                        onFocusCapture={() =>
+                                            setPopoverOpened(
+                                                true
+                                            )
+                                        }
+                                        onBlurCapture={() =>
+                                            setPopoverOpened(
+                                                false
+                                            )
+                                        }
+                                    >
+                                        <PasswordInput
+                                            label="Password"
+                                            placeholder="Enter password"
+                                            leftSection={
+                                                <Lock
+                                                    size={18}
+                                                />
+                                            }
+                                            radius="lg"
+                                            mb="md"
+                                            key={signupForm.key(
+                                                "password"
+                                            )}
+                                            {...signupForm.getInputProps(
+                                                "password"
+                                            )}
+                                            onChange={(
+                                                event
+                                            ) => {
+                                                const password =
+                                                    event
+                                                        .currentTarget
+                                                        .value;
+
+                                                setSignupPassword(
+                                                    password
+                                                );
+
+                                                signupForm.setFieldValue(
+                                                    "password",
+                                                    password,
+                                                    {
+                                                        forceUpdate:
+                                                            false,
+                                                    }
+                                                );
+
+                                                signupForm.validateField(
+                                                    "confirmPassword"
+                                                );
+                                            }}
+                                            size={
+                                                isMobile
+                                                    ? "xs"
+                                                    : "md"
+                                            }
+                                        />
+                                    </div>
+                                </Popover.Target>
+
+                                <Popover.Dropdown>
+                                    <Progress
+                                        color={color}
+                                        value={strength}
+                                        size={5}
+                                        mb="xs"
+                                    />
+
+                                    <PasswordRequirement
+                                        label="Includes at least 6 characters"
+                                        meets={
+                                            signupPassword.length >
+                                            5
+                                        }
+                                    />
+
+                                    {requirements.map(
+                                        (
+                                            requirement,
+                                            index
+                                        ) => (
+                                            <PasswordRequirement
+                                                key={index}
+                                                label={
+                                                    requirement.label
+                                                }
+                                                meets={requirement.re.test(
+                                                    signupPassword
+                                                )}
+                                            />
+                                        )
+                                    )}
+                                </Popover.Dropdown>
+                            </Popover>
+
+                            <PasswordInput
+                                label="Confirm Password"
+                                placeholder="Confirm password"
+                                leftSection={
+                                    <Lock size={18} />
                                 }
+                                radius="lg"
+                                key={signupForm.key(
+                                    "confirmPassword"
+                                )}
+                                {...signupForm.getInputProps(
+                                    "confirmPassword"
+                                )}
+                                mb="md"
                                 size={
                                     isMobile
                                         ? "xs"
                                         : "md"
                                 }
+                            />
+
+                            {signupError && (
+                                <Text
+                                    c="red"
+                                    size="sm"
+                                    mb="md"
+                                    fz={{
+                                        base: "xs",
+                                        md: "sm",
+                                    }}
+                                >
+                                    {signupError}
+                                </Text>
+                            )}
+
+                            <Flex
+                                direction="column"
+                                gap="md"
+                                w="100%"
+                                mt="lg"
                             >
-                                Sign Up with Google
-                            </Button>
-                        </Flex>
-                    </form>
-                )}
+                                <Button
+                                    variant="outline"
+                                    radius="lg"
+                                    type="submit"
+                                    loading={
+                                        signupLoading
+                                    }
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
+                                    }
+                                >
+                                    Sign Up
+                                </Button>
+
+                                <Divider
+                                    label="Or"
+                                    labelPosition="center"
+                                />
+
+                                <Button
+                                    variant="outline"
+                                    radius="lg"
+                                    type="button"
+                                    onClick={() =>
+                                        handleGoogleAuth(
+                                            "signup"
+                                        )
+                                    }
+                                    size={
+                                        isMobile
+                                            ? "xs"
+                                            : "md"
+                                    }
+                                >
+                                    Sign Up with Google
+                                </Button>
+                            </Flex>
+                        </form>
+                    )}
+                </Flex>
             </Flex>
-        </Flex>
+        </MantineProvider>
     );
 }

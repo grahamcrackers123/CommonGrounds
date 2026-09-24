@@ -10,14 +10,12 @@ import {
     Group,
     Text,
     UnstyledButton,
-    useComputedColorScheme,
     useMantineColorScheme,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Circle, Moon, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
 
 function FillCircle({
     active,
@@ -88,17 +86,8 @@ export default function Navbar({
     const router = useRouter();
     const supabase = createClient();
 
-    const { toggleColorScheme } = useMantineColorScheme();
-
-    const computedColorScheme = useComputedColorScheme("light", {
-        getInitialValueInEffect: true,
-    });
-
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const { colorScheme, setColorScheme } =
+        useMantineColorScheme();
 
     const navlinks = [
         { label: "Dashboard", path: "/dashboard" },
@@ -110,6 +99,37 @@ export default function Navbar({
         { label: "Progress Map", path: "/progressmap" },
         { label: "Settings", path: "/settings" },
     ];
+
+    const handleThemeToggle = async () => {
+        const nextTheme =
+            colorScheme === "dark" ? "light" : "dark";
+
+        // Change the UI immediately
+        setColorScheme(nextTheme);
+
+        // Save the user's preference to their profile
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+            return;
+        }
+
+        const { error } = await supabase
+            .from("profiles")
+            .update({
+                theme_preference: nextTheme,
+            })
+            .eq("id", user.id);
+
+        if (error) {
+            console.error(
+                "Could not save theme preference:",
+                error
+            );
+        }
+    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -181,12 +201,10 @@ export default function Navbar({
                             variant="default"
                             size="lg"
                             radius="md"
-                            onClick={() => toggleColorScheme()}
+                            onClick={handleThemeToggle}
                             aria-label="Toggle color scheme"
                         >
-                            {!mounted ? (
-                                <Moon size={18} />
-                            ) : computedColorScheme === "dark" ? (
+                            {colorScheme === "dark" ? (
                                 <Sun size={18} />
                             ) : (
                                 <Moon size={18} />
