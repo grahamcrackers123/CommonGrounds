@@ -4,6 +4,7 @@ import {
     recordBehavioralEvent,
     type BehavioralEventType,
 } from "@/lib/interventions/events";
+import { evaluateAndNotifyRisk } from "@/lib/interventions/notify";
 
 const EVENT_TYPES: BehavioralEventType[] = [
     "session_started",
@@ -23,36 +24,19 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-        return NextResponse.json(
-            { error: "Unauthorized" },
-            { status: 401 }
-        );
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let body: {
-        type?: string;
-        metadata?: Record<string, unknown>;
-    };
+    let body: { type?: string; metadata?: Record<string, unknown> };
 
     try {
         body = await request.json();
     } catch {
-        return NextResponse.json(
-            { error: "Invalid JSON body" },
-            { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    if (
-        !body.type ||
-        !EVENT_TYPES.includes(
-            body.type as BehavioralEventType
-        )
-    ) {
-        return NextResponse.json(
-            { error: "Invalid behavioral event type" },
-            { status: 400 }
-        );
+    if (!body.type || !EVENT_TYPES.includes(body.type as BehavioralEventType)) {
+        return NextResponse.json({ error: "Invalid behavioral event type" }, { status: 400 });
     }
 
     const { data, error } = await recordBehavioralEvent(
@@ -62,14 +46,11 @@ export async function POST(request: Request) {
     );
 
     if (error) {
-        return NextResponse.json(
-            { error: error.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(
-        { event: data },
-        { status: 201 }
-    );
+    // don't block the response on risk evaluation
+    evaluateAndNotifyRisk(supabase, user.id);
+
+    return NextResponse.json({ event: data }, { status: 201 });
 }
