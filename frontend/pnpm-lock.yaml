@@ -35,6 +35,9 @@ importers:
       '@tabler/icons-react':
         specifier: ^3.47.0
         version: 3.47.0(react@19.2.8)
+      dayjs:
+        specifier: ^1.11.23
+        version: 1.11.23
       groq-sdk:
         specifier: ^1.5.0
         version: 1.5.0
