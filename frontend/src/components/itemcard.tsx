@@ -39,7 +39,14 @@ export default function ItemCard({ item, owned, imageWidth = 80, imageHeight = 8
             <Paper w='100px' h='100px' mb='10px' style={{ backgroundColor: item.backgroundColor, borderRadius: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Image src={item.imageUrl} alt={item.name} w={`${imageWidth}px`} h={`${imageHeight}px`} />
             </Paper>
-            <Text size="sm" fw={500} mb='5px'>{item.name}</Text>
+            <Text
+    size="sm"
+    fw={500}
+    mb="5px"
+    c="light-dark(#000000, #080606)"
+>
+    {item.name}
+</Text>
             {owned ? (
                 <Text size="sm" fw={500} c='green'>Owned</Text>
             ) : (

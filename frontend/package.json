@@ -17,11 +17,16 @@
     "@mantine/notifications": "^9.5.2",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
+    "@tabler/icons-react": "^3.47.0",
     "groq-sdk": "^1.5.0",
     "lucide-react": "^1.31.0",
+    "mammoth": "^1.12.3",
     "next": "16.3.1",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
