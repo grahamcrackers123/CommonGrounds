@@ -34,7 +34,7 @@ export async function PATCH(
   if (questInfo) {
     await supabase.rpc('create_notification', {
       _user_id: user.id,
-      _type: 'session_completed',
+      _type: 'session_completed', // quest or focus session completed
       _title: 'Quest completed!',
       _body: `You earned ${questInfo.reward_coins} coins for "${questInfo.title}"`,
     })
