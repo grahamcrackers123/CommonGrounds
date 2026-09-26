@@ -33,11 +33,6 @@ function getStrength(password: string) {
     return Math.max(100 - (100 / (requirements.length + 1)) * multiplier, 10);
 }
 
-// user code generator, may change 
-function generateUserCode() {
-    return `U${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-}
-
 export default function AccessPage() {
     const isMobile = useMediaQuery('(max-width: 768px)');
     const [value, setValue] = useState('signin');
@@ -122,7 +117,7 @@ export default function AccessPage() {
         setSignupError(null);
         setSignupLoading(true);
 
-        const { data: { user }, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
             email: values.email,
             password: values.password,
             options: {
@@ -142,15 +137,6 @@ export default function AccessPage() {
                 setSignupError(error.message);
             }
             return;
-        }
-
-        if (user) {
-            const { error: insertError } = await supabase.from('profiles').insert({
-                id: user.id,
-                user_code: generateUserCode(),
-                display_name: `${values.firstName} ${values.lastName}`,
-            });
-            if (insertError) console.error('profile insert error:', insertError);
         }
 
         setSignupError('We will send an automated confirmation email if an account does not already exist with this email.')

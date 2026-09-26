@@ -44,6 +44,13 @@ function defaultSlots(): DaySlot[] {
     return DAYS.map((day) => ({ day, enabled: false, start: '09:00', end: '12:00' }));
 }
 
+function to12Hour(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hour = hours % 12 === 0 ? 12 : hours % 12;
+    return `${hour}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
 function readDraft(): SetupDraft {
     if (typeof window === 'undefined') return {};
     try {
@@ -300,7 +307,7 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>When are you usually available to study?</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>CommonGrounds uses this to generate realistic focus blocks and prevent overloaded schedules.</Text>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Time</Text>
+                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Period</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' mb='xs' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                                         <Chip.Group value={setUpForm.values.studyTime} onChange={(value) => setUpForm.setFieldValue('studyTime', value)}>
                                             <Chip radius="lg" variant='light' value='Morning' size={isMobile ? 'xs' : 'md'}>Morning</Chip>
@@ -309,7 +316,7 @@ export default function SetupPage() {
                                             <Chip radius="lg" variant='light' value='Late Night' size={isMobile ? 'xs' : 'md'}>Late Night</Chip>
                                         </Chip.Group>
                                     </Flex>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability to Study</Text>
+                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability Study Schedule</Text>
                                     {slots.map((slot) => (
                                         <Flex key={slot.day} direction={{ base: 'column', sm: 'row' }} align='center' gap='md' mb='xs' w='100%'>
                                             <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'}>
@@ -478,7 +485,7 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Preferred Study Time: {setUpForm.values.studyTime}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${slot.start} - ${slot.end})`).join(', ') || 'No days selected'}</Text>
+                                        <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Coursework Types and Priorities: {courseworkTypes.map(type => `${type} (${priorities[type] || 'No priority set'})`).join(', ') || 'No coursework types added'}</Text>

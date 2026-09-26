@@ -1,6 +1,7 @@
 import { getPetGrowth, getPetStatus, getXpProgress, xp_per_level } from "@/components/petgrowth";
 import { createClient } from "@/lib/supabase/server";
-import { BackgroundImage, Box, Button, Center, Container, Flex, Group, Image, Progress, Text } from "@mantine/core";
+import { Badge, Box, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
+import { Flower2, Sun } from "lucide-react";
 
 export default async function PetGardenPage() {
     const supabase = await createClient();
@@ -16,62 +17,194 @@ export default async function PetGardenPage() {
     const petStatus = getPetStatus(energy);
 
     return (
-        <Container mih="100vh" p={{ base: 20, md: 40 }} miw='100%' style={{ backgroundColor: "#F7F9FC" }}>
-            <Flex direction='row' gap='md' w='100%' h='100%'>
-                <BackgroundImage w='100%' mih={500} src='/assets/garden-themes/default-garden.png' style={{ padding: '20px', borderRadius: '10px' }}>
-                    {pet?.species && (
-                        <Center style={{ height: '100%' }}>
-                            <Flex>
-                                <Image
-                                    src={`/assets/starter-pets/${pet.species}.png`}
-                                    alt={pet.name}
-                                    w={300}
-                                    h={300}
-                                    fit='contain'
-                                    style={{ transform: `scale(${growth.scale})`, transition: 'transform 0.5s ease', alignItems: 'flex-end', alignSelf: 'flex-end' }}
-                                />
-                                <Image
-                                    src={petStatus.imageUrl}
-                                    alt={petStatus.status}
-                                    w={150}
-                                    h={150}
-                                    fit='contain'
-                                    style={{ alignItems: 'flex-start', alignSelf: 'flex-start' }}
-                                />
-                            </Flex>
-                        </Center>
-                    )}
-                </BackgroundImage>
-
-                <Box p='md' w='40%' h='50%' style={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #ced4da', padding: '20px' }}>
-                    <Flex direction='row' style={{ alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                        <Group style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0px' }}>
-                            <Text fw={700} size="lg">
-                                {pet?.name}
-                            </Text>
-                            <Text c='dimmed' size='sm'>Level: {level} • {growth.stage}</Text>
-                        </Group>
-                        <Button size='sm' radius='xl' variant='outline' color='blue' style={{ pointerEvents: 'none' }}>
+        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+            <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
+                {/* Header */}
+                <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
+                    <Box>
+                        <Title order={1} fw={800}>
+                            Pet Garden
+                        </Title>
+                        <Text c="dimmed" size="sm" mt={4}>
+                            Care for your companion — feed it, play with it, and watch it grow.
+                        </Text>
+                    </Box>
+                    <Group gap={8}>
+                        <Badge size="lg" radius="xl" variant="light" color="teal">
+                            Level {pet.level} • {growth.stage}
+                        </Badge>
+                        <Badge
+                            size="lg"
+                            radius="xl"
+                            variant="filled"
+                            color={energy >= 60 ? "green" : energy >= 40 ? "yellow" : "red"}
+                        >
                             {petStatus.status}
-                        </Button>
-                    </Flex>
-                    <Group maw='100%' style={{ flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-                        <Flex direction='column' gap='5px' w='100%'>
-                            <Text size='sm' fw={500}>
-                                {xp} / {xp_per_level} XP
-                            </Text>
-                            <Progress size='lg' value={xpProgress} />
-                        </Flex>
-                        <Flex direction='column' gap='5px' w='100%'>
-                            <Text size='sm' fw={500}>
-                                {energy} / 100
-                            </Text>
-                            <Progress size='lg' value={energy} />
-                        </Flex>
+                        </Badge>
                     </Group>
-                    {/* <Progress size='lg' value={0} /> */}
-                </Box>
-            </Flex>
-        </Container >
+                </Group>
+
+                {/* garden */}
+                <SimpleGrid cols={{ base: 1, lg: 3 }} spacing='md' mb={28}>
+                    <Stack gap='md' style={{ gridColumn: 'span 2' }}>
+                        <Paper radius="lg" shadow="sm" withBorder style={{ overflow: "hidden", position: "relative" }}>
+                            <Box style={{ position: "relative", height: 440 }}>
+                                <Image
+                                    src={`/assets/garden-themes/default-garden.png`}
+                                    alt={pet.name}
+                                    fit='cover'
+                                    w="100%"
+                                    h="100%"
+                                    style={{ position: 'absolute', inset: 0 }}
+                                />
+                                <Box
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        background: "linear-gradient(180deg, rgba(23,37,26,0.12) 0%, rgba(23,37,26,0) 40%, rgba(23,37,26,0.18) 100%)",
+                                    }}
+                                />
+                                <Box style={{ position: "absolute", top: 16, left: 16 }}>
+                                    <Tooltip label={`Status: ${petStatus.status}`} withArrow>
+                                        <Box
+                                            w={72}
+                                            h={72}
+                                            style={{
+                                                borderRadius: 24,
+                                                backgroundColor: "rgba(255,255,255,0.92)",
+                                                display: "grid",
+                                                placeItems: "center",
+                                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <Image src={petStatus.imageUrl} alt={petStatus.status} w={48} h={48} />
+                                        </Box>
+                                    </Tooltip>
+                                </Box>
+
+                                <Box
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        paddingBottom: 48,
+                                    }}
+                                >
+                                    <Image
+                                        src={`/assets/starter-pets/${pet.species}.png`}
+                                        alt={pet.name}
+                                        w={300}
+                                        h={300}
+                                        fit="contain"
+                                        style={{
+                                            transform: `scale(${growth.scale})`,
+                                            transition: "transform 0.5s ease",
+                                            filter: "drop-shadow(0 14px 18px rgba(0,0,0,0.25))",
+                                        }}
+                                    />
+                                </Box>
+                            </Box>
+                        </Paper>
+
+                        {/* activity log */}
+                        <Paper p="lg" radius="lg" shadow="sm" withBorder>
+                            <Group gap={8} mb="md">
+                                <ThemeIcon radius="lg" variant="light" color="green" size={32}>
+                                    <Flower2 size={18} />
+                                </ThemeIcon>
+                                <Title order={3} fz="lg" fw={700}>
+                                    Recent Activity
+                                </Title>
+                            </Group>
+                            <Stack gap="sm">
+                                <Group gap="sm" wrap="nowrap" align="flex-start">
+                                </Group>
+                            </Stack>
+                        </Paper>
+                    </Stack>
+
+                    <Stack gap="md">
+                        <Paper p="lg" radius="lg" shadow="sm" withBorder>
+                            <Group justify="space-between" align="center" mb={6}>
+                                <Box>
+                                    <Text fz="xs" c="dimmed" tt="uppercase" fw={700} lts={1}>
+                                        Companion
+                                    </Text>
+                                    <Title order={3} fz="xl" fw={800} mt={2}>
+                                        {pet.name}
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        {pet.species === "bunny" ? "Bunny" : pet.species} • {growth.stage} stage
+                                    </Text>
+                                </Box>
+                                <Box
+                                    w={80}
+                                    h={80}
+                                    style={{
+                                        borderRadius: 24,
+                                        background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                        display: "grid",
+                                        placeItems: "center",
+                                    }}
+                                >
+                                    <Image
+                                        src={`/assets/starter-pets/${pet.species}.png`}
+                                        alt={pet.name}
+                                        w={64}
+                                        h={64}
+                                        fit="contain"
+                                    />
+                                </Box>
+                            </Group>
+
+                            <Group justify="space-between" mt={14} mb={6}>
+                                <Text fz="sm" fw={600}>
+                                    XP to next level
+                                </Text>
+                                <Text fz="sm" fw={700} c="green">
+                                    {pet.xp}/{xp_per_level}
+                                </Text>
+                            </Group>
+                            <Progress value={xpProgress} color="green" radius="xl" size="lg" />
+
+                            <Group justify="space-between" mt={14} mb={6}>
+                                <Text fz="sm" fw={600}>
+                                    Energy
+                                </Text>
+                                <Text fz="sm" fw={700}>
+                                    {energy}/100
+                                </Text>
+                            </Group>
+                            <Progress value={energy} color={energy >= 60 ? "teal" : energy >= 40 ? "yellow" : "red"} radius="xl" size="lg" />
+                        </Paper>
+
+                        {/* care tips */}
+                        <Paper p="lg" radius="lg" shadow="sm" withBorder>
+                            <Group gap={8} mb="sm">
+                                <ThemeIcon radius="lg" variant="light" color="yellow" size={32}>
+                                    <Sun size={18} />
+                                </ThemeIcon>
+                                <Title order={3} fz="lg" fw={700}>
+                                    Care Tips
+                                </Title>
+                            </Group>
+                            <Stack gap="xs">
+                                <Text size="sm" c="dimmed">
+                                    • Study sessions restore energy.
+                                </Text>
+                                <Text size="sm" c="dimmed">
+                                    • Sprout evolves to a new stage every 5 levels.
+                                </Text>
+                                <Text size="sm" c="dimmed">
+                                    • To equip an accessory or outfit, go to the Reward Shop.
+                                </Text>
+                            </Stack>
+                        </Paper>
+                    </Stack>
+                </SimpleGrid>
+            </Box>
+        </Box>
     );
 }

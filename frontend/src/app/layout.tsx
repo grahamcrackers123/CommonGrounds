@@ -5,6 +5,7 @@ import '@mantine/dates/styles.css';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import '@mantine/notifications/styles.css';
+import '@mantine/schedule/styles.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
