@@ -73,13 +73,16 @@ export default function SetupPage() {
     const [courseworkTypes, setCourseworkTypes] = useState<string[]>(initialDraft.courseworkTypes ?? []);
     const [priorities, setPriorities] = useState<Record<string, string>>(initialDraft.priorities ?? {});
     const [courseworkInput, setCourseworkInput] = useState('');
+    const [availabilityError, setAvailabilityError] = useState(false);
 
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
     );
 
-    const updateSlot = (day: string, patch: Partial<DaySlot>) =>
+    const updateSlot = (day: string, patch: Partial<DaySlot>) => {
         setSlots((prev) => prev.map((s) => (s.day === day ? { ...s, ...patch } : s)));
+        setAvailabilityError(false);
+    };
 
     const addCoursework = () => {
         const value = courseworkInput.trim();
@@ -125,7 +128,24 @@ export default function SetupPage() {
         const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
         if (hasErrors) return;
 
+        if (active === 1 && enabledSlots.length === 0) {
+            setAvailabilityError(true);
+            return;
+        }
+
         if (active === totalSteps - 1) {
+            // validate all steps again so a field cleared after going back cannot be submitted
+            const firstInvalidStep = Object.keys(stepFields)
+                .map(Number)
+                .sort((a, b) => a - b)
+                .find((step) => stepFields[step].some((field) => setUpForm.validateField(field).hasError));
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+                setActive(firstInvalidStep ?? 1);
+                setAvailabilityError(true);
+                notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
+                return;
+            }
+
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -345,6 +365,9 @@ export default function SetupPage() {
                                             </Flex>
                                         </Flex>
                                     ))}
+                                    {availabilityError && (
+                                        <Text c="red" size="sm" mb="xs">Select at least one day you&apos;re available to study.</Text>
+                                    )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                                         <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
