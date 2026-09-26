@@ -32,11 +32,29 @@ import {
   X,
 } from "lucide-react";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { useRouter } from "next/navigation";
 
 /* =========================================================
    TYPES
 ========================================================= */
+
+type QuestStatus =
+  | "pending"
+  | "in_progress"
+  | "completed";
+
+type QuestPriority =
+  | "low"
+  | "medium"
+  | "high";
 
 type Quest = {
   id: string;
@@ -47,97 +65,32 @@ type Quest = {
   subject: string | null;
 
   deadline: string | null;
-  priority: "low" | "medium" | "high";
-  status: "pending" | "in_progress" | "completed";
+
+  priority: QuestPriority;
+  status: QuestStatus;
 
   estimated_duration: number | null;
   checklist: string[];
 
-  // Calendar-only fields
   startTime?: string;
   endTime?: string;
 
-  // UI-only fields for now
   reward?: number;
   energy?: number;
   reason?: string;
   materials?: string[];
 };
 
-type Module = {
-  id: number;
-  code: string;
-  title: string;
-  instructor: string;
-  schedule: string;
-  description: string;
+type Material = {
+  id: string;
+  filename: string;
+  storage_path: string;
+  subject: string | null;
+  quest_id: string | null;
+  file_type: string;
+  file_size: number;
+  created_at: string;
 };
-
-type QuestPriority = "low" | "medium" | "high";
-
-/* =========================================================
-   MODULE DATA
-   Keep this as UI placeholder data for now.
-   Replace with API data later if your team creates a
-   modules endpoint.
-========================================================= */
-
-const MODULES: Module[] = [
-  {
-    id: 1,
-    code: "CCS101",
-    title: "Data Structures",
-    instructor: "Prof. Santos",
-    schedule: "Mon & Wed • 7:00 PM - 8:00 PM",
-    description:
-      "Data structures, algorithms, and problem solving.",
-  },
-  {
-    id: 2,
-    code: "DB201",
-    title: "Database Systems",
-    instructor: "Prof. Cruz",
-    schedule: "Tue & Thu • 5:00 PM - 6:00 PM",
-    description:
-      "Relational databases, SQL, and normalization.",
-  },
-  {
-    id: 3,
-    code: "IAS202",
-    title: "Information Assurance",
-    instructor: "Prof. Reyes",
-    schedule: "Wed • 6:00 PM - 7:00 PM",
-    description:
-      "Security controls, risk management, and auditing.",
-  },
-  {
-    id: 4,
-    code: "WD301",
-    title: "Web Development",
-    instructor: "Prof. Garcia",
-    schedule: "Thu • 4:00 PM - 5:00 PM",
-    description:
-      "Modern web development and application architecture.",
-  },
-  {
-    id: 5,
-    code: "CAP400",
-    title: "Capstone Project",
-    instructor: "Prof. Dela Cruz",
-    schedule: "Fri • 7:00 PM - 8:30 PM",
-    description:
-      "Capstone development and project implementation.",
-  },
-  {
-    id: 6,
-    code: "UX210",
-    title: "User Experience Design",
-    instructor: "Prof. Lim",
-    schedule: "Sat • 10:00 AM - 12:00 PM",
-    description:
-      "Interface design, usability, and user research.",
-  },
-];
 
 /* =========================================================
    HELPERS
@@ -157,16 +110,16 @@ const formatMonthYear = (date: Date) =>
     year: "numeric",
   });
 
-const formatShortDate = (date: Date) =>
-  date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-const addDays = (date: Date, amount: number) => {
+const addDays = (
+  date: Date,
+  amount: number
+) => {
   const result = new Date(date);
-  result.setDate(result.getDate() + amount);
+
+  result.setDate(
+    result.getDate() + amount
+  );
+
   return result;
 };
 
@@ -174,21 +127,25 @@ const getStartOfWeek = (date: Date) => {
   const result = new Date(date);
   const day = result.getDay();
 
-  result.setDate(result.getDate() - day);
+  result.setDate(
+    result.getDate() - day
+  );
+
   result.setHours(0, 0, 0, 0);
 
   return result;
 };
 
-const getDaysInMonth = (date: Date) => {
-  return new Date(
+const getDaysInMonth = (date: Date) =>
+  new Date(
     date.getFullYear(),
     date.getMonth() + 1,
     0
   ).getDate();
-};
 
-const getPriorityColor = (priority: string) => {
+const getPriorityColor = (
+  priority: string
+) => {
   switch (priority) {
     case "high":
       return "#e03131";
@@ -204,7 +161,9 @@ const getPriorityColor = (priority: string) => {
   }
 };
 
-const getPriorityLabel = (priority: string) => {
+const getPriorityLabel = (
+  priority: string
+) => {
   switch (priority) {
     case "high":
       return "High Priority";
@@ -220,7 +179,9 @@ const getPriorityLabel = (priority: string) => {
   }
 };
 
-const getStatusLabel = (status: string) => {
+const getStatusLabel = (
+  status: string
+) => {
   switch (status) {
     case "pending":
       return "Not Started";
@@ -236,7 +197,9 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (
+  status: string
+) => {
   switch (status) {
     case "completed":
       return "green";
@@ -249,26 +212,35 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const formatQuestTime = (deadline: string | null) => {
-  if (!deadline) return "No time";
+const formatQuestTime = (
+  deadline: string | null
+) => {
+  if (!deadline) {
+    return "No time";
+  }
 
-  return new Date(deadline).toLocaleTimeString("en-US", {
+  return new Date(
+    deadline
+  ).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
 };
 
-const formatQuestDate = (deadline: string | null) => {
-  if (!deadline) return "No deadline";
+const formatQuestDate = (
+  deadline: string | null
+) => {
+  if (!deadline) {
+    return "No deadline";
+  }
 
-  return new Date(deadline).toLocaleDateString(
-    "en-US",
-    {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }
-  );
+  return new Date(
+    deadline
+  ).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 };
 
 /* =========================================================
@@ -276,6 +248,8 @@ const formatQuestDate = (deadline: string | null) => {
 ========================================================= */
 
 export default function QuestCalendarPage() {
+  const router = useRouter();
+
   /* =======================================================
      GENERAL STATE
   ======================================================= */
@@ -289,11 +263,20 @@ export default function QuestCalendarPage() {
   const [calendarView, setCalendarView] =
     useState<"month" | "week">("week");
 
+  /*
+   * Current time is refreshed every 60 seconds.
+   * This prevents overdue calculations from becoming stale
+   * while the page remains open.
+   */
+  const [now, setNow] =
+    useState(() => new Date());
+
   /* =======================================================
      QUEST STATE
   ======================================================= */
 
-  const [quests, setQuests] = useState<Quest[]>([]);
+  const [quests, setQuests] =
+    useState<Quest[]>([]);
 
   const [selectedQuest, setSelectedQuest] =
     useState<Quest | null>(null);
@@ -304,7 +287,7 @@ export default function QuestCalendarPage() {
   const [generatingPlan, setGeneratingPlan] =
     useState(false);
 
-  const [completingQuest, setCompletingQuest] =
+  const [updatingQuest, setUpdatingQuest] =
     useState(false);
 
   /* =======================================================
@@ -324,6 +307,23 @@ export default function QuestCalendarPage() {
     useState(false);
 
   /* =======================================================
+     MATERIAL STATE
+  ======================================================= */
+
+  const [materials, setMaterials] =
+    useState<Material[]>([]);
+
+  /* =======================================================
+     UPLOAD STATE
+  ======================================================= */
+
+  const fileInputRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const [uploadingMaterial, setUploadingMaterial] =
+    useState(false);
+
+  /* =======================================================
      FILTER STATE
   ======================================================= */
 
@@ -340,53 +340,137 @@ export default function QuestCalendarPage() {
      FORM STATE
   ======================================================= */
 
-  const [newQuest, setNewQuest] = useState({
-    title: "",
-    description: "",
-    subject: "",
-    deadline: "",
-    priority: "medium" as QuestPriority,
-    estimated_duration: 60,
-  });
+  const [newQuest, setNewQuest] =
+    useState({
+      title: "",
+      description: "",
+      subject: "",
+      deadline: "",
+      priority:
+        "medium" as QuestPriority,
+      estimated_duration: 60,
+    });
 
   /* =======================================================
      LOAD QUESTS
   ======================================================= */
 
-  const loadQuests = async () => {
-    try {
-      setLoadingQuests(true);
+  const loadQuests = useCallback(
+    async () => {
+      try {
+        setLoadingQuests(true);
 
-      const response = await fetch("/api/quests", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load quests"
+        const response = await fetch(
+          "/api/quests",
+          {
+            cache: "no-store",
+          }
         );
+
+        if (!response.ok) {
+          throw new Error(
+            "Failed to load quests."
+          );
+        }
+
+        const data =
+          await response.json();
+
+        const loadedQuests: Quest[] =
+          data.quests ?? [];
+
+        setQuests(loadedQuests);
+
+        /*
+         * Keep the selected quest synchronized
+         * with the backend after every refresh.
+         */
+        setSelectedQuest((current) => {
+          if (!current) {
+            return null;
+          }
+
+          return (
+            loadedQuests.find(
+              (quest) =>
+                quest.id === current.id
+            ) ?? null
+          );
+        });
+
+        return loadedQuests;
+      } catch (error) {
+        console.error(
+          "Failed to load quests:",
+          error
+        );
+
+        return [];
+      } finally {
+        setLoadingQuests(false);
       }
-
-      const data = await response.json();
-
-      console.log(
-        "Quests from API:",
-        data.quests
-      );
-
-      setQuests(data.quests ?? []);
-    } catch (error) {
-      console.error(
-        "Failed to load quests:",
-        error
-      );
-    } finally {
-      setLoadingQuests(false);
-    }
-  };
+    },
+    []
+  );
 
   useEffect(() => {
     loadQuests();
+  }, [loadQuests]);
+
+  /* =======================================================
+     LOAD MATERIALS
+  ======================================================= */
+
+  useEffect(() => {
+    const loadMaterials = async () => {
+      try {
+        const response = await fetch(
+          "/api/materials"
+        );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Failed to load materials."
+          );
+        }
+
+        setMaterials(
+          Array.isArray(data.materials)
+            ? data.materials
+            : []
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load materials:",
+          error
+        );
+
+        setMaterials([]);
+      }
+    };
+
+    loadMaterials();
+  }, []);
+
+  /* =======================================================
+     CURRENT TIME REFRESH
+  ======================================================= */
+
+  useEffect(() => {
+    const interval =
+      window.setInterval(() => {
+        setNow(new Date());
+      }, 60_000);
+
+    return () => {
+      window.clearInterval(
+        interval
+      );
+    };
   }, []);
 
   /* =======================================================
@@ -395,12 +479,17 @@ export default function QuestCalendarPage() {
 
   const weekDays = useMemo(() => {
     const start =
-      getStartOfWeek(selectedDate);
+      getStartOfWeek(
+        selectedDate
+      );
 
     return Array.from(
       { length: 7 },
       (_, index) =>
-        addDays(start, index)
+        addDays(
+          start,
+          index
+        )
     );
   }, [selectedDate]);
 
@@ -419,7 +508,9 @@ export default function QuestCalendarPage() {
       ).getDay();
 
     const daysInMonth =
-      getDaysInMonth(selectedDate);
+      getDaysInMonth(
+        selectedDate
+      );
 
     const days: Array<{
       date: Date;
@@ -464,7 +555,9 @@ export default function QuestCalendarPage() {
 
     let nextDay = 1;
 
-    while (days.length < 42) {
+    while (
+      days.length < 42
+    ) {
       days.push({
         date: new Date(
           year,
@@ -492,13 +585,26 @@ export default function QuestCalendarPage() {
 
     return quests.filter(
       (quest) => {
+        /*
+         * Completed quests are removed
+         * from the calendar.
+         */
+        if (
+          quest.status ===
+          "completed"
+        ) {
+          return false;
+        }
+
         if (!quest.deadline) {
           return false;
         }
 
         return (
-          quest.deadline.slice(0, 10) ===
-          key
+          quest.deadline.slice(
+            0,
+            10
+          ) === key
         );
       }
     );
@@ -522,6 +628,8 @@ export default function QuestCalendarPage() {
     quests.filter(
       (quest) =>
         quest.deadline &&
+        quest.status !==
+          "completed" &&
         weekDays.some(
           (day) =>
             quest.deadline!.slice(
@@ -543,11 +651,16 @@ export default function QuestCalendarPage() {
           return false;
         }
 
+        /*
+         * IMPORTANT:
+         * Use the reactive `now` state rather than
+         * Date.now() so the UI updates automatically.
+         */
         return (
           new Date(
             quest.deadline
           ).getTime() <
-          Date.now()
+          now.getTime()
         );
       }
     ).length;
@@ -556,26 +669,35 @@ export default function QuestCalendarPage() {
      SUBJECT OPTIONS
   ======================================================= */
 
-  const subjects = Array.from(
-    new Set(
-      quests
-        .map(
-          (quest) =>
-            quest.subject
-        )
-        .filter(Boolean) as string[]
-    )
-  );
+  const subjects =
+    Array.from(
+      new Set(
+        quests
+          .map(
+            (quest) =>
+              quest.subject
+          )
+          .filter(
+            Boolean
+          ) as string[]
+      )
+    );
 
   /* =======================================================
-     FILTERED QUESTS
+     SEARCH + FILTER
   ======================================================= */
 
   const filteredQuests =
     quests.filter(
       (quest) => {
+        const search =
+          searchQuery
+            .trim()
+            .toLowerCase();
+
         const matchesStatus =
-          statusFilter === "all" ||
+          statusFilter ===
+            "all" ||
           (statusFilter ===
             "completed" &&
             quest.status ===
@@ -596,7 +718,7 @@ export default function QuestCalendarPage() {
             new Date(
               quest.deadline
             ).getTime() <
-              Date.now());
+              now.getTime());
 
         const matchesSubject =
           subjectFilter ===
@@ -604,22 +726,21 @@ export default function QuestCalendarPage() {
           quest.subject ===
             subjectFilter;
 
-        const search =
-          searchQuery
-            .trim()
-            .toLowerCase();
-
         const matchesSearch =
           !search ||
           quest.title
             .toLowerCase()
             .includes(search) ||
-          (quest.subject ??
-            "")
+          (
+            quest.subject ??
+            ""
+          )
             .toLowerCase()
             .includes(search) ||
-          (quest.description ??
-            "")
+          (
+            quest.description ??
+            ""
+          )
             .toLowerCase()
             .includes(search);
 
@@ -637,7 +758,8 @@ export default function QuestCalendarPage() {
 
   const handlePrevious = () => {
     if (
-      calendarView === "week"
+      calendarView ===
+      "week"
     ) {
       setSelectedDate(
         addDays(
@@ -649,8 +771,7 @@ export default function QuestCalendarPage() {
       setSelectedDate(
         new Date(
           selectedDate.getFullYear(),
-          selectedDate.getMonth() -
-            1,
+          selectedDate.getMonth() - 1,
           1
         )
       );
@@ -659,7 +780,8 @@ export default function QuestCalendarPage() {
 
   const handleNext = () => {
     if (
-      calendarView === "week"
+      calendarView ===
+      "week"
     ) {
       setSelectedDate(
         addDays(
@@ -671,8 +793,7 @@ export default function QuestCalendarPage() {
       setSelectedDate(
         new Date(
           selectedDate.getFullYear(),
-          selectedDate.getMonth() +
-            1,
+          selectedDate.getMonth() + 1,
           1
         )
       );
@@ -695,7 +816,8 @@ export default function QuestCalendarPage() {
       title: "",
       description: "",
       subject: "",
-      deadline: `${selectedDateKey}T19:00`,
+      deadline:
+        `${selectedDateKey}T19:00`,
       priority: "medium",
       estimated_duration: 60,
     });
@@ -710,7 +832,9 @@ export default function QuestCalendarPage() {
   const openEditQuest = (
     quest: Quest
   ) => {
-    setEditingQuest(quest);
+    setEditingQuest(
+      quest
+    );
 
     let deadline = "";
 
@@ -720,51 +844,43 @@ export default function QuestCalendarPage() {
           quest.deadline
         );
 
-      const year =
-        date.getFullYear();
-
-      const month =
-        pad(
-          date.getMonth() + 1
-        );
-
-      const day =
-        pad(date.getDate());
-
-      const hours =
-        pad(date.getHours());
-
-      const minutes =
-        pad(date.getMinutes());
-
       deadline =
-        `${year}-${month}-${day}T${hours}:${minutes}`;
+        `${date.getFullYear()}-${pad(
+          date.getMonth() + 1
+        )}-${pad(
+          date.getDate()
+        )}T${pad(
+          date.getHours()
+        )}:${pad(
+          date.getMinutes()
+        )}`;
     }
 
     setNewQuest({
-      title: quest.title,
+      title:
+        quest.title,
+
       description:
         quest.description ??
         "",
+
       subject:
         quest.subject ??
         "",
+
       deadline,
+
       priority:
-        (quest.priority ===
-          "high" ||
-        quest.priority ===
-          "medium" ||
-        quest.priority ===
-          "low"
-          ? quest.priority
-          : "medium") as QuestPriority,
+        quest.priority,
+
       estimated_duration:
         quest.estimated_duration ??
         60,
     });
 
-    setModalOpened(true);
+    setModalOpened(
+      true
+    );
   };
 
   /* =======================================================
@@ -776,15 +892,15 @@ export default function QuestCalendarPage() {
       if (
         !newQuest.title.trim()
       ) {
+        alert(
+          "Please enter a quest title."
+        );
+
         return;
       }
 
       try {
         setSavingQuest(true);
-
-        /* ================================================
-           EDIT EXISTING QUEST
-        ================================================ */
 
         if (editingQuest) {
           const response =
@@ -798,18 +914,23 @@ export default function QuestCalendarPage() {
                 },
                 body: JSON.stringify({
                   title:
-                    newQuest.title,
+                    newQuest.title.trim(),
+
                   description:
                     newQuest.description ||
                     null,
+
                   subject:
                     newQuest.subject ||
                     null,
+
                   deadline:
                     newQuest.deadline ||
                     null,
+
                   priority:
                     newQuest.priority,
+
                   estimated_duration:
                     newQuest.estimated_duration,
                 }),
@@ -822,22 +943,14 @@ export default function QuestCalendarPage() {
           if (!response.ok) {
             throw new Error(
               data.error ||
-                "Failed to update quest"
+                "Failed to update quest."
             );
           }
-
-          await loadQuests();
-
-          setSelectedQuest(
-            data.quest
-          );
-        }
-
-        /* ================================================
-           CREATE NEW QUEST
-        ================================================ */
-
-        else {
+        } else {
+          /*
+           * New quests always begin as
+           * pending / Not Started.
+           */
           const response =
             await fetch(
               "/api/quests",
@@ -849,21 +962,28 @@ export default function QuestCalendarPage() {
                 },
                 body: JSON.stringify({
                   title:
-                    newQuest.title,
+                    newQuest.title.trim(),
+
                   description:
                     newQuest.description ||
                     null,
+
                   subject:
                     newQuest.subject ||
                     null,
+
                   deadline:
                     newQuest.deadline ||
                     null,
+
                   priority:
                     newQuest.priority,
+
                   estimated_duration:
                     newQuest.estimated_duration,
+
                   checklist: [],
+
                   status:
                     "pending",
                 }),
@@ -876,18 +996,16 @@ export default function QuestCalendarPage() {
           if (!response.ok) {
             throw new Error(
               data.error ||
-                "Failed to create quest"
+                "Failed to create quest."
             );
           }
-
-          await loadQuests();
-
-          setSelectedQuest(
-            data.quest
-          );
         }
 
-        setModalOpened(false);
+        await loadQuests();
+
+        setModalOpened(
+          false
+        );
       } catch (error) {
         console.error(
           "Save quest error:",
@@ -900,7 +1018,9 @@ export default function QuestCalendarPage() {
             : "Failed to save quest."
         );
       } finally {
-        setSavingQuest(false);
+        setSavingQuest(
+          false
+        );
       }
     };
 
@@ -915,7 +1035,9 @@ export default function QuestCalendarPage() {
       }
 
       try {
-        setDeletingQuest(true);
+        setDeletingQuest(
+          true
+        );
 
         const response =
           await fetch(
@@ -931,20 +1053,19 @@ export default function QuestCalendarPage() {
         if (!response.ok) {
           throw new Error(
             data.error ||
-              "Failed to delete quest"
+              "Failed to delete quest."
           );
         }
 
+        setModalOpened(
+          false
+        );
+
+        setSelectedQuest(
+          null
+        );
+
         await loadQuests();
-
-        if (
-          selectedQuest?.id ===
-          editingQuest.id
-        ) {
-          setSelectedQuest(null);
-        }
-
-        setModalOpened(false);
       } catch (error) {
         console.error(
           "Delete quest error:",
@@ -957,28 +1078,53 @@ export default function QuestCalendarPage() {
             : "Failed to delete quest."
         );
       } finally {
-        setDeletingQuest(false);
+        setDeletingQuest(
+          false
+        );
       }
     };
 
   /* =======================================================
-     COMPLETE QUEST
+     START QUEST
   ======================================================= */
 
-  const handleCompleteQuest =
+  const handleStartQuest =
     async (
       quest: Quest
     ) => {
+      /*
+       * START QUEST ONLY WORKS FOR
+       * PENDING / NOT STARTED QUESTS.
+       */
+      if (
+        quest.status !==
+        "pending"
+      ) {
+        return;
+      }
+
       try {
-        setCompletingQuest(
+        setUpdatingQuest(
           true
         );
 
+        /*
+         * Update the backend using the existing
+         * PATCH /api/quests/[id] endpoint.
+         */
         const response =
           await fetch(
-            `/api/quests/${quest.id}/complete`,
+            `/api/quests/${quest.id}`,
             {
               method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                status:
+                  "in_progress",
+              }),
             }
           );
 
@@ -988,19 +1134,126 @@ export default function QuestCalendarPage() {
         if (!response.ok) {
           throw new Error(
             data.error ||
-              "Failed to complete quest"
+              "Failed to start quest."
           );
         }
 
-        console.log(
-          "Quest completed:",
-          data
-        );
+        /*
+         * Refresh the entire quest list from
+         * the backend.
+         */
+        const refreshedQuests =
+          await loadQuests();
 
-        await loadQuests();
+        /*
+         * Keep Quest Details synchronized
+         * with the actual backend record.
+         */
+        const refreshedQuest =
+          refreshedQuests.find(
+            (item) =>
+              item.id ===
+              quest.id
+          );
 
         setSelectedQuest(
-          null
+          refreshedQuest ??
+            data.quest ??
+            null
+        );
+      } catch (error) {
+        console.error(
+          "Start quest error:",
+          error
+        );
+
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to start quest."
+        );
+      } finally {
+        setUpdatingQuest(
+          false
+        );
+      }
+    };
+
+  /* =======================================================
+     MARK DONE
+  ======================================================= */
+
+  const handleCompleteQuest =
+    async (
+      quest: Quest
+    ) => {
+      /*
+       * MARK DONE ONLY WORKS FOR
+       * IN-PROGRESS QUESTS.
+       */
+      if (
+        quest.status !==
+        "in_progress"
+      ) {
+        return;
+      }
+
+      try {
+        setUpdatingQuest(
+          true
+        );
+
+        /*
+         * Use the existing PATCH endpoint.
+         */
+        const response =
+          await fetch(
+            `/api/quests/${quest.id}`,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                status:
+                  "completed",
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Failed to complete quest."
+          );
+        }
+
+        /*
+         * Refresh from backend so the
+         * Quest List and Calendar update.
+         */
+        const refreshedQuests =
+          await loadQuests();
+
+        /*
+         * Keep the completed quest selected
+         * so its new status is immediately visible.
+         */
+        const refreshedQuest =
+          refreshedQuests.find(
+            (item) =>
+              item.id ===
+              quest.id
+          );
+
+        setSelectedQuest(
+          refreshedQuest ??
+            data.quest ??
+            null
         );
       } catch (error) {
         console.error(
@@ -1014,7 +1267,166 @@ export default function QuestCalendarPage() {
             : "Failed to complete quest."
         );
       } finally {
-        setCompletingQuest(
+        setUpdatingQuest(
+          false
+        );
+      }
+    };
+
+  /* =======================================================
+     ASK WASI
+  ======================================================= */
+
+  const handleAskWasi = (
+    quest: Quest
+  ) => {
+    router.push(
+      `/askwasi?questId=${encodeURIComponent(
+        quest.id
+      )}`
+    );
+  };
+
+  /* =======================================================
+     UPLOAD MATERIAL
+  ======================================================= */
+
+  const handleUploadMaterial =
+    () => {
+      fileInputRef.current?.click();
+    };
+
+  const handleMaterialSelected =
+    async (
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file =
+        event.target.files?.[0];
+
+      /*
+       * Allow selecting the same file
+       * again later.
+       */
+      event.target.value = "";
+
+      if (!file) {
+        return;
+      }
+
+      const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "text/markdown",
+      ];
+
+      const allowedExtensions = [
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".md",
+      ];
+
+      const lowerName =
+        file.name.toLowerCase();
+
+      const validType =
+        allowedTypes.includes(
+          file.type
+        );
+
+      const validExtension =
+        allowedExtensions.some(
+          (extension) =>
+            lowerName.endsWith(
+              extension
+            )
+        );
+
+      if (
+        !validType &&
+        !validExtension
+      ) {
+        alert(
+          "Please select a PDF, DOCX, TXT, or MD file."
+        );
+
+        return;
+      }
+
+      if (
+        file.size >
+        10 * 1024 * 1024
+      ) {
+        alert(
+          "The maximum file size is 10 MB."
+        );
+
+        return;
+      }
+
+      try {
+        setUploadingMaterial(
+          true
+        );
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
+
+        if (selectedQuest) {
+          formData.append(
+            "questId",
+            selectedQuest.id
+          );
+        }
+
+        const response =
+          await fetch(
+            "/api/materials",
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Failed to upload material."
+          );
+        }
+
+        if (data.material) {
+          setMaterials((current) => [
+            data.material,
+            ...current,
+          ]);
+        }
+
+        alert(
+          "Material uploaded successfully."
+        );
+      } catch (error) {
+        console.error(
+          "Upload material error:",
+          error
+        );
+
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to upload material."
+        );
+      } finally {
+        setUploadingMaterial(
           false
         );
       }
@@ -1045,14 +1457,9 @@ export default function QuestCalendarPage() {
         if (!response.ok) {
           throw new Error(
             data.error ||
-              "Failed to regenerate plan"
+              "Failed to regenerate plan."
           );
         }
-
-        console.log(
-          "Generated schedule:",
-          data
-        );
 
         alert(
           `${data.scheduled_count ?? 0} quest(s) scheduled successfully.`
@@ -1091,14 +1498,6 @@ export default function QuestCalendarPage() {
         questId,
         checklistIndex
       );
-
-      /*
-       * Your current backend does not expose a
-       * dedicated checklist endpoint.
-       *
-       * We leave this UI-only until the backend
-       * supports checklist updates.
-       */
     };
 
   /* =======================================================
@@ -1121,7 +1520,7 @@ export default function QuestCalendarPage() {
         gap="md"
       >
         {/* =================================================
-            PAGE HEADER
+            HEADER
         ================================================= */}
 
         <Group
@@ -1165,9 +1564,7 @@ export default function QuestCalendarPage() {
               color="gray"
               size="lg"
               leftSection={
-                <Sparkles
-                  size={12}
-                />
+                <Sparkles size={12} />
               }
             >
               {totalTasks}
@@ -1178,9 +1575,7 @@ export default function QuestCalendarPage() {
               color="gray"
               size="lg"
               leftSection={
-                <Trophy
-                  size={12}
-                />
+                <Trophy size={12} />
               }
             >
               {completedTasks}
@@ -1191,42 +1586,37 @@ export default function QuestCalendarPage() {
               color="gray"
               size="lg"
               leftSection={
-                <Flame
-                  size={12}
-                />
+                <Flame size={12} />
               }
             >
               {overdueTasks}
             </Badge>
           </Group>
         </Group>
+{/* =================================================
+    TABS
+================================================= */}
 
-        {/* =================================================
-            MAIN TABS
-        ================================================= */}
+ <Tabs
+  value={activeTab}
+  onChange={setActiveTab}
+  color="dark"
+>
+  <Tabs.List>
+    <Tabs.Tab value="calendar">
+      Calendar View
+    </Tabs.Tab>
 
-        <Tabs
-          value={activeTab}
-          onChange={setActiveTab}
-          color="dark"
-          variant="default"
-        >
-          <Tabs.List>
-            <Tabs.Tab value="calendar">
-              Calendar View
-            </Tabs.Tab>
+    <Tabs.Tab value="quests">
+      Quest List
+    </Tabs.Tab>
 
-            <Tabs.Tab value="quests">
-              Quest List
-            </Tabs.Tab>
-
-            <Tabs.Tab value="modules">
-              Modules
-            </Tabs.Tab>
-          </Tabs.List>
-
+    <Tabs.Tab value="modules">
+      Modules
+    </Tabs.Tab>
+  </Tabs.List>
           {/* =================================================
-              CALENDAR VIEW
+              CALENDAR
           ================================================= */}
 
           <Tabs.Panel
@@ -1234,8 +1624,6 @@ export default function QuestCalendarPage() {
             pt="md"
           >
             <Stack gap="md">
-              {/* Calendar Controls */}
-
               <Group
                 justify="space-between"
               >
@@ -1259,9 +1647,9 @@ export default function QuestCalendarPage() {
                   >
                     {calendarView ===
                     "week"
-                      ? `${formatMonthYear(
+                      ? formatMonthYear(
                           weekDays[0]
-                        )}`
+                        )
                       : formatMonthYear(
                           selectedDate
                         )}
@@ -1346,7 +1734,6 @@ export default function QuestCalendarPage() {
 
                   <Button
                     size="xs"
-                    variant="filled"
                     color="dark"
                     leftSection={
                       <RefreshCw
@@ -1365,8 +1752,6 @@ export default function QuestCalendarPage() {
                 </Group>
               </Group>
 
-              {/* Loading */}
-
               {loadingQuests && (
                 <Paper
                   withBorder
@@ -1383,8 +1768,6 @@ export default function QuestCalendarPage() {
                 </Paper>
               )}
 
-              {/* Calendar + Details */}
-
               <SimpleGrid
                 cols={{
                   base: 1,
@@ -1392,7 +1775,9 @@ export default function QuestCalendarPage() {
                 }}
                 spacing="md"
               >
-                {/* CALENDAR */}
+                {/* =================================================
+                    CALENDAR GRID
+                ================================================= */}
 
                 <Paper
                   withBorder
@@ -1563,86 +1948,85 @@ export default function QuestCalendarPage() {
                             );
 
                           return (
-                            <Box
+                            <Paper
                               key={index}
+                              withBorder
+                              radius="sm"
+                              p={6}
+                              mih={105}
+                              style={{
+                                opacity:
+                                  day.currentMonth
+                                    ? 1
+                                    : 0.4,
+                                cursor:
+                                  "pointer",
+                              }}
+                              onClick={() =>
+                                setSelectedDate(
+                                  day.date
+                                )
+                              }
                             >
-                              <Paper
-                                withBorder
-                                radius="sm"
-                                p={6}
-                                mih={105}
-                                style={{
-                                  opacity:
-                                    day.currentMonth
-                                      ? 1
-                                      : 0.4,
-                                  cursor:
-                                    "pointer",
-                                }}
-                                onClick={() =>
-                                  setSelectedDate(
-                                    day.date
-                                  )
-                                }
+                              <Text
+                                size="xs"
+                                fw={600}
+                                mb={5}
                               >
-                                <Text
-                                  size="xs"
-                                  fw={600}
-                                  mb={5}
-                                >
-                                  {day.date.getDate()}
-                                </Text>
+                                {day.date.getDate()}
+                              </Text>
 
-                                <Stack gap={4}>
-                                  {questsForDay
-                                    .slice(
-                                      0,
-                                      3
-                                    )
-                                    .map(
-                                      (
-                                        quest
-                                      ) => (
-                                        <Box
-                                          key={
-                                            quest.id
+                              <Stack gap={4}>
+                                {questsForDay
+                                  .slice(
+                                    0,
+                                    3
+                                  )
+                                  .map(
+                                    (
+                                      quest
+                                    ) => (
+                                      <Box
+                                        key={
+                                          quest.id
+                                        }
+                                        px={5}
+                                        py={3}
+                                        style={{
+                                          background:
+                                            "#f1f1f1",
+                                          borderLeft: `3px solid ${getPriorityColor(
+                                            quest.priority
+                                          )}`,
+                                          borderRadius: 3,
+                                          cursor:
+                                            "pointer",
+                                        }}
+                                        onClick={(
+                                          event
+                                        ) => {
+                                          event.stopPropagation();
+
+                                          setSelectedQuest(
+                                            quest
+                                          );
+                                        }}
+                                      >
+                                        <Text
+                                          size="xs"
+                                          lineClamp={
+                                            1
                                           }
-                                          px={5}
-                                          py={3}
-                                          style={{
-                                            background:
-                                              "#f1f1f1",
-                                            borderLeft: `3px solid ${getPriorityColor(
-                                              quest.priority
-                                            )}`,
-                                            borderRadius: 3,
-                                          }}
-                                          onClick={(
-                                            event
-                                          ) => {
-                                            event.stopPropagation();
-
-                                            setSelectedQuest(
-                                              quest
-                                            );
-                                          }}
                                         >
-                                          <Text
-                                            size="xs"
-                                            lineClamp={
-                                              1
-                                            }
-                                          >
-                                            {
-                                              quest.title
-                                            }
-                                          </Text>
-                                        </Box>
-                                      )
-                                    )}
-                                </Stack>
-                              </Paper>
-                            </Box>
+                                          {
+                                            quest.title
+                                          }
+                                        </Text>
+                                      </Box>
+                                    )
+                                  )}
+                              </Stack>
+                            </Paper>
                           );
                         }
                       )}
@@ -1650,7 +2034,9 @@ export default function QuestCalendarPage() {
                   )}
                 </Paper>
 
-                {/* QUEST DETAILS */}
+                {/* =================================================
+                    QUEST DETAILS
+                ================================================= */}
 
                 <Paper
                   withBorder
@@ -1679,9 +2065,7 @@ export default function QuestCalendarPage() {
                           )
                         }
                       >
-                        <X
-                          size={14}
-                        />
+                        <X size={14} />
                       </Button>
                     )}
                   </Group>
@@ -1717,8 +2101,7 @@ export default function QuestCalendarPage() {
 
                       <Text size="xs">
                         <b>
-                          Estimated
-                          Duration:
+                          Estimated Duration:
                         </b>{" "}
                         {selectedQuest.estimated_duration ??
                           0}{" "}
@@ -1756,44 +2139,41 @@ export default function QuestCalendarPage() {
                         )}
                       </Text>
 
-                      {selectedQuest.checklist &&
-                        selectedQuest
-                          .checklist
-                          .length >
-                          0 && (
-                          <Box>
-                            <Text
-                              size="xs"
-                              fw={700}
-                              mb={3}
-                            >
-                              Checklist:
-                            </Text>
+                      {selectedQuest.checklist?.length >
+                        0 && (
+                        <Box>
+                          <Text
+                            size="xs"
+                            fw={700}
+                            mb={3}
+                          >
+                            Checklist:
+                          </Text>
 
-                            <Stack gap={4}>
-                              {selectedQuest.checklist.map(
-                                (
-                                  item,
-                                  index
-                                ) => (
-                                  <Checkbox
-                                    key={`${selectedQuest.id}-${index}`}
-                                    size="xs"
-                                    label={
-                                      item
-                                    }
-                                    onChange={() =>
-                                      handleToggleChecklist(
-                                        selectedQuest.id,
-                                        index
-                                      )
-                                    }
-                                  />
-                                )
-                              )}
-                            </Stack>
-                          </Box>
-                        )}
+                          <Stack gap={4}>
+                            {selectedQuest.checklist.map(
+                              (
+                                item,
+                                index
+                              ) => (
+                                <Checkbox
+                                  key={`${selectedQuest.id}-${index}`}
+                                  size="xs"
+                                  label={
+                                    item
+                                  }
+                                  onChange={() =>
+                                    handleToggleChecklist(
+                                      selectedQuest.id,
+                                      index
+                                    )
+                                  }
+                                />
+                              )
+                            )}
+                          </Stack>
+                        </Box>
+                      )}
 
                       <Text
                         size="xs"
@@ -1802,6 +2182,32 @@ export default function QuestCalendarPage() {
                       >
                         Actions:
                       </Text>
+
+                      {/* =================================================
+                          START QUEST BUTTON
+                      ================================================= */}
+
+                      {selectedQuest.status ===
+                        "pending" && (
+                        <Button
+                          size="compact-xs"
+                          color="dark"
+                          loading={
+                            updatingQuest
+                          }
+                          onClick={() =>
+                            handleStartQuest(
+                              selectedQuest
+                            )
+                          }
+                        >
+                          Start Quest
+                        </Button>
+                      )}
+
+                      {/* =================================================
+                          EDIT + ASK WASI
+                      ================================================= */}
 
                       <Group gap={5}>
                         <Button
@@ -1821,8 +2227,7 @@ export default function QuestCalendarPage() {
                           variant="outline"
                           color="dark"
                           onClick={() =>
-                            console.log(
-                              "Ask Wasi:",
+                            handleAskWasi(
                               selectedQuest
                             )
                           }
@@ -1831,14 +2236,18 @@ export default function QuestCalendarPage() {
                         </Button>
                       </Group>
 
-                      {selectedQuest.status !==
-                        "completed" && (
+                      {/* =================================================
+                          MARK DONE
+                      ================================================= */}
+
+                      {selectedQuest.status ===
+                        "in_progress" && (
                         <Button
                           size="compact-xs"
                           variant="outline"
                           color="dark"
                           loading={
-                            completingQuest
+                            updatingQuest
                           }
                           onClick={() =>
                             handleCompleteQuest(
@@ -1850,18 +2259,19 @@ export default function QuestCalendarPage() {
                         </Button>
                       )}
 
-                      <Button
-                        size="compact-xs"
-                        variant="outline"
-                        color="dark"
-                        onClick={() =>
-                          openEditQuest(
-                            selectedQuest
-                          )
-                        }
-                      >
-                        Edit / Reschedule
-                      </Button>
+                      {/* =================================================
+                          COMPLETED STATE
+                      ================================================= */}
+
+                      {selectedQuest.status ===
+                        "completed" && (
+                        <Badge
+                          color="green"
+                          variant="light"
+                        >
+                          Quest Completed
+                        </Badge>
+                      )}
                     </Stack>
                   ) : (
                     <Text
@@ -1891,7 +2301,6 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="md"
                   p="md"
-                  mih={90}
                 >
                   <Text
                     fw={700}
@@ -1914,7 +2323,6 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="md"
                   p="md"
-                  mih={90}
                 >
                   <Text
                     fw={700}
@@ -1939,7 +2347,6 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="md"
                   p="md"
-                  mih={90}
                 >
                   <Text
                     fw={700}
@@ -1958,9 +2365,7 @@ export default function QuestCalendarPage() {
                       completed
                     </Text>
 
-                    <Trophy
-                      size={16}
-                    />
+                    <Trophy size={16} />
                   </Group>
                 </Paper>
               </SimpleGrid>
@@ -1976,177 +2381,20 @@ export default function QuestCalendarPage() {
             pt="md"
           >
             <Stack gap="md">
-              {/* Statistics */}
-
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  sm: 2,
-                  md: 4,
-                }}
-              >
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Total Tasks
-                  </Text>
-
-                  <Text
-                    fw={700}
-                    size="xl"
-                  >
-                    {totalTasks}
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    From Quest API
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Due This Week
-                  </Text>
-
-                  <Text
-                    fw={700}
-                    size="xl"
-                  >
-                    {dueThisWeek}
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Based on deadlines
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Completed
-                  </Text>
-
-                  <Text
-                    fw={700}
-                    size="xl"
-                  >
-                    {completedTasks}
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Completed quests
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Overdue
-                  </Text>
-
-                  <Text
-                    fw={700}
-                    size="xl"
-                  >
-                    {overdueTasks}
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Needs attention
-                  </Text>
-                </Paper>
-              </SimpleGrid>
-
-              {/* Filters */}
-
               <Group
                 justify="space-between"
               >
-                <Group gap="xs">
-                  {[
-                    [
-                      "all",
-                      "All",
-                    ],
-                    [
-                      "not-started",
-                      "Due Soon",
-                    ],
-                    [
-                      "overdue",
-                      "Overdue",
-                    ],
-                    [
-                      "completed",
-                      "Completed",
-                    ],
-                    [
-                      "in-progress",
-                      "In Progress",
-                    ],
-                  ].map(
-                    ([
-                      value,
-                      label,
-                    ]) => (
-                      <Button
-                        key={value}
-                        size="compact-xs"
-                        variant={
-                          statusFilter ===
-                          value
-                            ? "filled"
-                            : "subtle"
-                        }
-                        color="dark"
-                        onClick={() =>
-                          setStatusFilter(
-                            value
-                          )
-                        }
-                      >
-                        {label}
-                      </Button>
+                <TextInput
+                  placeholder="Search title, subject, or description..."
+                  value={searchQuery}
+                  onChange={(event) =>
+                    setSearchQuery(
+                      event.currentTarget
+                        .value
                     )
-                  )}
-                </Group>
+                  }
+                  w={350}
+                />
 
                 <Group gap="xs">
                   <Select
@@ -2204,7 +2452,48 @@ export default function QuestCalendarPage() {
                 </Group>
               </Group>
 
-              {/* Quest Columns */}
+              <Group gap="xs">
+                {[
+                  ["all", "All"],
+                  [
+                    "not-started",
+                    "Not Started",
+                  ],
+                  [
+                    "in-progress",
+                    "In Progress",
+                  ],
+                  [
+                    "completed",
+                    "Completed",
+                  ],
+                  [
+                    "overdue",
+                    "Overdue",
+                  ],
+                ].map(
+                  ([value, label]) => (
+                    <Button
+                      key={value}
+                      size="compact-xs"
+                      variant={
+                        statusFilter ===
+                        value
+                          ? "filled"
+                          : "subtle"
+                      }
+                      color="dark"
+                      onClick={() =>
+                        setStatusFilter(
+                          value
+                        )
+                      }
+                    >
+                      {label}
+                    </Button>
+                  )
+                )}
+              </Group>
 
               <SimpleGrid
                 cols={{
@@ -2228,9 +2517,7 @@ export default function QuestCalendarPage() {
 
                     return (
                       <Paper
-                        key={
-                          status
-                        }
+                        key={status}
                         withBorder
                         radius="md"
                         p="sm"
@@ -2285,6 +2572,14 @@ export default function QuestCalendarPage() {
                                     quest
                                   );
 
+                                  setSelectedDate(
+                                    quest.deadline
+                                      ? new Date(
+                                          quest.deadline
+                                        )
+                                      : new Date()
+                                  );
+
                                   setActiveTab(
                                     "calendar"
                                   );
@@ -2307,6 +2602,18 @@ export default function QuestCalendarPage() {
                                   {quest.subject ||
                                     "General"}
                                 </Text>
+
+                                <Badge
+                                  size="xs"
+                                  mt="xs"
+                                  color={getStatusColor(
+                                    quest.status
+                                  )}
+                                >
+                                  {getStatusLabel(
+                                    quest.status
+                                  )}
+                                </Badge>
 
                                 <Group
                                   justify="space-between"
@@ -2379,320 +2686,379 @@ export default function QuestCalendarPage() {
               MODULES
           ================================================= */}
 
-          <Tabs.Panel
-            value="modules"
-            pt="md"
-          >
-            <Stack gap="md">
-              <Group justify="flex-end">
-                <Button
-                  size="xs"
-                  color="dark"
-                  leftSection={
-                    <Upload
-                      size={14}
-                    />
-                  }
-                >
-                  Upload Material
-                </Button>
-              </Group>
+   {/* =================================================
+    MODULES / MATERIALS
+================================================= */}
 
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  sm: 2,
-                  md: 3,
-                }}
-                spacing="md"
-              >
-                {MODULES.map(
-                  (module) => (
-                    <Paper
-                      key={module.id}
-                      withBorder
-                      radius="md"
-                      p="md"
-                      mih={170}
-                    >
-                      <Stack gap="xs">
-                        <Group
-                          justify="space-between"
-                          align="flex-start"
-                        >
-                          <Box>
-                            <Text
-                              size="xs"
-                              c="dimmed"
-                              fw={600}
-                            >
-                              {
-                                module.code
-                              }
-                            </Text>
+<Tabs.Panel
+  value="modules"
+  pt="md"
+>
+  <Stack gap="md">
 
-                            <Text fw={700}>
-                              {
-                                module.title
-                              }
-                            </Text>
-                          </Box>
+    {/* Hidden file input */}
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+      style={{
+        display: "none",
+      }}
+      onChange={
+        handleMaterialSelected
+      }
+    />
 
-                          <BookOpen
-                            size={18}
-                          />
-                        </Group>
+    {/* Upload button */}
+    <Group
+      justify="flex-end"
+    >
+      <Button
+        size="xs"
+        color="dark"
+        leftSection={
+          <Upload size={14} />
+        }
+        loading={
+          uploadingMaterial
+        }
+        onClick={
+          handleUploadMaterial
+        }
+      >
+        Upload Material
+      </Button>
+    </Group>
 
-                        <Text
-                          size="xs"
-                          c="dimmed"
-                        >
-                          {
-                            module.description
-                          }
-                        </Text>
+    {/* =================================================
+        EMPTY STATE / MATERIAL CARDS
+    ================================================= */}
 
-                        <Divider />
-
-                        <Text size="xs">
-                          <b>
-                            Instructor:
-                          </b>{" "}
-                          {
-                            module.instructor
-                          }
-                        </Text>
-
-                        <Text size="xs">
-                          <b>
-                            Schedule:
-                          </b>{" "}
-                          {
-                            module.schedule
-                          }
-                        </Text>
-                      </Stack>
-                    </Paper>
-                  )
-                )}
-              </SimpleGrid>
-            </Stack>
-          </Tabs.Panel>
-        </Tabs>
-
+    {materials.length === 0 ? (
+      <Paper
+        withBorder
+        radius="md"
+        p="xl"
+      >
+        <Text
+          size="sm"
+          c="dimmed"
+          ta="center"
+        >
+          No materials uploaded yet
+        </Text>
+      </Paper>
+    ) : (
+      <>
         {/* =================================================
-            ADD / EDIT QUEST MODAL
+            MATERIAL CARDS
         ================================================= */}
 
-        <Modal
-          opened={modalOpened}
-          onClose={() =>
-            setModalOpened(false)
-          }
-          title={
-            <Text fw={700}>
-              {editingQuest
-                ? "Edit Quest"
-                : "Add Quest"}
-            </Text>
-          }
-          centered
-          size="md"
+        <SimpleGrid
+          cols={{
+            base: 1,
+            sm: 2,
+            md: 3,
+          }}
+          spacing="md"
         >
-          <Stack gap="md">
-            <TextInput
-              label="Quest Title"
-              placeholder="Enter quest title"
-              required
-              value={
-                newQuest.title
-              }
-              onChange={(
-                event
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  title:
-                    event
-                      .currentTarget
-                      .value,
-                })
-              }
-            />
+          {materials.map(
+            (material) => (
+              <Paper
+                key={material.id}
+                withBorder
+                radius="md"
+                p="md"
+                h={180}
+                style={{
+                  display: "flex",
+                  flexDirection:
+                    "column",
+                  justifyContent:
+                    "space-between",
+                }}
+              >
+                <Stack gap="xs">
+                  <Group
+                    justify="space-between"
+                    align="flex-start"
+                  >
+                    <BookOpen
+                      size={20}
+                    />
 
-            <Textarea
-              label="Description"
-              placeholder="Describe the quest..."
-              minRows={3}
-              value={
-                newQuest.description
-              }
-              onChange={(
-                event
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  description:
-                    event
-                      .currentTarget
-                      .value,
-                })
-              }
-            />
+                    <Badge
+                      size="xs"
+                      variant="light"
+                      color="gray"
+                    >
+                      {material.file_type ||
+                        "File"}
+                    </Badge>
+                  </Group>
 
-            <Select
-              label="Subject"
-              placeholder="Select subject"
-              searchable
-              clearable
-              data={MODULES.map(
-                (module) => ({
-                  value:
-                    module.title,
-                  label: `${module.code} - ${module.title}`,
-                })
-              )}
-              value={
-                newQuest.subject ||
-                null
-              }
-              onChange={(
-                value
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  subject:
-                    value || "",
-                })
-              }
-            />
+                  <Text
+                    fw={700}
+                    size="sm"
+                    lineClamp={2}
+                  >
+                    {material.filename}
+                  </Text>
 
-            <TextInput
-              label="Deadline"
-              type="datetime-local"
-              value={
-                newQuest.deadline
-              }
-              onChange={(
-                event
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  deadline:
-                    event
-                      .currentTarget
-                      .value,
-                })
-              }
-            />
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    {material.subject ||
+                      "General Material"}
+                  </Text>
+                </Stack>
 
-            <NumberInput
-              label="Estimated Duration"
-              description="How many minutes this quest should take."
-              min={15}
-              step={15}
-              value={
-                newQuest.estimated_duration
-              }
-              onChange={(
-                value
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  estimated_duration:
-                    typeof value ===
-                    "number"
-                      ? value
-                      : 60,
-                })
-              }
-            />
+                <Stack gap={4}>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    {(
+                      material.file_size /
+                      1024 /
+                      1024
+                    ).toFixed(2)}{" "}
+                    MB
+                  </Text>
 
-            <Select
-              label="Priority"
-              data={[
-                {
-                  value: "low",
-                  label:
-                    "Low Priority",
-                },
-                {
-                  value: "medium",
-                  label:
-                    "Medium Priority",
-                },
-                {
-                  value: "high",
-                  label:
-                    "High Priority",
-                },
-              ]}
-              value={
-                newQuest.priority
-              }
-              onChange={(
-                value
-              ) =>
-                setNewQuest({
-                  ...newQuest,
-                  priority:
-                    (value ||
-                      "medium") as QuestPriority,
-                })
-              }
-            />
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                  >
+                    Uploaded{" "}
+                    {new Date(
+                      material.created_at
+                    ).toLocaleDateString(
+                      "en-US",
+                      {
+                        month:
+                          "short",
+                        day:
+                          "numeric",
+                        year:
+                          "numeric",
+                      }
+                    )}
+                  </Text>
+                </Stack>
+              </Paper>
+            )
+          )}
+        </SimpleGrid>
+      </>
+    )}
+  </Stack>
+</Tabs.Panel>
 
-            <Group
-              justify="space-between"
-              mt="md"
-            >
-              {editingQuest ? (
-                <Button
-                  color="red"
-                  variant="light"
-                  loading={
-                    deletingQuest
-                  }
-                  onClick={
-                    handleDeleteQuest
-                  }
-                >
-                  Delete
-                </Button>
-              ) : (
-                <Box />
-              )}
+</Tabs>
 
-              <Group>
-                <Button
-                  variant="subtle"
-                  onClick={() =>
-                    setModalOpened(
-                      false
-                    )
-                  }
-                >
-                  Cancel
-                </Button>
+{/* =================================================
+    ADD / EDIT QUEST MODAL
+================================================= */}
 
-                <Button
-                  color="dark"
-                  loading={
-                    savingQuest
-                  }
-                  onClick={
-                    handleSaveQuest
-                  }
-                >
-                  {editingQuest
-                    ? "Save Changes"
-                    : "Create Quest"}
-                </Button>
-              </Group>
-            </Group>
-          </Stack>
-        </Modal>
-      </Stack>
-    </Box>
-  );
+<Modal
+  opened={modalOpened}
+  onClose={() =>
+    setModalOpened(false)
+  }
+  title={
+    <Text fw={700}>
+      {editingQuest
+        ? "Edit Quest"
+        : "Add Quest"}
+    </Text>
+  }
+  centered
+  size="md"
+>
+  <Stack gap="md">
+    <TextInput
+      label="Quest Title"
+      placeholder="Enter quest title"
+      required
+      value={
+        newQuest.title
+      }
+      onChange={(event) =>
+        setNewQuest({
+          ...newQuest,
+          title:
+            event
+              .currentTarget
+              .value,
+        })
+      }
+    />
+
+    <Textarea
+      label="Description"
+      placeholder="Describe the quest..."
+      minRows={3}
+      value={
+        newQuest.description
+      }
+      onChange={(event) =>
+        setNewQuest({
+          ...newQuest,
+          description:
+            event
+              .currentTarget
+              .value,
+        })
+      }
+    />
+
+    <Select
+      label="Subject"
+      placeholder="Select subject"
+      searchable
+      clearable
+      data={subjects.map(
+        (subject) => ({
+          value: subject,
+          label: subject,
+        })
+      )}
+      value={
+        newQuest.subject ||
+        null
+      }
+      onChange={(value) =>
+        setNewQuest({
+          ...newQuest,
+          subject:
+            value || "",
+        })
+      }
+    />
+
+    <TextInput
+      label="Deadline"
+      type="datetime-local"
+      value={
+        newQuest.deadline
+      }
+      onChange={(event) =>
+        setNewQuest({
+          ...newQuest,
+          deadline:
+            event
+              .currentTarget
+              .value,
+        })
+      }
+    />
+
+    <NumberInput
+      label="Estimated Duration"
+      description="How many minutes this quest should take."
+      min={15}
+      step={15}
+      value={
+        newQuest.estimated_duration
+      }
+      onChange={(value) =>
+        setNewQuest({
+          ...newQuest,
+          estimated_duration:
+            typeof value ===
+            "number"
+              ? value
+              : 60,
+        })
+      }
+    />
+
+    <Select
+      label="Priority"
+      data={[
+        {
+          value: "low",
+          label:
+            "Low Priority",
+        },
+        {
+          value: "medium",
+          label:
+            "Medium Priority",
+        },
+        {
+          value: "high",
+          label:
+            "High Priority",
+        },
+      ]}
+      value={
+        newQuest.priority
+      }
+      onChange={(value) =>
+        setNewQuest({
+          ...newQuest,
+          priority:
+            (value ||
+              "medium") as QuestPriority,
+        })
+      }
+    />
+
+    <Group
+      justify="space-between"
+      mt="md"
+    >
+      {editingQuest ? (
+        <Button
+          color="red"
+          variant="light"
+          loading={
+            deletingQuest
+          }
+          onClick={
+            handleDeleteQuest
+          }
+        >
+          Delete
+        </Button>
+      ) : (
+        <Box />
+      )}
+
+      <Group>
+        <Button
+          variant="subtle"
+          onClick={() =>
+            setModalOpened(
+              false
+            )
+          }
+        >
+          Cancel
+        </Button>
+
+        <Button
+          color="dark"
+          loading={
+            savingQuest
+          }
+          onClick={
+            handleSaveQuest
+          }
+        >
+          {editingQuest
+            ? "Save Changes"
+            : "Create Quest"}
+        </Button>
+      </Group>
+    </Group>
+  </Stack>
+</Modal>
+
+</Stack>
+</Box>
+);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+
 import {
     Anchor,
     Box,
@@ -18,8 +19,10 @@ import {
     TextInput,
     Title,
 } from "@mantine/core";
+
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
+
 import {
     Check,
     Lock,
@@ -27,6 +30,7 @@ import {
     User,
     X,
 } from "lucide-react";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -314,14 +318,17 @@ export default function AccessPage() {
         }
 
         /*
-         * Use a full browser navigation instead of
-         * router.push().
+         * Use Next.js client-side navigation.
          *
-         * This is intentional for our current
-         * Supabase session persistence test.
+         * The previous implementation used:
+         *
+         * window.location.href = "/dashboard";
+         *
+         * This triggered the React/Next.js ESLint
+         * immutability and no-location-assign rules.
          */
 
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
     };
 
     /* ----------------------------- */
@@ -990,11 +997,6 @@ export default function AccessPage() {
                                         handleGoogleAuth(
                                             "signup"
                                         )
-                                    }
-                                    size={
-                                        isMobile
-                                            ? "xs"
-                                            : "md"
                                     }
                                 >
                                     Sign Up with Google
