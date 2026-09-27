@@ -14,7 +14,7 @@ export async function POST(
   if (!friend_id) return NextResponse.json({ error: "friend_id is required" }, { status: 400 });
 
   const { data: room } = await supabase
-    .from("rooms").select("owner_id, code").eq("id", id).single();
+    .from("rooms").select("owner_id, code, name").eq("id", id).single();
   if (!room || room.owner_id !== user.id)
     return NextResponse.json({ error: "Only the owner can invite" }, { status: 403 });
 
@@ -30,7 +30,7 @@ export async function POST(
     _user_id: friend_id,
     _type: "room_invite",
     _title: "Room invite",
-    _body: `Join room ${room.code}`,
+    _body: `Join "${room.name ?? room.code}"`,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
