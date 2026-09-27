@@ -8,10 +8,13 @@ import {
     Button,
     Flex,
     Group,
+    Paper,
     Text,
     UnstyledButton,
     useMantineColorScheme,
 } from "@mantine/core";
+
+import { useEffect, useState } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import { Circle, Moon, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -85,6 +88,9 @@ export default function Navbar({
     const [opened, { toggle }] = useDisclosure(false);
     const router = useRouter();
     const supabase = createClient();
+    const [streak, setStreak] = useState(0);
+
+    useEffect(() => { let cancelled = false; async function loadStreak() { try { const response = await fetch("/api/streak"); if (!response.ok) { return; } const data = await response.json(); if (!cancelled) { setStreak(data.streak?.current_streak ?? 0); } } catch (error) { console.error("Could not load streak:", error); } } loadStreak(); return () => { cancelled = true; }; }, []);
 
     const { colorScheme, setColorScheme } =
         useMantineColorScheme();

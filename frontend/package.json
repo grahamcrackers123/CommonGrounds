@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.0",
     "@mantine/core": "^9.5.1",
     "@mantine/dates": "^9.6.0",
     "@mantine/form": "^9.5.1",

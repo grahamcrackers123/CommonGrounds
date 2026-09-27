@@ -10,6 +10,7 @@ import {
     Stack,
     Text,
     Textarea,
+    TextInput,
     Title,
 } from "@mantine/core";
 import {
@@ -18,7 +19,10 @@ import {
     IconBrain,
     IconCalendar,
     IconFileText,
+    IconPlus,
+    IconSearch,
     IconSparkles,
+    IconFolder,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -61,7 +65,14 @@ export default function AskWasiPage() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [searchChat, setSearchChat] = useState("");
 
+    const handleNewChat = () => {
+    setMessages([]);
+    setInput("");
+    setError("");
+};
+    
     const sendMessage = async () => {
         const message = input.trim();
 
@@ -216,17 +227,17 @@ export default function AskWasiPage() {
     };
 
     return (
-        <Stack
-            p={{ base: "md", sm: "xl" }}
-            gap="md"
-            maw={1050}
-            mx="auto"
-            style={{
-                minHeight: "100%",
-                background: "light-dark(#FFFFFF, #000000)",
-                color: "light-dark(var(--mantine-color-text), #FFFFFF)",
-            }}
-        >
+    <Stack
+        p={{ base: "md", sm: "xl" }}
+        gap="md"
+        maw={1250}
+        mx="auto"
+        style={{
+            minHeight: "100%",
+            background: "light-dark(#FFFFFF, #000000)",
+            color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+        }}
+    >
             {/* Chat Header */}
             <Card
                 withBorder
@@ -389,6 +400,155 @@ export default function AskWasiPage() {
                 </Group>
             </Card>
 
+{/* Main Ask Wasi Workspace */}
+<Group
+    align="stretch"
+    gap="md"
+    wrap="nowrap"
+    style={{
+        flex: 1,
+        minHeight: 600,
+    }}
+>
+    {/* Ask Wasi Sidebar */}
+    <Card
+        withBorder
+        radius="lg"
+        p="md"
+        w={{ base: 230, sm: 260 }}
+        style={{
+            flexShrink: 0,
+            borderColor:
+                "light-dark(var(--mantine-color-gray-2), #292929)",
+            background:
+                "light-dark(#FFFFFF, #111111)",
+        }}
+    >
+        <Stack gap="sm">
+
+            {/* New Chat */}
+            <button
+                type="button"
+                onClick={handleNewChat}
+                disabled={loading}
+                style={{
+                    width: "100%",
+                    border: "1px solid light-dark(var(--mantine-color-gray-2), #333333)",
+                    background: "light-dark(#FFFFFF, #151515)",
+                    color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontWeight: 600,
+                    cursor: loading ? "not-allowed" : "pointer",
+                }}
+            >
+                <IconPlus size={17} />
+                New chat
+            </button>
+
+            {/* Search Chat */}
+            <TextInput
+                value={searchChat}
+                onChange={(event) =>
+                    setSearchChat(event.currentTarget.value)
+                }
+                placeholder="Search chat"
+                leftSection={<IconSearch size={16} />}
+                size="sm"
+            />
+
+            {/* Materials */}
+            <button
+                type="button"
+                style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+                    borderRadius: 8,
+                    padding: "9px 10px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    textAlign: "left",
+                    cursor: "pointer",
+                }}
+            >
+                <IconFileText size={17} />
+                Materials
+            </button>
+
+            {/* Projects */}
+            <button
+                type="button"
+                style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+                    borderRadius: 8,
+                    padding: "9px 10px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    textAlign: "left",
+                    cursor: "pointer",
+                }}
+            >
+                <IconFolder size={17} />
+                Projects
+            </button>
+
+            {/* Recent Chats */}
+            <Stack gap={6} mt="sm">
+                <Text
+                    size="xs"
+                    fw={700}
+                    c="dimmed"
+                    tt="uppercase"
+                >
+                    Recent Chats
+                </Text>
+
+                {messages.length > 0 ? (
+                    <Paper
+                        withBorder
+                        radius="md"
+                        p="xs"
+                        style={{
+                            cursor: "pointer",
+                        }}
+                    >
+                        <Text size="sm" lineClamp={2}>
+                            {messages.find(
+                                (message) =>
+                                    message.role === "user"
+                            )?.content || "Current conversation"}
+                        </Text>
+                    </Paper>
+                ) : (
+                    <Text
+                        size="sm"
+                        c="dimmed"
+                    >
+                        No recent chats
+                    </Text>
+                )}
+            </Stack>
+        </Stack>
+    </Card>
+
+    {/* Conversation Area */}
+    <Stack
+        gap="md"
+        style={{
+            flex: 1,
+            minWidth: 0,
+        }}
+    >
             {/* Conversation */}
             <Card
                 withBorder
