@@ -1,5 +1,6 @@
 import CustomButton from "@/components/button";
 import WelcomeRewardModal from "@/components/welcomerewardmodal";
+import WorkloadStatusChip from "@/components/workload-status-chip";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { BookOpen, Clock, Coins, Flame, Target, TrendingUp, Zap } from "lucide-react";
@@ -24,6 +25,7 @@ export default async function DashboardPage() {
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* modal for welcome reward */}
                 {showReward && <WelcomeRewardModal />}
+                <WorkloadStatusChip />
 
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={28} wrap="wrap">

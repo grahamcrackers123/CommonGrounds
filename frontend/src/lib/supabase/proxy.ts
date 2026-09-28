@@ -17,10 +17,14 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+
           supabaseResponse = NextResponse.next({
             request,
           })
+
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -32,15 +36,18 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: do not run code between createServerClient and getUser().
   // A simple mistake could make it very hard to debug issues with users
   // being randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+ const { data } =
+  await supabase.auth.getClaims()
 
-
+const user = data
+  ? { id: data.claims.sub }
+  : null
   const path = request.nextUrl.pathname
 
   if (!user && path !== '/access' && path !== '/callback') {
-    return NextResponse.redirect(new URL('/access', request.url))
+    return NextResponse.redirect(
+      new URL('/access', request.url)
+    )
   }
 
   if (user) {
@@ -52,22 +59,37 @@ export async function updateSession(request: NextRequest) {
 
     if (path === '/access') {
       return NextResponse.redirect(
-        new URL(profile?.setup_complete ? '/dashboard' : '/setup', request.url)
+        new URL(
+          profile?.setup_complete
+            ? '/dashboard'
+            : '/setup',
+          request.url
+        )
       )
     }
 
-    if (!profile?.setup_complete && path !== '/setup') {
-      return NextResponse.redirect(new URL('/setup', request.url))
+    if (
+      !profile?.setup_complete &&
+      path !== '/setup'
+    ) {
+      return NextResponse.redirect(
+        new URL('/setup', request.url)
+      )
     }
   }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so: const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies: myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing the cookies!
+  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+  // If you're creating a new response object with NextResponse.next()
+  // make sure to:
+  // 1. Pass the request in it, like so:
+  //    const myNewResponse = NextResponse.next({ request })
+  // 2. Copy over the cookies:
+  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
+  // 3. Change the myNewResponse object to fit your needs,
+  //    but avoid changing the cookies!
   // 4. Return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
+  //
+  // If this is not done, you may be causing the browser and server to go
+  // out of sync and terminate the user's session prematurely!
   return supabaseResponse
 }

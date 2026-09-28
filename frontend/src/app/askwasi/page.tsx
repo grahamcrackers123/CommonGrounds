@@ -1,298 +1,792 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
 import {
-  Home,
-  MessageCircle,
-  Film,
-  CalendarDays,
-  Timer,
-  Sprout,
-  Gift,
-  Map,
-  Settings,
-  SquarePen,
-  Search,
-  BookOpen,
-  FolderKanban,
-  Bell,
-  Coins,
-  Gem,
-  Send,
-  Flame,
-} from "lucide-react";
+    ActionIcon,
+    Badge,
+    Card,
+    Group,
+    Paper,
+    ScrollArea,
+    Stack,
+    Text,
+    Textarea,
+    Title,
+} from "@mantine/core";
+import {
+    IconArrowUp,
+    IconBook2,
+    IconBrain,
+    IconCalendar,
+    IconFileText,
+    IconSparkles,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-const NAV_ITEMS = [
-  { label: "Home", icon: Home },
-  { label: "Ask Wasi", icon: MessageCircle },
-  { label: "Study Reels", icon: Film },
-  { label: "Quest Calendar", icon: CalendarDays },
-  { label: "Focus Room", icon: Timer },
-  { label: "Pet Garden", icon: Sprout },
-  { label: "Reward Shop", icon: Gift },
-  { label: "Progress Map", icon: Map },
-  { label: "Settings", icon: Settings },
+type Message = {
+    role: "user" | "assistant";
+    content: string;
+};
+
+const quickPrompts = [
+    {
+        label: "Explain a concept",
+        icon: IconBook2,
+        prompt:
+            "Can you explain a concept from one of my subjects in a simple way?",
+    },
+    {
+        label: "Quiz me",
+        icon: IconBrain,
+        prompt:
+            "Quiz me on something I'm currently studying. Start with an easy question.",
+    },
+    {
+        label: "Coursework",
+        icon: IconFileText,
+        prompt:
+            "Can you help me understand or organize one of my current coursework tasks?",
+    },
+    {
+        label: "Study plan",
+        icon: IconCalendar,
+        prompt:
+            "Can you help me plan my study time based on my current coursework?",
+    },
 ];
 
-const TOOL_ITEMS = [
-  { label: "New chat", icon: SquarePen },
-  { label: "Search chat", icon: Search },
-  { label: "Materials", icon: BookOpen },
-  { label: "Projects", icon: FolderKanban },
-];
+export default function AskWasiPage() {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
-const RECENT_CHATS = [
-  "Photosynthesis quiz prep",
-  "Essay outline: river ecosystems",
-  "English vocab drill",
-];
+    const sendMessage = async () => {
+        const message = input.trim();
 
-const WASI_REPLIES = [
-  "Good question — let's break it into three steps so it sticks.",
-];
+        if (!message || loading) {
+            return;
+        }
 
-const ACCENT = "#2F80ED";
-const ACCENT_SOFT = "#EAF2FE";
+        setError("");
+        setInput("");
 
-function AskWasi() {
-  const [active, setActive] = useState("Ask Wasi");
-  const [messages, setMessages] = useState([
-    { sender: "Wasi", text: "Hey, MJ! What can I help you with?" },
-  ]);
-  const [draft, setDraft] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+        setMessages((prev) => [
+            ...prev,
+            {
+                role: "user",
+                content: message,
+            },
+            {
+                role: "assistant",
+                content: "",
+            },
+        ]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, isTyping]);
+        setLoading(true);
 
-  function handleSend() {
-    const text = draft.trim();
-    if (!text) return;
-    setMessages((m) => [...m, { sender: "User", text }]);
-    setDraft("");
-    setIsTyping(true);
-    setTimeout(() => {
-      const reply = WASI_REPLIES[Math.floor(Math.random() * WASI_REPLIES.length)];
-      setMessages((m) => [...m, { sender: "Wasi", text: reply }]);
-      setIsTyping(false);
-    }, 900);
-  }
+        try {
+            const response = await fetch("/api/askwasi", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    message,
+                }),
+            });
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }
+            if (!response.ok) {
+                const data = await response.json().catch(() => null);
 
-  return (
-    <div
-      className="w-full h-full min-h-[700px] flex"
-      style={{
-        background: "#F3F5F9",
-        fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
-        color: "#1B2430",
-      }}
-    >
-      {/* Sidebar */}
-      <aside
-        className="w-[240px] shrink-0 flex flex-col justify-between p-5 border-r"
-        style={{ borderColor: "#E1E6EE", background: "#FAFBFD" }}
-      >
-        <div>
-          <div className="flex items-center gap-2.5 mb-8 px-1">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: ACCENT }}
-            >
-              <Sprout size={17} color="#FAFBFD" strokeWidth={2.25} />
-            </div>
-            <span
-              className="text-[15px] font-semibold tracking-tight"
-              style={{ fontFamily: "'Lora', ui-serif, Georgia, serif", color: "#101825" }}
-            >
-              CommonGrounds
-            </span>
-          </div>
-
-          <nav className="flex flex-col gap-0.5">
-            {NAV_ITEMS.map(({ label, icon: Icon }) => {
-                const isActive = active === label;
-                return (
-                  <button
-                    key={label}
-                    onClick={() => setActive(label)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] text-left transition-colors"
-                    style={{
-                        background: isActive ? ACCENT : "transparent",
-                        color: isActive ? "#FAFBFD" : "#4B5768",
-                        fontWeight: isActive ? 600 : 500,
-                    }}
-                  > 
-                  <Icon size={16} strokeWidth={2} />
-                    {label}
-                    </button>
+                throw new Error(
+                    data?.error || `Request failed (${response.status})`
                 );
-            })}
-          </nav>
-        </div>
+            }
 
-        <div className="rounded-xl p-4 text-center" style={{ background: ACCENT_SOFT }}>
-            <div className="flex items-center justify-center gap-1.5 text-[11.5px] font-medium mb-1" style={{ color: "#5B6C86" }}>
-                Today's Streak
-                </div>
-                <div className="flex items-center justify-center gap-1.5">
-                    <Flame size={20} color="#C98A2C" strokeWidth={2.25} fill="#C98A2C" fillOpacity={0.25} />
-                    <span className="text-2x1 font-semibold" style={{ fontFamily: "'Lora', ui-serif, Georgia, serif", color: "#101825" }}>
-                        12 days
-                    </span>
-                </div>
-                <p className="text-[10.5px] leading-smug mt-2" style={{ color: "#6B7A90" }}>
-                  Visit your companion and complete at least three quest everyday to keep the fire lit
-                  </p>
-        </div>
-      </aside>
+            if (!response.body) {
+                throw new Error("No response stream received.");
+            }
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="flex items-center justify between gap-4 px-7 py-4 border-b shrink-0" style={{ borderColor: "#E1E6EE" }}>
-          <div>
-            <h1 className="text-[22px] leading-tight font-semibold" style={{ fontFamily: "'Lora', ui-serif, Georgia, serif", color: "#101825" }}>
-              Ask Wasi
-            </h1>
-            <p className="text-[12.5px]" style={{ color: "#6B7A90" }}>
-              Your study companion, is ready when you are.
-              </p>
-          </div>
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-          <div className="flex items-center gap-2,5 shrink-0">
-            <div className="hidden lg:flex items-center gap-2 rounded-full px-3.5 py2 w-64" style={{ background: "#FAFBFD", border: "1px solid #E1E6EE" }}>
-              <Search size={14} color="9AA5B7" />
-              <input
-              placeholder="Search tasks, topic materials..."
-              className="bg-transparent outline-none text-[12.5px] w-full placeholder:text-[#9AA5B7]"
-              />
-            </div>
-            <Pill icon={<Coins size={13} color="#C98A2C" />} value="2,450" />
-            <Pill icon={<Gem size={13} color="#6B5CA5" />} value="150" />
-            <Pill icon={<Bell size={13} color={ACCENT} />} value="3" />
-            <div className="flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1" style={{ background: ACCENT }}>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10.5px] font-semibold" style={{ background: "#FAFBFD", color: ACCENT }}>
-                MJ
-              </div>
-              <span className="text-[12px] font-medium" style={{ color: "#FAFBFD" }}>
-                Lvl 8
-              </span>
-            </div>
-          </div>
-        </header>
+            let buffer = "";
 
-        {/* Body */}
-        <div className="flex-1 flex min-h-0 p-6 gap-5">
-          {/* Tools column */}
-          <div className="w-[220px] shrink-0 flex flex-col gap-2">
-            {TOOL_ITEMS.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                className="flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors"
-                style={{ background: "#FAFBFD", border: "1px solid #E1E6EE", color: "#33415A" }}
-              >
-                <Icon size={15} strokeWidth={2} />
-                {label}
-              </button>
-            ))}
+            while (true) {
+                const { value, done } = await reader.read();
 
-            <div className="mt-4 px-1 text-[11.5px] font-semibold tracking-wide" style={{ color: "#9AA5B7" }}>
-              Recent Chats
-            </div>
-            <div className="flex flex-col gap-1 mt-1">
-              {RECENT_CHATS.map((chat) => (
-                <button key={chat} className="text-left px-3 py-2 rounded-lg text-[12px] truncate transition-colors" style={{ color: "#5B6C86" }}>
-                  {chat}
-                </button>
-              ))}
-            </div>
-          </div>
+                if (done) {
+                    break;
+                }
 
-          {/* Chat panel */}
-          <div className="flex-1 min-w-0 flex flex-col rounded-2xl overflow-hidden" style={{ background: "#FAFBFD", border: "1px solid #E1E6EE" }}>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-4">
-              {messages.map((m, i) =>
-                m.sender === "Wasi" ? (
-                  <div key={i} className="flex items-start gap-2.5 max-w-[75%]">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-0.5" style={{ background: ACCENT, color: "#FAFBFD" }}>
-                      W
-                    </div>
-                    <div className="rounded-2xl rounded-tl-sm px-4 py-2.5 text-[13.5px] leading-relaxed" style={{ background: "#EEF1F6", color: "#1B2430" }}>
-                      {m.text}
-                    </div>
-                  </div>
-                ) : (
-                  <div key={i} className="flex justify-end">
-                    <div className="rounded-2xl rounded-tr-sm px-4 py-2.5 text-[13.5px] leading-relaxed max-w-[75%]" style={{ background: ACCENT, color: "#FAFBFD" }}>
-                      {m.text}
-                    </div>
-                  </div>
-                )
-              )}
-              {isTyping && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0" style={{ background: ACCENT, color: "#FAFBFD" }}>
-                    W
-                  </div>
-                  <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "#EEF1F6" }}>
-                    <div className="flex gap-1">
-                      {[0, 1, 2].map((d) => (
-                        <span key={d} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "#9AA5B7", animationDelay: `${d * 0.12}s` }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                buffer += decoder.decode(value, {
+                    stream: true,
+                });
 
-            <div className="flex items-center gap-3 px-5 py-4 border-t" style={{ borderColor: "#E1E6EE" }}>
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Start a conversation with Wasi..."
-                className="flex-1 bg-transparent outline-none text-[13.5px] placeholder:text-[#9AA5B7]"
-              />
-              <button
-                onClick={handleSend}
-                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold transition-opacity"
-                style={{ background: ACCENT, color: "#FAFBFD", opacity: draft.trim() ? 1 : 0.5 }}
-                disabled={!draft.trim()}
-              >
-                Send
-                <Send size={13} strokeWidth={2.25} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+                const events = buffer.split("\n\n");
+
+                buffer = events.pop() ?? "";
+
+                for (const event of events) {
+                    if (!event.startsWith("data: ")) {
+                        continue;
+                    }
+
+                    const json = event.slice(6);
+
+                    let data: {
+                        token?: string;
+                        error?: string;
+                        done?: boolean;
+                    };
+
+                    try {
+                        data = JSON.parse(json);
+                    } catch (parseError) {
+                        console.error(
+                            "Failed to parse SSE event:",
+                            parseError
+                        );
+                        continue;
+                    }
+
+                    if (data.token) {
+                        setMessages((prev) => {
+                            const updated = [...prev];
+                            const lastIndex = updated.length - 1;
+
+                            if (
+                                updated[lastIndex]?.role === "assistant"
+                            ) {
+                                updated[lastIndex] = {
+                                    ...updated[lastIndex],
+                                    content:
+                                        updated[lastIndex].content +
+                                        data.token,
+                                };
+                            }
+
+                            return updated;
+                        });
+                    }
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    if (data.done) {
+                        console.log("Ask Wasi stream completed.");
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Ask Wasi error:", err);
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong."
+            );
+
+            setMessages((prev) => {
+                const last = prev[prev.length - 1];
+
+                if (
+                    last?.role === "assistant" &&
+                    last.content === ""
+                ) {
+                    return prev.slice(0, -1);
+                }
+
+                return prev;
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleQuickPrompt = (prompt: string) => {
+        if (loading) {
+            return;
+        }
+
+        setInput(prompt);
+    };
+
+    return (
+        <Stack
+            p={{ base: "md", sm: "xl" }}
+            gap="md"
+            maw={1050}
+            mx="auto"
+            style={{
+                minHeight: "100%",
+                background: "light-dark(#FFFFFF, #000000)",
+                color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+            }}
+        >
+            {/* Chat Header */}
+            <Card
+                withBorder
+                radius="lg"
+                p="lg"
+                style={{
+                    borderColor: "light-dark(var(--mantine-color-blue-1), #292929)",
+                    background: "light-dark(#FFFFFF, #000000)",
+                    boxShadow:
+                        "0 2px 12px rgba(0, 0, 0, 0.08)",
+                }}
+            >
+                <Group justify="space-between" align="center">
+                    <Group gap="sm">
+                        <Paper
+                            withBorder
+                            radius="md"
+                            p={8}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background:
+                                    "light-dark(var(--mantine-color-blue-0), #151515)",
+                                borderColor:
+                                    "light-dark(var(--mantine-color-blue-1), #292929)",
+                            }}
+                        >
+                            <IconSparkles
+                                size={22}
+                                stroke={1.8}
+                            />
+                        </Paper>
+
+                        <div>
+                            <Title order={2}>Ask Wasi</Title>
+
+                            <Text size="sm" c="dimmed" mt={2}>
+                                Your personalized learning
+                                companion.
+                            </Text>
+                        </div>
+                    </Group>
+
+                    <Badge
+                        variant="light"
+                        radius="xl"
+                        style={{
+                            background: "light-dark(var(--mantine-color-blue-0), #151515)",
+                            color: "light-dark(var(--mantine-color-blue-7), #FFFFFF)",
+                            border: "1px solid light-dark(var(--mantine-color-blue-1), #292929)",
+                        }}
+                        leftSection={
+                            <span
+                                style={{
+                                    width: 7,
+                                    height: 7,
+                                    borderRadius: "50%",
+                                    background:
+                                        "var(--mantine-color-green-6)",
+                                    display: "inline-block",
+                                }}
+                            />
+                        }
+                    >
+                        Ready
+                    </Badge>
+                </Group>
+            </Card>
+
+            {/* Quick Prompts */}
+            <Card
+                withBorder
+                radius="lg"
+                p="md"
+                style={{
+                    background: "light-dark(var(--mantine-color-gray-0), #000000)",
+                    borderColor: "light-dark(var(--mantine-color-gray-2), #292929)",
+                }}
+            >
+                <Text
+                    size="xs"
+                    fw={700}
+                    c="dimmed"
+                    tt="uppercase"
+                    mb="sm"
+                >
+                    Quick prompts
+                </Text>
+
+                <Group gap="sm">
+                    {quickPrompts.map((item) => {
+                        const Icon = item.icon;
+
+                        return (
+                            <button
+                                key={item.label}
+                                type="button"
+                                onClick={() =>
+                                    handleQuickPrompt(item.prompt)
+                                }
+                                disabled={loading}
+                                style={{
+                                    border:
+                                        "1px solid light-dark(var(--mantine-color-blue-1), #292929)",
+                                    background:
+                                        "light-dark(var(--mantine-color-white), #151515)",
+                                    color:
+                                        "light-dark(var(--mantine-color-blue-7), #FFFFFF)",
+                                    borderRadius: 999,
+                                    padding: "8px 13px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 7,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: loading
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    boxShadow:
+                                        "0 2px 0 rgba(0, 0, 0, 0.10)",
+                                    transition:
+                                        "all 120ms ease",
+                                    opacity: loading ? 0.6 : 1,
+                                }}
+                                onMouseEnter={(event) => {
+                                    if (loading) {
+                                        return;
+                                    }
+
+                                    event.currentTarget.style.transform =
+                                        "translateY(-1px)";
+
+                                    event.currentTarget.style.boxShadow =
+                                        "0 4px 10px rgba(0, 0, 0, 0.16)";
+
+                                    event.currentTarget.style.background =
+                                        "light-dark(var(--mantine-color-blue-0), #222222)";
+                                }}
+                                onMouseLeave={(event) => {
+                                    event.currentTarget.style.transform =
+                                        "translateY(0)";
+
+                                    event.currentTarget.style.boxShadow =
+                                        "0 2px 0 rgba(0, 0, 0, 0.10)";
+
+                                    event.currentTarget.style.background =
+                                        "light-dark(var(--mantine-color-white), #151515)";
+                                }}
+                            >
+                                <Icon
+                                    size={16}
+                                    stroke={1.8}
+                                />
+
+                                {item.label}
+                            </button>
+                        );
+                    })}
+                </Group>
+            </Card>
+
+            {/* Conversation */}
+            <Card
+                withBorder
+                radius="lg"
+                p={0}
+                style={{
+                    flex: 1,
+                    minHeight: 500,
+                    overflow: "hidden",
+                    borderColor:
+                        "light-dark(var(--mantine-color-gray-2), #292929)",
+                    background: "light-dark(#FFFFFF, #111111)",
+                    boxShadow:
+                        "0 4px 20px rgba(0, 0, 0, 0.25)",
+                }}
+            >
+                <ScrollArea
+                    h={520}
+                    px={{ base: "md", sm: "xl" }}
+                    py="xl"
+                    scrollbarSize={6}
+                >
+                    {messages.length === 0 ? (
+                        <Stack
+                            align="center"
+                            justify="center"
+                            h={450}
+                            gap="sm"
+                        >
+                            <Paper
+                                radius="xl"
+                                p="lg"
+                                withBorder
+                                style={{
+                                    background:
+                                        "light-dark(var(--mantine-color-blue-0), #151515)",
+                                    borderColor:
+                                        "light-dark(var(--mantine-color-blue-1), #292929)",
+                                }}
+                            >
+                                <IconSparkles
+                                    size={34}
+                                    stroke={1.6}
+                                />
+                            </Paper>
+
+                            <Title order={3} ta="center">
+                                What are we learning today?
+                            </Title>
+
+                            <Text
+                                c="dimmed"
+                                ta="center"
+                                maw={520}
+                                size="sm"
+                            >
+                                Ask Wasi about your subjects,
+                                coursework, difficult concepts,
+                                or study planning. Choose a
+                                quick prompt above or ask
+                                anything below.
+                            </Text>
+                        </Stack>
+                    ) : (
+                        <Stack gap="lg">
+                            {messages.map((message, index) => {
+                                const isUser =
+                                    message.role === "user";
+
+                                const isStreaming =
+                                    !isUser &&
+                                    loading &&
+                                    index === messages.length - 1;
+
+                                return (
+                                    <Group
+                                        key={index}
+                                        justify={
+                                            isUser
+                                                ? "flex-end"
+                                                : "flex-start"
+                                        }
+                                        align="flex-start"
+                                    >
+                                        <Paper
+                                            withBorder
+                                            radius="lg"
+                                            p="md"
+                                            maw={{
+                                                base: "92%",
+                                                sm: "78%",
+                                            }}
+                                            style={{
+                                                background: isUser
+                                                    ? "light-dark(var(--mantine-color-blue-6), #1A1A1A)"
+                                                    : "light-dark(var(--mantine-color-white), #151515)",
+                                                color: isUser
+                                                    ? "#FFFFFF"
+                                                    : "light-dark(var(--mantine-color-text), #FFFFFF)",
+                                                borderColor: isUser
+                                                    ? "light-dark(var(--mantine-color-blue-6), #333333)"
+                                                    : "light-dark(var(--mantine-color-blue-1), #292929)",
+                                                boxShadow: isUser
+                                                    ? "0 3px 10px rgba(0, 0, 0, 0.12)"
+                                                    : "0 2px 8px rgba(0, 0, 0, 0.08)",
+                                            }}
+                                        >
+                                            <Group
+                                                gap={7}
+                                                mb={5}
+                                            >
+                                                {!isUser && (
+                                                    <IconSparkles
+                                                        size={15}
+                                                        stroke={1.8}
+                                                    />
+                                                )}
+
+                                                <Text
+                                                    size="xs"
+                                                    fw={700}
+                                                    style={{
+                                                        color: isUser
+                                                            ? "#FFFFFF"
+                                                            : "light-dark(var(--mantine-color-blue-7), #FFFFFF)",
+                                                    }}
+                                                >
+                                                    {isUser
+                                                        ? "You"
+                                                        : "Wasi"}
+                                                </Text>
+                                            </Group>
+
+                                            {isUser ? (
+                                                <Text
+                                                    size="sm"
+                                                    c="white"
+                                                    style={{
+                                                        whiteSpace: "pre-wrap",
+                                                        lineHeight: 1.6,
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </Text>
+                                            ) : message.content ? (
+                                                <div
+                                                    style={{
+                                                        fontSize: 14,
+                                                        lineHeight: 1.6,
+                                                        overflowX: "auto",
+                                                    }}
+                                                >
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={{
+                                                            table: ({ children }) => (
+                                                                <div
+                                                                    style={{
+                                                                        width: "100%",
+                                                                        overflowX: "auto",
+                                                                        margin: "12px 0",
+                                                                    }}
+                                                                >
+                                                                    <table
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            minWidth: 560,
+                                                                            borderCollapse: "collapse",
+                                                                            fontSize: 13,
+                                                                        }}
+                                                                    >
+                                                                        {children}
+                                                                    </table>
+                                                                </div>
+                                                            ),
+
+                                                            th: ({ children }) => (
+                                                                <th
+                                                                    style={{
+                                                                        border:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
+                                                                        padding: "8px 10px",
+                                                                        textAlign: "left",
+                                                                        background:
+                                                                            "light-dark(var(--mantine-color-blue-0), #202020)",
+                                                                        fontWeight: 700,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </th>
+                                                            ),
+
+                                                            td: ({ children }) => (
+                                                                <td
+                                                                    style={{
+                                                                        border:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
+                                                                        padding: "8px 10px",
+                                                                        verticalAlign: "top",
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </td>
+                                                            ),
+
+                                                            h1: ({ children }) => (
+                                                                <Title order={2} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
+
+                                                            h2: ({ children }) => (
+                                                                <Title order={3} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
+
+                                                            h3: ({ children }) => (
+                                                                <Title order={4} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
+
+                                                            p: ({ children }) => (
+                                                                <p style={{ margin: "0 0 10px" }}>
+                                                                    {children}
+                                                                </p>
+                                                            ),
+
+                                                            ul: ({ children }) => (
+                                                                <ul
+                                                                    style={{
+                                                                        paddingLeft: 22,
+                                                                        marginTop: 6,
+                                                                        marginBottom: 10,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </ul>
+                                                            ),
+
+                                                            ol: ({ children }) => (
+                                                                <ol
+                                                                    style={{
+                                                                        paddingLeft: 22,
+                                                                        marginTop: 6,
+                                                                        marginBottom: 10,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </ol>
+                                                            ),
+
+                                                            li: ({ children }) => (
+                                                                <li style={{ marginBottom: 4 }}>
+                                                                    {children}
+                                                                </li>
+                                                            ),
+
+                                                            code: ({ children }) => (
+                                                                <code
+                                                                    style={{
+                                                                        background:
+                                                                            "light-dark(var(--mantine-color-gray-1), #222222)",
+                                                                        padding: "2px 5px",
+                                                                        borderRadius: 4,
+                                                                        fontSize: 13,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </code>
+                                                            ),
+
+                                                            hr: () => (
+                                                                <hr
+                                                                    style={{
+                                                                        border: 0,
+                                                                        borderTop:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-2), #333333)",
+                                                                        margin: "16px 0",
+                                                                    }}
+                                                                />
+                                                            ),
+                                                        }}
+                                                    >
+                                                        {message.content}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            ) : (
+                                                <Text size="sm" c="dimmed">
+                                                    {isStreaming ? "Wasi is thinking..." : ""}
+                                                </Text>
+                                            )}
+                                        </Paper>
+                                    </Group>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </ScrollArea>
+            </Card>
+
+            {/* Error */}
+            {error && (
+                <Paper
+                    withBorder
+                    radius="md"
+                    p="sm"
+                    style={{
+                        borderColor:
+                            "light-dark(var(--mantine-color-red-2), #3A2020)",
+                        background:
+                            "light-dark(var(--mantine-color-red-0), #140A0A)",
+                    }}
+                >
+                    <Text
+                        size="sm"
+                        c="red"
+                        ta="center"
+                    >
+                        {error}
+                    </Text>
+                </Paper>
+            )}
+
+            {/* Composer */}
+            <Card
+                withBorder
+                radius="lg"
+                p="sm"
+                style={{
+                    borderColor:
+                        "light-dark(var(--mantine-color-blue-1), #292929)",
+                    background: "light-dark(#FFFFFF, #0D0D0D)",
+                    boxShadow:
+                        "0 4px 16px rgba(0, 0, 0, 0.25)",
+                }}
+            >
+                <Group align="flex-end" gap="sm"><Textarea
+                    value={input}
+                    onChange={(event) =>
+                        setInput(
+                            event.currentTarget.value
+                        )
+                    }
+                    placeholder="Ask Wasi about your coursework..."
+                    autosize
+                    minRows={2}
+                    maxRows={5}
+                    variant="unstyled"
+                    style={{
+                        flex: 1,
+                        color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+                        background: "light-dark(transparent, #151515)",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                    }}
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === "Enter" &&
+                            !event.shiftKey
+                        ) {
+                            event.preventDefault();
+                            sendMessage();
+                        }
+                    }}
+                />
+
+                    <ActionIcon
+                        size={40}
+                        radius="xl"
+                        variant="filled"
+                        onClick={sendMessage}
+                        loading={loading}
+                        disabled={!input.trim()}
+                        aria-label="Send message"
+                        style={{
+                            background: "light-dark(var(--mantine-color-blue-6), #FFFFFF)",
+                            color: "light-dark(#FFFFFF, #000000)",
+                            border: "1px solid light-dark(var(--mantine-color-blue-6), #FFFFFF)",
+                        }}
+                    >
+                        <IconArrowUp
+                            size={19}
+                            stroke={2}
+                        />
+                    </ActionIcon>
+                </Group>
+            </Card>
+
+            <Text
+                size="xs"
+                c="dimmed"
+                ta="center"
+                style={{ color: "light-dark(var(--mantine-color-dimmed), #B3B3B3)" }}
+            >
+                Enter to send · Shift + Enter for a new line
+            </Text>
+        </Stack>
+    );
 }
-
-function Pill({ icon, value }: { icon: React.ReactNode; value: string }) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "#FAFBFD", border: "1px solid #E1E6EE" }}>
-      {icon}
-      <span className="text-[12px] font-medium" style={{ color: "#33415A" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-export default AskWasi;
-            
-     
-
-
-
