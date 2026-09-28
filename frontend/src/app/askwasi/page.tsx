@@ -24,13 +24,19 @@ import {
     IconSparkles,
     IconFolder,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 type Message = {
     role: "user" | "assistant";
     content: string;
+};
+
+type Conversation = {
+    id: string;
+    title: string;
+    messages: Message[];
 };
 
 const quickPrompts = [
@@ -62,162 +68,14 @@ const quickPrompts = [
 
 export default function AskWasiPage() {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [searchChat, setSearchChat] = useState("");
 
-    const handleNewChat = () => {
-    setMessages([]);
-    setInput("");
-    setError("");
-};
-    
-    const sendMessage = async () => {
-        const message = input.trim();
-
-        if (!message || loading) {
-            return;
-        }
-
-        setError("");
-        setInput("");
-
-        setMessages((prev) => [
-            ...prev,
-            {
-                role: "user",
-                content: message,
-            },
-            {
-                role: "assistant",
-                content: "",
-            },
-        ]);
-
-        setLoading(true);
-
-        try {
-            const response = await fetch("/api/askwasi", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    message,
-                }),
-            });
-
-            if (!response.ok) {
-                const data = await response.json().catch(() => null);
-
-                throw new Error(
-                    data?.error || `Request failed (${response.status})`
-                );
-            }
-
-            if (!response.body) {
-                throw new Error("No response stream received.");
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            let buffer = "";
-
-            while (true) {
-                const { value, done } = await reader.read();
-
-                if (done) {
-                    break;
-                }
-
-                buffer += decoder.decode(value, {
-                    stream: true,
-                });
-
-                const events = buffer.split("\n\n");
-
-                buffer = events.pop() ?? "";
-
-                for (const event of events) {
-                    if (!event.startsWith("data: ")) {
-                        continue;
-                    }
-
-                    const json = event.slice(6);
-
-                    let data: {
-                        token?: string;
-                        error?: string;
-                        done?: boolean;
-                    };
-
-                    try {
-                        data = JSON.parse(json);
-                    } catch (parseError) {
-                        console.error(
-                            "Failed to parse SSE event:",
-                            parseError
-                        );
-                        continue;
-                    }
-
-                    if (data.token) {
-                        setMessages((prev) => {
-                            const updated = [...prev];
-                            const lastIndex = updated.length - 1;
-
-                            if (
-                                updated[lastIndex]?.role === "assistant"
-                            ) {
-                                updated[lastIndex] = {
-                                    ...updated[lastIndex],
-                                    content:
-                                        updated[lastIndex].content +
-                                        data.token,
-                                };
-                            }
-
-                            return updated;
-                        });
-                    }
-
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-
-                    if (data.done) {
-                        console.log("Ask Wasi stream completed.");
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Ask Wasi error:", err);
-
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Something went wrong."
-            );
-
-            setMessages((prev) => {
-                const last = prev[prev.length - 1];
-
-                if (
-                    last?.role === "assistant" &&
-                    last.content === ""
-                ) {
-                    return prev.slice(0, -1);
-                }
-
-                return prev;
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
+   const handleNewChat = () => { if (loading) { return; } const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => { const loadConversations = async () => { try { const response = await fetch("/api/askwasi"); if (!response.ok) { throw new Error("Could not load chat history."); } const data = await response.json(); setConversations(data.conversations ?? []); } catch (err) { console.error("Failed to load conversations:", err); } }; loadConversations(); }, []); const handleOpenConversation = (conversation: Conversation) => { if (loading) { return; } setActiveConversationId(conversation.id); setMessages(conversation.messages); setInput(""); setError(""); }; const sendMessage = async () => { const message = input.trim(); if (!message || loading) { return; } const conversationId = activeConversationId ?? crypto.randomUUID(); if (!activeConversationId) { setActiveConversationId(conversationId); } setError(""); setInput(""); setMessages((prev) => [ ...prev, { role: "user", content: message, }, { role: "assistant", content: "", }, ]); setLoading(true); try { const response = await fetch("/api/askwasi", { method: "POST", headers: { "Content-Type": "application/json", }, body: JSON.stringify({ message, conversationId, }), }); if (!response.ok) { const data = await response.json().catch(() => null); throw new Error( data?.error || `Request failed (${response.status})` ); } if (!response.body) { throw new Error("No response stream received."); } const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; while (true) { const { value, done } = await reader.read(); if (done) { break; } buffer += decoder.decode(value, { stream: true, }); const events = buffer.split("\n\n"); buffer = events.pop() ?? ""; for (const event of events) { if (!event.startsWith("data: ")) { continue; } const json = event.slice(6); let data: { token?: string; error?: string; done?: boolean; }; try { data = JSON.parse(json); } catch (parseError) { console.error( "Failed to parse SSE event:", parseError ); continue; } if (data.token) { setMessages((prev) => { const updated = [...prev]; const lastIndex = updated.length - 1; if ( updated[lastIndex]?.role === "assistant" ) { updated[lastIndex] = { ...updated[lastIndex], content: updated[lastIndex].content + data.token, }; } return updated; }); } if (data.error) { throw new Error(data.error); } if (data.done) { console.log("Ask Wasi stream completed."); } } } } catch (err) { console.error("Ask Wasi error:", err); setError( err instanceof Error ? err.message : "Something went wrong." ); setMessages((prev) => { const last = prev[prev.length - 1]; if ( last?.role === "assistant" && last.content === "" ) { return prev.slice(0, -1); } return prev; }); } finally { setLoading(false); try { const response = await fetch("/api/askwasi"); if (response.ok) { const data = await response.json(); setConversations(data.conversations ?? []); } } catch (err) { console.error( "Failed to refresh conversations:", err ); } } };
     const handleQuickPrompt = (prompt: string) => {
         if (loading) {
             return;
@@ -513,30 +371,47 @@ export default function AskWasiPage() {
                     Recent Chats
                 </Text>
 
-                {messages.length > 0 ? (
-                    <Paper
-                        withBorder
-                        radius="md"
-                        p="xs"
-                        style={{
-                            cursor: "pointer",
-                        }}
-                    >
-                        <Text size="sm" lineClamp={2}>
-                            {messages.find(
-                                (message) =>
-                                    message.role === "user"
-                            )?.content || "Current conversation"}
-                        </Text>
-                    </Paper>
-                ) : (
-                    <Text
-                        size="sm"
-                        c="dimmed"
-                    >
-                        No recent chats
-                    </Text>
-                )}
+                {conversations.filter((conversation) =>
+    conversation.title
+        .toLowerCase()
+        .includes(searchChat.toLowerCase())
+).length > 0 ? (
+    conversations
+        .filter((conversation) =>
+            conversation.title
+                .toLowerCase()
+                .includes(searchChat.toLowerCase())
+        )
+        .map((conversation) => (
+            <Paper
+                key={conversation.id}
+                withBorder
+                radius="md"
+                p="xs"
+                onClick={() =>
+                    handleOpenConversation(conversation)
+                }
+                style={{
+                    cursor: loading
+                        ? "not-allowed"
+                        : "pointer",
+                    background:
+                        conversation.id ===
+                        activeConversationId
+                            ? "light-dark(var(--mantine-color-blue-0), #151515)"
+                            : undefined,
+                }}
+            >
+                <Text size="sm" lineClamp={2}>
+                    {conversation.title}
+                </Text>
+            </Paper>
+        ))
+) : (
+    <Text size="sm" c="dimmed">
+        No recent chats
+    </Text>
+)}
             </Stack>
         </Stack>
     </Card>
@@ -947,6 +822,8 @@ export default function AskWasiPage() {
             >
                 Enter to send · Shift + Enter for a new line
             </Text>
-        </Stack>
+               </Stack>
+    </Group>
+</Stack>
     );
 }

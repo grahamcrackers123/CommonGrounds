@@ -17,6 +17,7 @@ import {
   Text,
   Textarea,
   TextInput,
+  useMantineColorScheme,
 } from "@mantine/core";
 
 import {
@@ -248,7 +249,14 @@ const formatQuestDate = (
 ========================================================= */
 
 export default function QuestCalendarPage() {
+
   const router = useRouter();
+
+  const { colorScheme } =
+    useMantineColorScheme();
+
+  const isDarkMode =
+    colorScheme === "dark";
 
   /* =======================================================
      GENERAL STATE
@@ -1505,1378 +1513,1606 @@ export default function QuestCalendarPage() {
   ======================================================= */
 
   return (
-    <Box
-      bg="#f5f5f5"
-      mih="calc(100vh - 72px)"
-      px={{
-        base: "sm",
-        md: "lg",
-      }}
-      py="lg"
+  <Box
+    bg="light-dark(#ffffff, #000000)"
+    mih="calc(100vh - 72px)"
+    px={{
+      base: "sm",
+      md: "lg",
+    }}
+    py="lg"
+  >
+    <Stack
+      maw={1500}
+      mx="auto"
+      gap="md"
     >
-      <Stack
-        maw={1500}
-        mx="auto"
-        gap="md"
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
+      <Group
+        justify="space-between"
+        align="flex-start"
       >
+        <Box>
+          <Text
+            fw={700}
+            size="xl"
+          >
+            Quest Calendar
+          </Text>
+
+          <Text
+            size="xs"
+            c="dimmed"
+          >
+            Plan your learning quests
+            and stay on track.
+          </Text>
+        </Box>
+
+        <Group gap="xs">
+          <TextInput
+            placeholder="Search quests..."
+            size="xs"
+            w={230}
+            value={searchQuery}
+            onChange={(event) =>
+              setSearchQuery(
+                event.currentTarget.value
+              )
+            }
+          />
+
+          <Badge
+            variant="light"
+            color="blue"
+            size="lg"
+            leftSection={
+              <Sparkles size={12} />
+            }
+          >
+            {totalTasks}
+          </Badge>
+
+          <Badge
+            variant="light"
+            color="blue"
+            size="lg"
+            leftSection={
+              <Trophy size={12} />
+            }
+          >
+            {completedTasks}
+          </Badge>
+
+          <Badge
+            variant="light"
+            color="blue"
+            size="lg"
+            leftSection={
+              <Flame size={12} />
+            }
+          >
+            {overdueTasks}
+          </Badge>
+        </Group>
+      </Group>
+
+      {/* =================================================
+          TABS
+      ================================================= */}
+
+      <Tabs
+        value={activeTab}
+        onChange={setActiveTab}
+        color="blue"
+      >
+        <Tabs.List
+          style={{
+            borderBottom:
+              "1px solid #e5e7eb",
+          }}
+        >
+          <Tabs.Tab value="calendar">
+            Calendar View
+          </Tabs.Tab>
+
+          <Tabs.Tab value="quests">
+            Quest List
+          </Tabs.Tab>
+
+          <Tabs.Tab value="modules">
+            Modules
+          </Tabs.Tab>
+        </Tabs.List>
+
         {/* =================================================
-            HEADER
+            CALENDAR VIEW
         ================================================= */}
 
-        <Group
-          justify="space-between"
-          align="flex-start"
+        <Tabs.Panel
+          value="calendar"
+          pt="md"
         >
-          <Box>
-            <Text
-              fw={700}
-              size="xl"
-              c="#222"
+          <Stack gap="md">
+
+            {/* CALENDAR TOOLBAR */}
+
+            <Group
+              justify="space-between"
+              align="center"
             >
-              Quest Calendar
-            </Text>
-
-            <Text
-              size="xs"
-              c="dimmed"
-            >
-              Plan your learning quests
-              and stay on track.
-            </Text>
-          </Box>
-
-          <Group gap="xs">
-            <TextInput
-              placeholder="Search quests..."
-              size="xs"
-              w={230}
-              value={searchQuery}
-              onChange={(event) =>
-                setSearchQuery(
-                  event.currentTarget
-                    .value
-                )
-              }
-            />
-
-            <Badge
-              variant="outline"
-              color="gray"
-              size="lg"
-              leftSection={
-                <Sparkles size={12} />
-              }
-            >
-              {totalTasks}
-            </Badge>
-
-            <Badge
-              variant="outline"
-              color="gray"
-              size="lg"
-              leftSection={
-                <Trophy size={12} />
-              }
-            >
-              {completedTasks}
-            </Badge>
-
-            <Badge
-              variant="outline"
-              color="gray"
-              size="lg"
-              leftSection={
-                <Flame size={12} />
-              }
-            >
-              {overdueTasks}
-            </Badge>
-          </Group>
-        </Group>
-{/* =================================================
-    TABS
-================================================= */}
-
- <Tabs
-  value={activeTab}
-  onChange={setActiveTab}
-  color="dark"
->
-  <Tabs.List>
-    <Tabs.Tab value="calendar">
-      Calendar View
-    </Tabs.Tab>
-
-    <Tabs.Tab value="quests">
-      Quest List
-    </Tabs.Tab>
-
-    <Tabs.Tab value="modules">
-      Modules
-    </Tabs.Tab>
-  </Tabs.List>
-          {/* =================================================
-              CALENDAR
-          ================================================= */}
-
-          <Tabs.Panel
-            value="calendar"
-            pt="md"
-          >
-            <Stack gap="md">
-              <Group
-                justify="space-between"
-              >
-                <Group gap="xs">
-                  <Button
-                    variant="subtle"
-                    size="compact-sm"
-                    px={4}
-                    onClick={
-                      handlePrevious
-                    }
-                  >
-                    <ChevronLeft
-                      size={16}
-                    />
-                  </Button>
-
-                  <Text
-                    fw={600}
-                    size="sm"
-                  >
-                    {calendarView ===
-                    "week"
-                      ? formatMonthYear(
-                          weekDays[0]
-                        )
-                      : formatMonthYear(
-                          selectedDate
-                        )}
-                  </Text>
-
-                  <Button
-                    variant="subtle"
-                    size="compact-sm"
-                    px={4}
-                    onClick={
-                      handleNext
-                    }
-                  >
-                    <ChevronRight
-                      size={16}
-                    />
-                  </Button>
-                </Group>
-
-                <Group gap="xs">
-                  <Group
-                    gap={0}
-                    style={{
-                      border:
-                        "1px solid #d9d9d9",
-                      borderRadius: 20,
-                      overflow:
-                        "hidden",
-                    }}
-                  >
-                    <Button
-                      size="compact-sm"
-                      radius={0}
-                      variant={
-                        calendarView ===
-                        "month"
-                          ? "filled"
-                          : "subtle"
-                      }
-                      color="dark"
-                      onClick={() =>
-                        setCalendarView(
-                          "month"
-                        )
-                      }
-                    >
-                      Month
-                    </Button>
-
-                    <Button
-                      size="compact-sm"
-                      radius={0}
-                      variant={
-                        calendarView ===
-                        "week"
-                          ? "filled"
-                          : "subtle"
-                      }
-                      color="dark"
-                      onClick={() =>
-                        setCalendarView(
-                          "week"
-                        )
-                      }
-                    >
-                      Week
-                    </Button>
-                  </Group>
-
-                  <Button
-                    size="xs"
-                    color="dark"
-                    leftSection={
-                      <Plus size={14} />
-                    }
-                    onClick={
-                      openAddQuest
-                    }
-                  >
-                    Add Quest
-                  </Button>
-
-                  <Button
-                    size="xs"
-                    color="dark"
-                    leftSection={
-                      <RefreshCw
-                        size={14}
-                      />
-                    }
-                    loading={
-                      generatingPlan
-                    }
-                    onClick={
-                      handleRegeneratePlan
-                    }
-                  >
-                    Regenerate Plan
-                  </Button>
-                </Group>
-              </Group>
-
-              {loadingQuests && (
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
+              <Group gap="xs">
+                <Button
+                  variant="subtle"
+                  color="blue"
+                  size="compact-sm"
+                  px={4}
+                  onClick={
+                    handlePrevious
+                  }
                 >
-                  <Text
-                    size="sm"
-                    c="dimmed"
-                    ta="center"
-                  >
-                    Loading quests...
-                  </Text>
-                </Paper>
-              )}
+                  <ChevronLeft
+                    size={16}
+                  />
+                </Button>
 
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  lg: 3,
-                }}
-                spacing="md"
-              >
-                {/* =================================================
-                    CALENDAR GRID
-                ================================================= */}
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="sm"
-                  style={{
-                    gridColumn:
-                      "span 2",
-                  }}
+                <Text
+                  fw={600}
+                  size="sm"
                 >
                   {calendarView ===
-                  "week" ? (
-                    <Box
-                      style={{
-                        display:
-                          "grid",
-                        gridTemplateColumns:
-                          "repeat(7, minmax(0, 1fr))",
-                        gap: 6,
-                      }}
-                    >
-                      {weekDays.map(
-                        (day) => {
-                          const questsForDay =
-                            getQuestsForDate(
-                              day
-                            );
-
-                          const isSelected =
-                            formatDateKey(
-                              day
-                            ) ===
-                            formatDateKey(
-                              selectedDate
-                            );
-
-                          return (
-                            <Box
-                              key={formatDateKey(
-                                day
-                              )}
-                            >
-                              <Text
-                                ta="center"
-                                size="xs"
-                                fw={600}
-                                c="dimmed"
-                                mb={6}
-                              >
-                                {day.toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    weekday:
-                                      "short",
-                                  }
-                                )}
-                              </Text>
-
-                              <Paper
-                                withBorder
-                                radius="sm"
-                                p={6}
-                                mih={205}
-                                style={{
-                                  backgroundColor:
-                                    isSelected
-                                      ? "#f1f1f1"
-                                      : "#fff",
-                                  cursor:
-                                    "pointer",
-                                }}
-                                onClick={() =>
-                                  setSelectedDate(
-                                    day
-                                  )
-                                }
-                              >
-                                <Text
-                                  ta="center"
-                                  size="xs"
-                                  fw={700}
-                                  mb="xs"
-                                >
-                                  {day.getDate()}
-                                </Text>
-
-                                <Stack gap={5}>
-                                  {questsForDay.map(
-                                    (
-                                      quest
-                                    ) => (
-                                      <Box
-                                        key={
-                                          quest.id
-                                        }
-                                        p={6}
-                                        style={{
-                                          background:
-                                            selectedQuest?.id ===
-                                            quest.id
-                                              ? "#e9e9e9"
-                                              : "#f5f5f5",
-                                          borderLeft: `3px solid ${getPriorityColor(
-                                            quest.priority
-                                          )}`,
-                                          borderRadius: 4,
-                                          cursor:
-                                            "pointer",
-                                        }}
-                                        onClick={(
-                                          event
-                                        ) => {
-                                          event.stopPropagation();
-
-                                          setSelectedQuest(
-                                            quest
-                                          );
-                                        }}
-                                      >
-                                        <Text
-                                          size="xs"
-                                          fw={600}
-                                          lineClamp={
-                                            2
-                                          }
-                                        >
-                                          {
-                                            quest.title
-                                          }
-                                        </Text>
-
-                                        <Text
-                                          size="xs"
-                                          c="dimmed"
-                                        >
-                                          {formatQuestTime(
-                                            quest.deadline
-                                          )}
-                                        </Text>
-                                      </Box>
-                                    )
-                                  )}
-                                </Stack>
-                              </Paper>
-                            </Box>
-                          );
-                        }
+                  "week"
+                    ? formatMonthYear(
+                        weekDays[0]
+                      )
+                    : formatMonthYear(
+                        selectedDate
                       )}
-                    </Box>
-                  ) : (
-                    <Box
-                      style={{
-                        display:
-                          "grid",
-                        gridTemplateColumns:
-                          "repeat(7, minmax(0, 1fr))",
-                        gap: 6,
-                      }}
-                    >
-                      {monthDays.map(
-                        (
-                          day,
-                          index
-                        ) => {
-                          const questsForDay =
-                            getQuestsForDate(
-                              day.date
-                            );
+                </Text>
 
-                          return (
-                            <Paper
-                              key={index}
-                              withBorder
-                              radius="sm"
-                              p={6}
-                              mih={105}
-                              style={{
-                                opacity:
-                                  day.currentMonth
-                                    ? 1
-                                    : 0.4,
-                                cursor:
-                                  "pointer",
-                              }}
-                              onClick={() =>
-                                setSelectedDate(
-                                  day.date
-                                )
-                              }
-                            >
-                              <Text
-                                size="xs"
-                                fw={600}
-                                mb={5}
-                              >
-                                {day.date.getDate()}
-                              </Text>
-
-                              <Stack gap={4}>
-                                {questsForDay
-                                  .slice(
-                                    0,
-                                    3
-                                  )
-                                  .map(
-                                    (
-                                      quest
-                                    ) => (
-                                      <Box
-                                        key={
-                                          quest.id
-                                        }
-                                        px={5}
-                                        py={3}
-                                        style={{
-                                          background:
-                                            "#f1f1f1",
-                                          borderLeft: `3px solid ${getPriorityColor(
-                                            quest.priority
-                                          )}`,
-                                          borderRadius: 3,
-                                          cursor:
-                                            "pointer",
-                                        }}
-                                        onClick={(
-                                          event
-                                        ) => {
-                                          event.stopPropagation();
-
-                                          setSelectedQuest(
-                                            quest
-                                          );
-                                        }}
-                                      >
-                                        <Text
-                                          size="xs"
-                                          lineClamp={
-                                            1
-                                          }
-                                        >
-                                          {
-                                            quest.title
-                                          }
-                                        </Text>
-                                      </Box>
-                                    )
-                                  )}
-                              </Stack>
-                            </Paper>
-                          );
-                        }
-                      )}
-                    </Box>
-                  )}
-                </Paper>
-
-                {/* =================================================
-                    QUEST DETAILS
-                ================================================= */}
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                  mih={250}
+                <Button
+                  variant="subtle"
+                  color="blue"
+                  size="compact-sm"
+                  px={4}
+                  onClick={
+                    handleNext
+                  }
                 >
-                  <Group
-                    justify="space-between"
-                    mb="sm"
+                  <ChevronRight
+                    size={16}
+                  />
+                </Button>
+              </Group>
+
+              <Group gap="xs">
+                <Group
+                  gap={0}
+                  style={{
+                    border:
+                      "1px solid #d9dee7",
+                    borderRadius: 20,
+                    overflow: "hidden",
+                    background:
+                      "#f3f4f6",
+                  }}
+                >
+                  <Button
+                    size="compact-sm"
+                    radius={0}
+                    variant={
+                      calendarView ===
+                      "month"
+                        ? "filled"
+                        : "subtle"
+                    }
+                    color="blue"
+                    onClick={() =>
+                      setCalendarView(
+                        "month"
+                      )
+                    }
                   >
-                    <Text
-                      fw={700}
-                      size="sm"
+                    Month
+                  </Button>
+
+                  <Button
+                    size="compact-sm"
+                    radius={0}
+                    variant={
+                      calendarView ===
+                      "week"
+                        ? "filled"
+                        : "subtle"
+                    }
+                    color="blue"
+                    onClick={() =>
+                      setCalendarView(
+                        "week"
+                      )
+                    }
+                  >
+                    Week
+                  </Button>
+                </Group>
+
+                <Button
+                  size="xs"
+                  color="blue"
+                  leftSection={
+                    <Plus size={14} />
+                  }
+                  onClick={
+                    openAddQuest
+                  }
+                >
+                  Add Quest
+                </Button>
+
+                <Button
+                  size="xs"
+                  color="blue"
+                  leftSection={
+                    <RefreshCw
+                      size={14}
+                    />
+                  }
+                  loading={
+                    generatingPlan
+                  }
+                  onClick={
+                    handleRegeneratePlan
+                  }
+                >
+                  Regenerate Plan
+                </Button>
+              </Group>
+            </Group>
+
+            {loadingQuests && (
+              <Paper
+                withBorder
+                radius="md"
+                p="md"
+                bg="#f8f9fa"
+              >
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ta="center"
+                >
+                  Loading quests...
+                </Text>
+              </Paper>
+            )}
+
+            {/* =================================================
+                CALENDAR + DETAILS
+            ================================================= */}
+
+            <SimpleGrid
+              cols={{
+                base: 1,
+                lg: 3,
+              }}
+              spacing="md"
+            >
+
+              {/* =================================================
+                  CALENDAR
+              ================================================= */}
+<Paper
+  withBorder
+  radius="lg"
+  p="md"
+  style={{
+    gridColumn: "span 2",
+    backgroundColor:
+      "light-dark(#ffffff, #111111)",
+    borderColor:
+      "light-dark(#e5e7eb, #2b2b2b)",
+  }}
+>
+  {calendarView === "week" ? (
+    <Box
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "repeat(7, minmax(0, 1fr))",
+        gap: 8,
+      }}
+    >
+      {weekDays.map((day) => {
+        const questsForDay =
+          getQuestsForDate(day);
+
+        const isSelected =
+          formatDateKey(day) ===
+          formatDateKey(selectedDate);
+
+        return (
+          <Box
+            key={formatDateKey(day)}
+          >
+            {/* DAY NAME */}
+            <Text
+              ta="center"
+              size="xs"
+              fw={600}
+              mb={6}
+              c="dimmed"
+            >
+              {day.toLocaleDateString(
+                "en-US",
+                {
+                  weekday: "short",
+                }
+              )}
+            </Text>
+
+            {/* DAY CELL */}
+            <Paper
+              withBorder
+              radius="md"
+              p={7}
+              mih={205}
+              bg={
+                isSelected
+                  ? "light-dark(#f3f7ff, #1f2937)"
+                  : "light-dark(#ffffff, #181818)"
+              }
+              style={{
+                cursor: "pointer",
+                borderColor:
+                  isSelected
+                    ? "light-dark(#b9d4ff, #3b82f6)"
+                    : "light-dark(#e5e7eb, #2b2b2b)",
+              }}
+              onClick={() =>
+                setSelectedDate(day)
+              }
+            >
+              {/* DATE NUMBER */}
+              <Text
+                ta="center"
+                size="xs"
+                fw={700}
+                mb="xs"
+                c={
+                  isSelected
+                    ? "blue"
+                    : "light-dark(#212529, #f1f3f5)"
+                }
+              >
+                {day.getDate()}
+              </Text>
+
+              {/* QUESTS */}
+              <Stack gap={5}>
+                {questsForDay.map(
+                  (quest) => (
+                    <Box
+                      key={quest.id}
+                      p={7}
+                      style={{
+                        background:
+                          selectedQuest?.id ===
+                          quest.id
+                            ? "light-dark(#e8f1ff, #1e3a5f)"
+                            : "light-dark(#f3f4f6, #252525)",
+                        borderLeft: `3px solid ${getPriorityColor(
+                          quest.priority
+                        )}`,
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                      onClick={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+
+                        setSelectedQuest(
+                          quest
+                        );
+                      }}
                     >
-                      Quest Details
-                    </Text>
-
-                    {selectedQuest && (
-                      <Button
-                        variant="subtle"
-                        size="compact-xs"
-                        onClick={() =>
-                          setSelectedQuest(
-                            null
-                          )
-                        }
-                      >
-                        <X size={14} />
-                      </Button>
-                    )}
-                  </Group>
-
-                  <Divider mb="sm" />
-
-                  {selectedQuest ? (
-                    <Stack gap="xs">
                       <Text
-                        fw={700}
-                        size="sm"
+                        size="xs"
+                        fw={600}
+                        lineClamp={2}
+                        c="light-dark(#212529, #f1f3f5)"
                       >
-                        {
-                          selectedQuest.title
-                        }
+                        {quest.title}
                       </Text>
 
                       <Text
                         size="xs"
                         c="dimmed"
                       >
-                        {selectedQuest.description ||
-                          "No description provided."}
-                      </Text>
-
-                      <Text size="xs">
-                        <b>
-                          Subject:
-                        </b>{" "}
-                        {selectedQuest.subject ||
-                          "General"}
-                      </Text>
-
-                      <Text size="xs">
-                        <b>
-                          Estimated Duration:
-                        </b>{" "}
-                        {selectedQuest.estimated_duration ??
-                          0}{" "}
-                        minutes
-                      </Text>
-
-                      <Text size="xs">
-                        <b>
-                          Priority:
-                        </b>{" "}
-                        {getPriorityLabel(
-                          selectedQuest.priority
-                        )}
-                      </Text>
-
-                      <Text size="xs">
-                        <b>
-                          Status:
-                        </b>{" "}
-                        {getStatusLabel(
-                          selectedQuest.status
-                        )}
-                      </Text>
-
-                      <Text size="xs">
-                        <b>
-                          Deadline:
-                        </b>{" "}
-                        {formatQuestDate(
-                          selectedQuest.deadline
-                        )}
-                        <br />
                         {formatQuestTime(
-                          selectedQuest.deadline
+                          quest.deadline
                         )}
                       </Text>
+                    </Box>
+                  )
+                )}
+              </Stack>
+            </Paper>
+          </Box>
+        );
+      })}
+    </Box>
+  ) : (
+    <Box
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "repeat(7, minmax(0, 1fr))",
+        gap: 6,
+      }}
+    >
+      {monthDays.map(
+        (day, index) => {
+          const questsForDay =
+            getQuestsForDate(
+              day.date
+            );
 
-                      {selectedQuest.checklist?.length >
-                        0 && (
-                        <Box>
-                          <Text
-                            size="xs"
-                            fw={700}
-                            mb={3}
-                          >
-                            Checklist:
-                          </Text>
+          const isSelected =
+            formatDateKey(
+              day.date
+            ) ===
+            formatDateKey(
+              selectedDate
+            );
 
-                          <Stack gap={4}>
-                            {selectedQuest.checklist.map(
-                              (
-                                item,
-                                index
-                              ) => (
-                                <Checkbox
-                                  key={`${selectedQuest.id}-${index}`}
-                                  size="xs"
-                                  label={
-                                    item
-                                  }
-                                  onChange={() =>
-                                    handleToggleChecklist(
-                                      selectedQuest.id,
-                                      index
-                                    )
-                                  }
-                                />
-                              )
-                            )}
-                          </Stack>
-                        </Box>
-                      )}
+          return (
+            <Paper
+  withBorder
+  radius="md"
+  p={7}
+  mih={205}
+  bg={
+    isSelected
+      ? isDarkMode
+        ? "#263653"
+        : "#f3f7ff"
+      : isDarkMode
+        ? "#111827"
+        : "#ffffff"
+  }
+  style={{
+    cursor: "pointer",
+    borderColor: isDarkMode
+      ? "#374151"
+      : isSelected
+        ? "#b9d4ff"
+        : "#e5e7eb",
+  }}
+              onClick={() =>
+                setSelectedDate(
+                  day.date
+                )
+              }
+            >
+              {/* DATE */}
+              <Text
+                size="xs"
+                fw={600}
+                mb={5}
+                c={
+                  isSelected
+                    ? "blue"
+                    : "light-dark(#212529, #f1f3f5)"
+                }
+              >
+                {day.date.getDate()}
+              </Text>
 
+              {/* QUESTS */}
+              <Stack gap={4}>
+                {questsForDay
+                  .slice(0, 3)
+                  .map((quest) => (
+                    <Box
+                      key={quest.id}
+                      px={5}
+                      py={3}
+                      style={{
+  background:
+    selectedQuest?.id ===
+    quest.id
+      ? isDarkMode
+        ? "#263653"
+        : "#e9e9e9"
+      : isDarkMode
+        ? "#1f2937"
+        : "#f5f5f5",
+  borderLeft: `3px solid ${getPriorityColor(
+    quest.priority
+  )}`,
+  borderRadius: 4,
+  cursor: "pointer",
+}}
+
+                      onClick={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+
+                        setSelectedQuest(
+                          quest
+                        );
+                      }}
+                    >
                       <Text
                         size="xs"
-                        fw={700}
-                        mt="xs"
+                        lineClamp={1}
+                        c="light-dark(#212529, #f1f3f5)"
                       >
-                        Actions:
+                        {quest.title}
                       </Text>
+                    </Box>
+                  ))}
+              </Stack>
+            </Paper>
+          );
+        }
+      )}
+    </Box>
+  )}
+</Paper>
+             {/* =================================================
+    QUEST DETAILS
+================================================= */}
 
-                      {/* =================================================
-                          START QUEST BUTTON
-                      ================================================= */}
+<Paper
+  withBorder
+  radius="md"
+  p="md"
+  mih={250}
+  bg={isDarkMode ? "#111827" : "#ffffff"}
+>
+  <Group
+    justify="space-between"
+    mb="sm"
+  >
+    <Text
+      fw={700}
+      size="sm"
+      c={isDarkMode ? "#f3f4f6" : "#222"}
+    >
+      Quest Details
+    </Text>
 
-                      {selectedQuest.status ===
-                        "pending" && (
-                        <Button
-                          size="compact-xs"
-                          color="dark"
-                          loading={
-                            updatingQuest
-                          }
-                          onClick={() =>
-                            handleStartQuest(
-                              selectedQuest
-                            )
-                          }
-                        >
-                          Start Quest
-                        </Button>
-                      )}
+    {selectedQuest && (
+      <Button
+        variant="subtle"
+        color="blue"
+        size="compact-xs"
+        onClick={() => setSelectedQuest(null)}
+      >
+        <X size={14} />
+      </Button>
+    )}
+  </Group>
 
-                      {/* =================================================
-                          EDIT + ASK WASI
-                      ================================================= */}
+  <Divider
+    mb="sm"
+    color={isDarkMode ? "#374151" : "#e5e7eb"}
+  />
 
-                      <Group gap={5}>
-                        <Button
-                          size="compact-xs"
-                          color="dark"
-                          onClick={() =>
-                            openEditQuest(
-                              selectedQuest
-                            )
-                          }
-                        >
-                          Edit Quest
-                        </Button>
+  {selectedQuest ? (
+    <Stack gap="sm">
 
-                        <Button
-                          size="compact-xs"
-                          variant="outline"
-                          color="dark"
-                          onClick={() =>
-                            handleAskWasi(
-                              selectedQuest
-                            )
-                          }
-                        >
-                          Ask Wasi
-                        </Button>
-                      </Group>
+      {/* TITLE + DESCRIPTION */}
+      <Box>
+        <Text
+          fw={700}
+          size="sm"
+          c={isDarkMode ? "#f3f4f6" : "#222"}
+        >
+          {selectedQuest.title}
+        </Text>
 
-                      {/* =================================================
-                          MARK DONE
-                      ================================================= */}
+        <Text
+          size="xs"
+          c={isDarkMode ? "#d1d5db" : "dimmed"}
+          mt={3}
+        >
+          {selectedQuest.description ||
+            "No description provided."}
+        </Text>
+      </Box>
 
-                      {selectedQuest.status ===
-                        "in_progress" && (
-                        <Button
-                          size="compact-xs"
-                          variant="outline"
-                          color="dark"
-                          loading={
-                            updatingQuest
-                          }
-                          onClick={() =>
-                            handleCompleteQuest(
-                              selectedQuest
-                            )
-                          }
-                        >
-                          Mark Done
-                        </Button>
-                      )}
-
-                      {/* =================================================
-                          COMPLETED STATE
-                      ================================================= */}
-
-                      {selectedQuest.status ===
-                        "completed" && (
-                        <Badge
-                          color="green"
-                          variant="light"
-                        >
-                          Quest Completed
-                        </Badge>
-                      )}
-                    </Stack>
-                  ) : (
-                    <Text
-                      size="sm"
-                      c="dimmed"
-                      ta="center"
-                      py="xl"
-                    >
-                      Select a quest to
-                      view its details.
-                    </Text>
-                  )}
-                </Paper>
-              </SimpleGrid>
-
-              {/* =================================================
-                  LOWER CARDS
-              ================================================= */}
-
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  md: 3,
-                }}
-              >
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    fw={700}
-                    size="xs"
-                  >
-                    Quest Queue
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    mt="xs"
-                  >
-                    {totalTasks} quests
-                    currently loaded.
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    fw={700}
-                    size="xs"
-                  >
-                    Procrastination
-                    Nudge
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    mt="xs"
-                  >
-                    {overdueTasks > 0
-                      ? `You have ${overdueTasks} overdue quest(s).`
-                      : "You're caught up with your quests."}
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                >
-                  <Text
-                    fw={700}
-                    size="xs"
-                  >
-                    Weekly Progress
-                  </Text>
-
-                  <Group
-                    justify="space-between"
-                    mt="xs"
-                  >
-                    <Text size="xs">
-                      {completedTasks} /{" "}
-                      {totalTasks}{" "}
-                      completed
-                    </Text>
-
-                    <Trophy size={16} />
-                  </Group>
-                </Paper>
-              </SimpleGrid>
-            </Stack>
-          </Tabs.Panel>
-
-          {/* =================================================
-              QUEST LIST
-          ================================================= */}
-
-          <Tabs.Panel
-            value="quests"
-            pt="md"
+      {/* BASIC DETAILS */}
+      <Paper
+        radius="md"
+        p="sm"
+        bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+      >
+        <Stack gap={5}>
+          <Text
+            size="xs"
+            c={isDarkMode ? "#f3f4f6" : "#222"}
           >
-            <Stack gap="md">
-              <Group
-                justify="space-between"
-              >
-                <TextInput
-                  placeholder="Search title, subject, or description..."
-                  value={searchQuery}
-                  onChange={(event) =>
-                    setSearchQuery(
-                      event.currentTarget
-                        .value
-                    )
-                  }
-                  w={350}
-                />
+            <b>Subject:</b>{" "}
+            {selectedQuest.subject || "General"}
+          </Text>
 
-                <Group gap="xs">
-                  <Select
+          <Text
+            size="xs"
+            c={isDarkMode ? "#f3f4f6" : "#222"}
+          >
+            <b>Estimated Duration:</b>{" "}
+            {selectedQuest.estimated_duration ?? 0} minutes
+          </Text>
+
+          <Text
+            size="xs"
+            c={isDarkMode ? "#f3f4f6" : "#222"}
+          >
+            <b>Priority:</b>{" "}
+            {getPriorityLabel(selectedQuest.priority)}
+          </Text>
+
+          <Text
+            size="xs"
+            c={isDarkMode ? "#f3f4f6" : "#222"}
+          >
+            <b>Status:</b>{" "}
+            {getStatusLabel(selectedQuest.status)}
+          </Text>
+
+          <Text
+            size="xs"
+            c={isDarkMode ? "#f3f4f6" : "#222"}
+          >
+            <b>Schedule:</b>
+            <br />
+            {formatQuestDate(selectedQuest.deadline)}
+            <br />
+            {formatQuestTime(selectedQuest.deadline)}
+          </Text>
+        </Stack>
+      </Paper>
+
+      {/* REWARD */}
+      <Box>
+        <Text
+          size="xs"
+          fw={700}
+          mb={4}
+          c={isDarkMode ? "#f3f4f6" : "#222"}
+        >
+          Reward
+        </Text>
+
+        <Paper
+          radius="md"
+          p="sm"
+          bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+        >
+          <Group gap="md">
+            <Text
+              size="xs"
+              c={isDarkMode ? "#f3f4f6" : "#222"}
+            >
+              🪙{" "}
+              <b>
+                +{selectedQuest.reward ?? 20}
+              </b>{" "}
+              Student Coins
+            </Text>
+
+            <Text
+              size="xs"
+              c={isDarkMode ? "#f3f4f6" : "#222"}
+            >
+              ⚡{" "}
+              <b>
+                +{selectedQuest.energy ?? 15}
+              </b>{" "}
+              Energy
+            </Text>
+          </Group>
+        </Paper>
+      </Box>
+
+      {/* SCHEDULING REASON */}
+      <Box>
+        <Text
+          size="xs"
+          fw={700}
+          mb={4}
+          c={isDarkMode ? "#f3f4f6" : "#222"}
+        >
+          Scheduling Reason
+        </Text>
+
+        <Paper
+          radius="md"
+          p="sm"
+          bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+        >
+          <Text
+            size="xs"
+            c={isDarkMode ? "#d1d5db" : "dimmed"}
+          >
+            {selectedQuest.reason ||
+              "This quest was scheduled based on your current study plan and availability."}
+          </Text>
+        </Paper>
+      </Box>
+
+      {/* MATERIALS */}
+      <Box>
+        <Text
+          size="xs"
+          fw={700}
+          mb={4}
+          c={isDarkMode ? "#f3f4f6" : "#222"}
+        >
+          Materials
+        </Text>
+
+        <Paper
+          radius="md"
+          p="sm"
+          bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+        >
+          {selectedQuest.materials &&
+          selectedQuest.materials.length > 0 ? (
+            <Stack gap={3}>
+              {selectedQuest.materials.map(
+                (material, index) => (
+                  <Text
+                    key={`${selectedQuest.id}-material-${index}`}
                     size="xs"
-                    placeholder="Subject"
-                    clearable
-                    data={[
-                      {
-                        value:
-                          "all",
-                        label:
-                          "All Subjects",
+                    c={isDarkMode ? "#f3f4f6" : "#222"}
+                  >
+                    • {material}
+                  </Text>
+                )
+              )}
+            </Stack>
+          ) : materials.filter(
+              (material) =>
+                material.quest_id === selectedQuest.id
+            ).length > 0 ? (
+            <Stack gap={3}>
+              {materials
+                .filter(
+                  (material) =>
+                    material.quest_id === selectedQuest.id
+                )
+                .map((material) => (
+                  <Text
+                    key={material.id}
+                    size="xs"
+                    c={isDarkMode ? "#f3f4f6" : "#222"}
+                  >
+                    • {material.filename}
+                  </Text>
+                ))}
+            </Stack>
+          ) : (
+            <Text
+              size="xs"
+              c={isDarkMode ? "#d1d5db" : "dimmed"}
+            >
+              No materials attached.
+            </Text>
+          )}
+        </Paper>
+      </Box>
+
+      {/* CHECKLIST */}
+      {selectedQuest.checklist?.length > 0 && (
+        <Box>
+          <Text
+            size="xs"
+            fw={700}
+            mb={3}
+            c={isDarkMode ? "#f3f4f6" : "#222"}
+          >
+            Checklist
+          </Text>
+
+          <Paper
+            radius="md"
+            p="sm"
+            bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+          >
+            <Stack gap={4}>
+              {selectedQuest.checklist.map(
+                (item, index) => (
+                  <Checkbox
+                    key={`${selectedQuest.id}-${index}`}
+                    size="xs"
+                    label={item}
+                    styles={{
+                      label: {
+                        color: isDarkMode
+                          ? "#f3f4f6"
+                          : "#222",
                       },
-                      ...subjects.map(
-                        (
-                          subject
-                        ) => ({
-                          value:
-                            subject,
-                          label:
-                            subject,
-                        })
-                      ),
-                    ]}
-                    value={
-                      subjectFilter ===
-                      "all"
-                        ? null
-                        : subjectFilter
-                    }
-                    onChange={(
-                      value
-                    ) =>
-                      setSubjectFilter(
-                        value ||
-                          "all"
+                    }}
+                    onChange={() =>
+                      handleToggleChecklist(
+                        selectedQuest.id,
+                        index
                       )
                     }
                   />
+                )
+              )}
+            </Stack>
+          </Paper>
+        </Box>
+      )}
 
-                  <Button
-                    size="compact-xs"
-                    color="dark"
-                    leftSection={
-                      <Plus
-                        size={13}
-                      />
-                    }
-                    onClick={
-                      openAddQuest
-                    }
-                  >
-                    Add Quest
-                  </Button>
+      {/* ACTIONS */}
+      <Box>
+        <Text
+          size="xs"
+          fw={700}
+          mb={5}
+          c={isDarkMode ? "#f3f4f6" : "#222"}
+        >
+          Actions
+        </Text>
+
+        <Stack gap={5}>
+          {selectedQuest.status === "pending" && (
+            <Button
+              size="compact-xs"
+              color="blue"
+              fullWidth
+              loading={updatingQuest}
+              onClick={() =>
+                handleStartQuest(selectedQuest)
+              }
+            >
+              Start Focus Session
+            </Button>
+          )}
+
+          <Group grow gap={5}>
+            <Button
+              size="compact-xs"
+              color="blue"
+              onClick={() =>
+                handleAskWasi(selectedQuest)
+              }
+            >
+              Ask Wasi
+            </Button>
+
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="blue"
+              onClick={() =>
+                openEditQuest(selectedQuest)
+              }
+            >
+              Edit Quest
+            </Button>
+          </Group>
+
+          {selectedQuest.status === "in_progress" && (
+            <Button
+              size="compact-xs"
+              color="blue"
+              loading={updatingQuest}
+              onClick={() =>
+                handleCompleteQuest(selectedQuest)
+              }
+            >
+              Mark as Done
+            </Button>
+          )}
+
+          {selectedQuest.status === "completed" && (
+            <Badge
+              color="blue"
+              variant="light"
+              size="sm"
+            >
+              Quest Completed
+            </Badge>
+          )}
+        </Stack>
+      </Box>
+
+    </Stack>
+  ) : (
+    <Text
+      size="sm"
+      c={isDarkMode ? "#d1d5db" : "dimmed"}
+      ta="center"
+      py="xl"
+    >
+      Select a quest to view its details.
+    </Text>
+  )}
+              </Paper>
+            </SimpleGrid>
+
+            {/* =================================================
+                LOWER CARDS
+            ================================================= */}
+
+            <SimpleGrid
+              cols={{
+                base: 1,
+                md: 3,
+              }}
+            >
+              <Paper
+                withBorder
+                radius="lg"
+                p="md"
+                bg="#f8f9fa"
+              >
+                <Text
+  size="xs"
+  c={isDarkMode ? "#0c0c0c" : "dimmed"}
+  mt="xs"
+>
+                  Quest Queue
+                </Text>
+
+                <Text
+  fw={700}
+  size="xs"
+  c={isDarkMode ? "#0c0d0e" : "#222"}
+>
+                  {quests.filter(
+                    (quest) =>
+                      quest.status !==
+                      "completed"
+                  ).length}{" "}
+                  active quests
+                  currently queued.
+                </Text>
+              </Paper>
+
+              <Paper
+                withBorder
+                radius="lg"
+                p="md"
+                bg="#f8f9fa"
+              >
+                <Text
+  size="xs"
+  c={isDarkMode ? "#0d0d0e" : "dimmed"}
+  mt="xs"
+>
+                  Procrastination Nudge
+                </Text>
+
+                <Text
+  size="xs"
+  c={isDarkMode ? "#0a0a0a" : "dimmed"}
+  mt="xs"
+>
+  {overdueTasks > 0
+    ? `You have ${overdueTasks} overdue quest(s).`
+    : "You're caught up with your quests."}
+</Text>
+              </Paper>
+
+              <Paper
+                withBorder
+                radius="lg"
+                p="md"
+                bg="#f8f9fa"
+              >
+                <Text
+  fw={700}
+  size="xs"
+  c={isDarkMode ? "#0d0d0e" : "#222"}
+>
+                  Weekly Reward Goal
+                </Text>
+
+                <Group
+                  justify="space-between"
+                  mt="xs"
+                >
+                 <Text
+  size="xs"
+  c={isDarkMode ? "#0f0f0f" : "#222"}
+>
+  {completedTasks} / {totalTasks} completed
+</Text>
+
+                  <Trophy
+  size={16}
+  color={isDarkMode ? "#06192e" : undefined}
+/>
                 </Group>
-              </Group>
+              </Paper>
+            </SimpleGrid>
+          </Stack>
+        </Tabs.Panel>
 
-              <Group gap="xs">
-                {[
-                  ["all", "All"],
-                  [
-                    "not-started",
-                    "Not Started",
-                  ],
-                  [
-                    "in-progress",
-                    "In Progress",
-                  ],
-                  [
-                    "completed",
-                    "Completed",
-                  ],
-                  [
-                    "overdue",
-                    "Overdue",
-                  ],
-                ].map(
-                  ([value, label]) => (
-                    <Button
-                      key={value}
-                      size="compact-xs"
-                      variant={
-                        statusFilter ===
-                        value
-                          ? "filled"
-                          : "subtle"
-                      }
-                      color="dark"
-                      onClick={() =>
-                        setStatusFilter(
-                          value
-                        )
-                      }
+        {/* =================================================
+            QUEST LIST
+        ================================================= */}
+
+        <Tabs.Panel
+          value="quests"
+          pt="md"
+        >
+          <Stack gap="md">
+
+            {/* STATS */}
+
+            <SimpleGrid
+              cols={{
+                base: 2,
+                md: 4,
+              }}
+            >
+              {[
+                [
+                  "Total Tasks",
+                  totalTasks,
+                ],
+                [
+                  "Due This Week",
+                  dueThisWeek,
+                ],
+                [
+                  "Completed",
+                  completedTasks,
+                ],
+                [
+                  "Overdue",
+                  overdueTasks,
+                ],
+              ].map(
+                ([label, value]) => (
+                  <Paper
+                    key={label}
+                    withBorder
+                    radius="lg"
+                    p="md"
+                    bg="#f8f9fa"
+                  >
+                    <Text
+                      size="xs"
+                      c="dimmed"
                     >
                       {label}
-                    </Button>
+                    </Text>
+
+                    <Text
+                      fw={700}
+                      size="xl"
+                      mt={3}
+                    >
+                      {value}
+                    </Text>
+                  </Paper>
+                )
+              )}
+            </SimpleGrid>
+
+            {/* SEARCH / FILTER */}
+
+            <Group
+              justify="space-between"
+              align="center"
+            >
+              <TextInput
+                placeholder="Search title, subject, or description..."
+                value={searchQuery}
+                onChange={(event) =>
+                  setSearchQuery(
+                    event.currentTarget
+                      .value
                   )
-                )}
+                }
+                w={350}
+              />
+
+              <Group gap="xs">
+                <Select
+                  size="xs"
+                  placeholder="Subject"
+                  clearable
+                  data={[
+                    {
+                      value: "all",
+                      label:
+                        "All Subjects",
+                    },
+                    ...subjects.map(
+                      (
+                        subject
+                      ) => ({
+                        value:
+                          subject,
+                        label:
+                          subject,
+                      })
+                    ),
+                  ]}
+                  value={
+                    subjectFilter ===
+                    "all"
+                      ? null
+                      : subjectFilter
+                  }
+                  onChange={(
+                    value
+                  ) =>
+                    setSubjectFilter(
+                      value ||
+                        "all"
+                    )
+                  }
+                />
+
+                <Button
+                  size="compact-xs"
+                  color="blue"
+                  leftSection={
+                    <Plus
+                      size={13}
+                    />
+                  }
+                  onClick={
+                    openAddQuest
+                  }
+                >
+                  Add Quest
+                </Button>
               </Group>
+            </Group>
 
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  md: 3,
-                }}
-                spacing="md"
-              >
-                {[
-                  "pending",
-                  "in_progress",
+            {/* FILTER BUTTONS */}
+
+            <Group gap="xs">
+              {[
+                ["all", "All"],
+                [
+                  "not-started",
+                  "Not Started",
+                ],
+                [
+                  "in-progress",
+                  "In Progress",
+                ],
+                [
                   "completed",
-                ].map(
-                  (status) => {
-                    const statusQuests =
-                      filteredQuests.filter(
-                        (quest) =>
-                          quest.status ===
-                          status
-                      );
+                  "Completed",
+                ],
+                [
+                  "overdue",
+                  "Overdue",
+                ],
+              ].map(
+                ([value, label]) => (
+                  <Button
+                    key={value}
+                    size="compact-xs"
+                    variant={
+                      statusFilter ===
+                      value
+                        ? "filled"
+                        : "light"
+                    }
+                    color="blue"
+                    onClick={() =>
+                      setStatusFilter(
+                        value
+                      )
+                    }
+                  >
+                    {label}
+                  </Button>
+                )
+              )}
+            </Group>
 
-                    return (
-                      <Paper
-                        key={status}
-                        withBorder
-                        radius="md"
-                        p="sm"
-                        mih={400}
+            {/* QUEST COLUMNS */}
+
+            <SimpleGrid
+              cols={{
+                base: 1,
+                md: 3,
+              }}
+              spacing="md"
+            >
+              {[
+                "pending",
+                "in_progress",
+                "completed",
+              ].map(
+                (status) => {
+                  const statusQuests =
+                    filteredQuests.filter(
+                      (quest) =>
+                        quest.status ===
+                        status
+                    );
+
+                  return (
+                    <Paper
+                      key={status}
+                      withBorder
+                      radius="lg"
+                      p="sm"
+                      mih={400}
+                      bg="#f8f9fa"
+                    >
+                      <Group
+                        justify="space-between"
+                        mb="sm"
                       >
-                        <Group
-                          justify="space-between"
-                          mb="sm"
+                        <Text
+                          fw={700}
+                          size="sm"
                         >
-                          <Text
-                            fw={700}
-                            size="sm"
-                          >
-                            {getStatusLabel(
-                              status
-                            )}
-                          </Text>
+                          {getStatusLabel(
+                            status
+                          )}
+                        </Text>
 
-                          <Badge
-                            size="sm"
-                            color={getStatusColor(
-                              status
-                            )}
-                          >
-                            {
-                              statusQuests.length
-                            }
-                          </Badge>
-                        </Group>
+                        <Badge
+                          size="sm"
+                          color="blue"
+                          variant="light"
+                        >
+                          {
+                            statusQuests.length
+                          }
+                        </Badge>
+                      </Group>
 
-                        <Stack gap="xs">
-                          {statusQuests.map(
-                            (
-                              quest
-                            ) => (
-                              <Paper
-                                key={
-                                  quest.id
+                      <Stack gap="xs">
+                        {statusQuests.map(
+                          (
+                            quest
+                          ) => (
+                            <Paper
+                              key={
+                                quest.id
+                              }
+                              withBorder
+                              radius="md"
+                              p="sm"
+                              bg="#ffffff"
+                              style={{
+                                cursor:
+                                  "pointer",
+                                borderLeft: `4px solid ${getPriorityColor(
+                                  quest.priority
+                                )}`,
+                              }}
+                              onClick={() => {
+                                setSelectedQuest(
+                                  quest
+                                );
+
+                                setSelectedDate(
+                                  quest.deadline
+                                    ? new Date(
+                                        quest.deadline
+                                      )
+                                    : new Date()
+                                );
+
+                                setActiveTab(
+                                  "calendar"
+                                );
+                              }}
+                            >
+                              <Text
+                                fw={600}
+                                size="sm"
+                              >
+                                {
+                                  quest.title
                                 }
-                                withBorder
-                                radius="sm"
-                                p="sm"
-                                style={{
-                                  cursor:
-                                    "pointer",
-                                  borderLeft: `4px solid ${getPriorityColor(
-                                    quest.priority
-                                  )}`,
-                                }}
-                                onClick={() => {
-                                  setSelectedQuest(
-                                    quest
-                                  );
+                              </Text>
 
-                                  setSelectedDate(
-                                    quest.deadline
-                                      ? new Date(
-                                          quest.deadline
-                                        )
-                                      : new Date()
-                                  );
+                              <Text
+                                size="xs"
+                                c="dimmed"
+                                mt={3}
+                              >
+                                {quest.subject ||
+                                  "General"}
+                              </Text>
 
-                                  setActiveTab(
-                                    "calendar"
-                                  );
-                                }}
+                              <Badge
+                                size="xs"
+                                mt="xs"
+                                color="blue"
+                                variant="light"
+                              >
+                                {getStatusLabel(
+                                  quest.status
+                                )}
+                              </Badge>
+
+                              <Group
+                                justify="space-between"
+                                mt="sm"
                               >
                                 <Text
-                                  fw={600}
-                                  size="sm"
-                                >
-                                  {
-                                    quest.title
-                                  }
-                                </Text>
-
-                                <Text
                                   size="xs"
-                                  c="dimmed"
-                                  mt={3}
                                 >
-                                  {quest.subject ||
-                                    "General"}
+                                  {formatQuestDate(
+                                    quest.deadline
+                                  )}
                                 </Text>
 
                                 <Badge
                                   size="xs"
-                                  mt="xs"
-                                  color={getStatusColor(
-                                    quest.status
-                                  )}
+                                  color="blue"
+                                  variant="light"
                                 >
-                                  {getStatusLabel(
-                                    quest.status
+                                  {getPriorityLabel(
+                                    quest.priority
+                                  ).replace(
+                                    " Priority",
+                                    ""
                                   )}
                                 </Badge>
+                              </Group>
 
-                                <Group
-                                  justify="space-between"
-                                  mt="sm"
-                                >
-                                  <Text
-                                    size="xs"
-                                  >
-                                    {formatQuestDate(
-                                      quest.deadline
-                                    )}
-                                  </Text>
+                              <Text
+                                size="xs"
+                                c="dimmed"
+                                mt={4}
+                              >
+                                {formatQuestTime(
+                                  quest.deadline
+                                )}
+                              </Text>
+                            </Paper>
+                          )
+                        )}
 
-                                  <Badge
-                                    size="xs"
-                                    color={
-                                      quest.priority ===
-                                      "high"
-                                        ? "red"
-                                        : quest.priority ===
-                                          "medium"
-                                        ? "orange"
-                                        : "blue"
-                                    }
-                                  >
-                                    {getPriorityLabel(
-                                      quest.priority
-                                    ).replace(
-                                      " Priority",
-                                      ""
-                                    )}
-                                  </Badge>
-                                </Group>
+                        {statusQuests.length ===
+                          0 && (
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                            ta="center"
+                            py="xl"
+                          >
+                            No quests
+                            here.
+                          </Text>
+                        )}
+                      </Stack>
+                    </Paper>
+                  );
+                }
+              )}
+            </SimpleGrid>
+          </Stack>
+        </Tabs.Panel>
 
-                                <Text
-                                  size="xs"
-                                  c="dimmed"
-                                  mt={4}
-                                >
-                                  {formatQuestTime(
-                                    quest.deadline
-                                  )}
-                                </Text>
-                              </Paper>
-                            )
-                          )}
-
-                          {statusQuests.length ===
-                            0 && (
-                            <Text
-                              size="xs"
-                              c="dimmed"
-                              ta="center"
-                              py="xl"
-                            >
-                              No quests
-                              here.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Paper>
-                    );
-                  }
-                )}
-              </SimpleGrid>
-            </Stack>
-          </Tabs.Panel>
-
-          {/* =================================================
-              MODULES
-          ================================================= */}
-
-   {/* =================================================
-    MODULES / MATERIALS
-================================================= */}
-
-<Tabs.Panel
-  value="modules"
-  pt="md"
->
-  <Stack gap="md">
-
-    {/* Hidden file input */}
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-      style={{
-        display: "none",
-      }}
-      onChange={
-        handleMaterialSelected
-      }
-    />
-
-    {/* Upload button */}
-    <Group
-      justify="flex-end"
-    >
-      <Button
-        size="xs"
-        color="dark"
-        leftSection={
-          <Upload size={14} />
-        }
-        loading={
-          uploadingMaterial
-        }
-        onClick={
-          handleUploadMaterial
-        }
-      >
-        Upload Material
-      </Button>
-    </Group>
-
-    {/* =================================================
-        EMPTY STATE / MATERIAL CARDS
-    ================================================= */}
-
-    {materials.length === 0 ? (
-      <Paper
-        withBorder
-        radius="md"
-        p="xl"
-      >
-        <Text
-          size="sm"
-          c="dimmed"
-          ta="center"
-        >
-          No materials uploaded yet
-        </Text>
-      </Paper>
-    ) : (
-      <>
         {/* =================================================
-            MATERIAL CARDS
+            MODULES / MATERIALS
         ================================================= */}
 
-        <SimpleGrid
-          cols={{
-            base: 1,
-            sm: 2,
-            md: 3,
-          }}
-          spacing="md"
+        <Tabs.Panel
+          value="modules"
+          pt="md"
         >
-          {materials.map(
-            (material) => (
-              <Paper
-                key={material.id}
-                withBorder
-                radius="md"
-                p="md"
-                h={180}
-                style={{
-                  display: "flex",
-                  flexDirection:
-                    "column",
-                  justifyContent:
-                    "space-between",
-                }}
+          <Stack gap="md">
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+              style={{
+                display: "none",
+              }}
+              onChange={
+                handleMaterialSelected
+              }
+            />
+
+            <Group
+              justify="space-between"
+            >
+              <Box>
+                <Text
+                  fw={700}
+                  size="sm"
+                >
+                  Study Materials
+                </Text>
+
+                <Text
+                  size="xs"
+                  c="dimmed"
+                >
+                  Upload and manage
+                  materials for your
+                  quests.
+                </Text>
+              </Box>
+
+              <Button
+                size="xs"
+                color="blue"
+                leftSection={
+                  <Upload size={14} />
+                }
+                loading={
+                  uploadingMaterial
+                }
+                onClick={
+                  handleUploadMaterial
+                }
               >
-                <Stack gap="xs">
-                  <Group
-                    justify="space-between"
-                    align="flex-start"
-                  >
-                    <BookOpen
-                      size={20}
-                    />
+                Upload Material
+              </Button>
+            </Group>
 
-                    <Badge
-                      size="xs"
-                      variant="light"
-                      color="gray"
-                    >
-                      {material.file_type ||
-                        "File"}
-                    </Badge>
-                  </Group>
-
-                  <Text
-                    fw={700}
-                    size="sm"
-                    lineClamp={2}
-                  >
-                    {material.filename}
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    {material.subject ||
-                      "General Material"}
-                  </Text>
-                </Stack>
-
-                <Stack gap={4}>
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    {(
-                      material.file_size /
-                      1024 /
-                      1024
-                    ).toFixed(2)}{" "}
-                    MB
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                  >
-                    Uploaded{" "}
-                    {new Date(
-                      material.created_at
-                    ).toLocaleDateString(
-                      "en-US",
-                      {
-                        month:
-                          "short",
-                        day:
-                          "numeric",
-                        year:
-                          "numeric",
-                      }
-                    )}
-                  </Text>
-                </Stack>
+            {materials.length === 0 ? (
+              <Paper
+                withBorder
+                radius="lg"
+                p="xl"
+                bg="#f8f9fa"
+              >
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  ta="center"
+                >
+                  No materials
+                  uploaded yet
+                </Text>
               </Paper>
-            )
-          )}
-        </SimpleGrid>
-      </>
-    )}
-  </Stack>
-</Tabs.Panel>
+            ) : (
+              <SimpleGrid
+                cols={{
+                  base: 1,
+                  sm: 2,
+                  md: 3,
+                }}
+                spacing="md"
+              >
+                {materials.map(
+                  (material) => (
+                    <Paper
+                      key={
+                        material.id
+                      }
+                      withBorder
+                      radius="lg"
+                      p="md"
+                      h={180}
+                      bg="#ffffff"
+                      style={{
+                        display:
+                          "flex",
+                        flexDirection:
+                          "column",
+                        justifyContent:
+                          "space-between",
+                        borderColor:
+                          "#e5e7eb",
+                      }}
+                    >
+                      <Stack gap="xs">
+                        <Group
+                          justify="space-between"
+                          align="flex-start"
+                        >
+                          <BookOpen
+                            size={20}
+                            color="#228be6"
+                          />
 
-</Tabs>
+                          <Badge
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                          >
+                            {material.file_type ||
+                              "File"}
+                          </Badge>
+                        </Group>
 
-{/* =================================================
-    ADD / EDIT QUEST MODAL
-================================================= */}
+                        <Text
+                          fw={700}
+                          size="sm"
+                          lineClamp={2}
+                        >
+                          {
+                            material.filename
+                          }
+                        </Text>
 
-<Modal
-  opened={modalOpened}
-  onClose={() =>
-    setModalOpened(false)
-  }
-  title={
-    <Text fw={700}>
-      {editingQuest
-        ? "Edit Quest"
-        : "Add Quest"}
-    </Text>
-  }
-  centered
-  size="md"
->
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                        >
+                          {material.subject ||
+                            "General Material"}
+                        </Text>
+                      </Stack>
+
+                      <Stack gap={4}>
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                        >
+                          {(
+                            material.file_size /
+                            1024 /
+                            1024
+                          ).toFixed(
+                            2
+                          )}{" "}
+                          MB
+                        </Text>
+
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                        >
+                          Uploaded{" "}
+                          {new Date(
+                            material.created_at
+                          ).toLocaleDateString(
+                            "en-US",
+                            {
+                              month:
+                                "short",
+                              day:
+                                "numeric",
+                              year:
+                                "numeric",
+                            }
+                          )}
+                        </Text>
+                      </Stack>
+                    </Paper>
+                  )
+                )}
+              </SimpleGrid>
+            )}
+          </Stack>
+                </Tabs.Panel>
+      </Tabs>
+
+      {/* =================================================
+          ADD / EDIT QUEST MODAL
+      ================================================= */}
+      <Modal
+        opened={modalOpened}
+        onClose={() =>
+          setModalOpened(false)
+        }
+        title={
+          <Text fw={700}>
+            {editingQuest
+              ? "Edit Quest"
+              : "Add Quest"}
+          </Text>
+        }
+        centered
+        size="md"
+      >
   <Stack gap="md">
     <TextInput
       label="Quest Title"

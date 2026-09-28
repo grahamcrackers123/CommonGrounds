@@ -16,6 +16,77 @@ const MAX_REQUESTS = 10
 const WINDOW_MS = 60 * 1000
 const TIMEOUT_MS = 30 * 1000
 
+export async function GET() {
+    const supabase = await createClient()
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+        return NextResponse.json(
+            { error: 'Unauthorized' },
+            { status: 401 }
+        )
+    }
+
+    const { data, error } = await supabase
+        .from('chat_messages')
+        .select('conversation_id, role, content, created_at')
+        .eq('user_id', user.id)
+        .not('conversation_id', 'is', null)
+        .order('created_at', { ascending: true })
+
+    if (error) {
+        console.error('Chat history load error:', error)
+
+        return NextResponse.json(
+            { error: 'Could not load chat history' },
+            { status: 500 }
+        )
+    }
+
+    const conversations = new Map<
+        string,
+        {
+            id: string
+            title: string
+            messages: {
+                role: 'user' | 'assistant'
+                content: string
+                created_at: string
+            }[]
+        }
+    >()
+
+    for (const message of data ?? []) {
+        if (!message.conversation_id) {
+            continue
+        }
+
+        if (!conversations.has(message.conversation_id)) {
+            conversations.set(message.conversation_id, {
+                id: message.conversation_id,
+                title:
+                    message.role === 'user'
+                        ? message.content
+                        : 'New conversation',
+                messages: [],
+            })
+        }
+
+        conversations.get(message.conversation_id)!.messages.push({
+            role: message.role as 'user' | 'assistant',
+            content: message.content,
+            created_at: message.created_at,
+        })
+    }
+
+    return NextResponse.json({
+        conversations: Array.from(conversations.values()).reverse(),
+    })
+}
+
 export async function POST(request: Request) {
     const supabase = await createClient()
 
@@ -34,6 +105,8 @@ export async function POST(request: Request) {
     // 2. Read the user's message
     const body = await request.json()
     const message = body.message?.trim()
+    const conversationId = body.conversationId
+
 
     if (!message) {
         return NextResponse.json(
@@ -42,6 +115,12 @@ export async function POST(request: Request) {
         )
     }
 
+    if (!conversationId) {
+    return NextResponse.json(
+        { error: 'Conversation ID is required' },
+        { status: 400 }
+    )
+}
     // 3. Simple per-user rate limit
     const now = Date.now()
     const existing = rateLimit.get(user.id)
@@ -116,8 +195,9 @@ export async function POST(request: Request) {
         .from('chat_messages')
         .select('role, content, created_at')
         .eq('user_id', user.id)
+        .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
-        .limit(6)
+        .limit(20)
 
     if (messagesError) {
         console.error('Chat history error:', messagesError)
@@ -132,13 +212,14 @@ export async function POST(request: Request) {
     const history = [...(previousMessages ?? [])].reverse()
 
     // 8. Save the user's message
-    const { error: userMessageError } = await supabase
-        .from('chat_messages')
-        .insert({
-            user_id: user.id,
-            role: 'user',
-            content: message,
-        })
+const { error: userMessageError } = await supabase
+    .from('chat_messages')
+    .insert({
+        user_id: user.id,
+        role: 'user',
+        content: message,
+        conversation_id: conversationId,
+    })
 
     if (userMessageError) {
         console.error('User message save error:', userMessageError)
@@ -262,22 +343,23 @@ ${materialContext}
 
                     // 12. Save the completed assistant response
                     if (assistantContent) {
-                        const { error: assistantMessageError } =
-                            await supabase
-                                .from('chat_messages')
-                                .insert({
-                                    user_id: user.id,
-                                    role: 'assistant',
-                                    content: assistantContent,
-                                })
+    const { error: assistantMessageError } =
+        await supabase
+            .from('chat_messages')
+            .insert({
+                user_id: user.id,
+                role: 'assistant',
+                content: assistantContent,
+                conversation_id: conversationId,
+            })
 
-                        if (assistantMessageError) {
-                            console.error(
-                                'Assistant message save error:',
-                                assistantMessageError
-                            )
-                        }
-                    }
+    if (assistantMessageError) {
+        console.error(
+            'Assistant message save error:',
+            assistantMessageError
+        )
+    }
+}
 
                     streamController.enqueue(
                         encoder.encode(
