@@ -12,8 +12,11 @@ export async function POST(req: Request) {
   const { data: roomId, error } = await supabase.rpc("join_room", { _code: code });
   if (error) {
     const notFound = error.message.includes("room not found");
-    return NextResponse.json({ error: notFound ? "Room not found" : error.message },
-      { status: notFound ? 404 : 500 });
+    const full = error.message.includes("room full");
+    return NextResponse.json(
+      { error: notFound ? "Room not found" : full ? "Room is full" : error.message },
+      { status: notFound ? 404 : full ? 409 : 500 }
+    );
   }
   return NextResponse.json({ room_id: roomId });
 }
