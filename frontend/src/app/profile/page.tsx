@@ -1,5 +1,6 @@
 import CopyUserCode from "@/components/copyusercode";
 import { getPetGrowth, xp_per_level } from "@/components/petgrowth";
+import { applyEnergyDecay } from "@/lib/pet-energy";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar, Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { BookOpen, CalendarClock, Clock3, GraduationCap, Medal, School, Sparkles, Timer, UserRound } from "lucide-react";
@@ -19,6 +20,7 @@ export default async function ProfilePage() {
 
     const { data: pet } = await supabase.from("pets").select("species, name, level, xp, pet_energy").eq("owner_id", user.id).single();
     if (!pet) return null;
+    await applyEnergyDecay(supabase, pet);
     const growth = getPetGrowth(pet.level);
 
     const { data: profile } = await supabase.from("profiles").select("display_name, school, program, user_code, level, enrollment_status, weekly_availability, focus_length, study_time, created_at").eq("id", user.id).single();

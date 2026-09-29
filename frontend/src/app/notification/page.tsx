@@ -2,13 +2,13 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { Bell, BellOff, Check, CheckCheck, Flame, Gift, HeartHandshake, Megaphone, Sparkles, Timer } from "lucide-react";
+import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, UserPlus, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-type NotificationType = "deadline" | "reward" | "streak" | "social" | "system"
+type NotificationType = "friend_request" | "quest_deadline" | "risk_flag" | "room_invite" | "session_completed"
 
 interface NotificationItem {
-    id: number;
+    id: string;
     type: NotificationType;
     title: string;
     body: string;
@@ -17,11 +17,11 @@ interface NotificationItem {
 }
 
 const types: Record<NotificationType, { icon: typeof Bell; tint: string; color: string; label: string }> = {
-    deadline: { icon: Timer, tint: "#FFEAEA", color: "#E03131", label: "Deadline reminder" },
-    reward: { icon: Gift, tint: "#FFF4E6", color: "#E8590C", label: "Reward" },
-    streak: { icon: Flame, tint: "#FFF0F6", color: "#E64980", label: "Streak" },
-    social: { icon: HeartHandshake, tint: "#E3FAFC", color: "#0C8599", label: "Social" },
-    system: { icon: Sparkles, tint: "#EBFBEE", color: "#2F9E44", label: "Update" },
+    friend_request: { icon: UserPlus, tint: "#E3FAFC", color: "#0C8599", label: "Friend request" },
+    quest_deadline: { icon: Timer, tint: "#FFEAEA", color: "#E03131", label: "Deadline reminder" },
+    risk_flag: { icon: Megaphone, tint: "#FFF4E6", color: "#E8590C", label: "Workload check-in" },
+    room_invite: { icon: Users, tint: "#EDF2FF", color: "#3B5BDB", label: "Focus room invite" },
+    session_completed: { icon: Sparkles, tint: "#EBFBEE", color: "#2F9E44", label: "Session reward" },
 };
 
 type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social";
@@ -33,8 +33,8 @@ export default function NotificationPage() {
 
     const unreadCount = notifications.filter((n) => n.unread).length;
     const todayCount = notifications.filter((n) => new Date(n.createdAt).toDateString() === new Date().toDateString()).length;
-    const deadlineCount = notifications.filter((n) => n.type === 'deadline').length;
-    const socialCount = notifications.filter((n) => n.type === 'social').length;
+    const deadlineCount = notifications.filter((n) => n.type === 'quest_deadline').length;
+    const socialCount = notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite').length;
 
     useEffect(() => {
         async function fetchNotifications() {
@@ -46,7 +46,17 @@ export default function NotificationPage() {
                 .eq('user_id', user.id);
 
             if (error) console.error('Error fetching notifications:', error);
-            else setNotifications(data ?? []);
+            else {
+                const rows = (data ?? []).map((n) => ({
+                    id: String(n.id),
+                    type: n.type as NotificationType,
+                    title: String(n.title ?? ""),
+                    body: String(n.body ?? ""),
+                    createdAt: String(n.created_at ?? ""),
+                    unread: n.read === false,
+                }));
+                setNotifications(rows);
+            }
         }
         fetchNotifications();
     }, [supabase]);
@@ -56,27 +66,35 @@ export default function NotificationPage() {
             case 'unread':
                 return notifications.filter((n) => n.unread);
             case 'deadline':
-                return notifications.filter((n) => n.type === 'deadline');
+                return notifications.filter((n) => n.type === 'quest_deadline');
             case 'reward':
-                return notifications.filter((n) => n.type === 'reward' || n.type === 'streak');
+                return notifications.filter((n) => n.type === 'session_completed');
             case 'social':
-                return notifications.filter((n) => n.type === 'social' || n.type === 'system');
+                return notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite' || n.type === 'risk_flag');
             default:
                 return notifications;
         }
     }, [filter, notifications]);
 
-    const markRead = (id: number) =>
+    const markRead = (id: string) => {
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
+        fetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST" }).catch(() => undefined);
+    };
 
-    const markAllRead = () =>
+    const markAllRead = () => {
+        const unread = notifications.filter((n) => n.unread);
+        if (unread.length === 0) return;
         setNotifications((prev) => prev.map((n) => (n.unread ? { ...n, unread: false } : n)));
+        unread.forEach((n) => {
+            fetch(`/api/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" }).catch(() => undefined);
+        });
+    };
 
     const stats = [
         { label: "Unread", value: String(unreadCount), icon: Bell, tint: "#FFEAEA", color: "#E03131" },
         { label: "Received today", value: String(todayCount), icon: BellOff, tint: "#E7F5FF", color: "#1C7ED6" },
         { label: "Deadline reminders", value: String(deadlineCount), icon: Timer, tint: "#FFF4E6", color: "#E8590C" },
-        { label: "Focus invites", value: String(socialCount), icon: HeartHandshake, tint: "#E3FAFC", color: "#0C8599" },
+        { label: "Social & invites", value: String(socialCount), icon: HeartHandshake, tint: "#E3FAFC", color: "#0C8599" },
     ];
 
     const filters: { key: NotifFilter; label: string }[] = [
@@ -163,7 +181,7 @@ export default function NotificationPage() {
                             </ThemeIcon>
                             <Text fw={700}>All caught up!</Text>
                             <Text c='dimmed' size='sm' ta='center'>
-                                Nothing here right now. Keep studying and you'll see notifications when you have new reminders, rewards, or updates.
+                                Nothing here right now. Keep studying and you&apos;ll see notifications when you have new reminders, rewards, or updates.
                             </Text>
                         </Stack>
                     ) : (

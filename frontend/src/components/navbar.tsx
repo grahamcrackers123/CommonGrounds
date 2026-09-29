@@ -14,23 +14,6 @@ interface NotificationRow {
     [key: string]: unknown;
 }
 
-// import {
-//     ActionIcon,
-//     AppShell,
-//     Avatar,
-//     Burger,
-//     Button,
-//     Flex,
-//     Group,
-//     Text,
-//     UnstyledButton,
-//     useMantineColorScheme,
-// } from "@mantine/core";
-// import { useDisclosure } from "@mantine/hooks";
-// import { Circle, Moon, Sun } from "lucide-react";
-// import { usePathname, useRouter } from "next/navigation";
-// import { createClient } from "@/lib/supabase/client";
-
 function FillCircle({
     active,
     label,

@@ -1,20 +1,36 @@
 import { getPetGrowth, getPetStatus, getXpProgress, xp_per_level } from "@/components/petgrowth";
+import { getPetActivity, relativeTime, type PetActivityKind } from "@/lib/pet-activity";
+import { applyEnergyDecay } from "@/lib/pet-energy";
+import { equippedPetImageUrl, resolvePetItemKey } from "@/lib/pet-items";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
-import { Flower2, Sun } from "lucide-react";
+import { Flower2, ShoppingBag, Sparkles, Sun, Target, Timer } from "lucide-react";
+
+const ACTIVITY_META: Record<PetActivityKind, { icon: typeof Timer; tint: string; color: string }> = {
+    equip: { icon: Sparkles, tint: "light-dark(#E6FCF5, #15302C)", color: "teal" },
+    session: { icon: Timer, tint: "light-dark(#E7F5FF, #1B2A3A)", color: "blue" },
+    quest: { icon: Target, tint: "light-dark(#EBFBEE, #173128)", color: "green" },
+    purchase: { icon: ShoppingBag, tint: "light-dark(#FFF4E6, #342417)", color: "orange" },
+};
 
 export default async function PetGardenPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: pet } = await supabase.from("pets").select("species, name, level, xp, pet_energy").eq("owner_id", user.id).single();
+    const { data: pet } = await supabase.from("pets").select("species, name, level, xp, pet_energy, equipped_accessory, equipped_outfit").eq("owner_id", user.id).single();
     if (!pet) return null;
     const level = pet.level ?? 1;
     const xp = pet.xp ?? 0;
-    const energy = pet.pet_energy ?? 100;
+    const energy = await applyEnergyDecay(supabase, pet);
+    const activity = await getPetActivity(supabase, user.id);
     const growth = getPetGrowth(level);
     const xpProgress = getXpProgress(xp);
     const petStatus = getPetStatus(energy);
+    const equippedAccessory = resolvePetItemKey(pet.equipped_accessory ?? null);
+    const equippedOutfit = resolvePetItemKey(pet.equipped_outfit ?? null);
+    const accessoryImageUrl = equippedPetImageUrl(pet.species, equippedAccessory);
+    const outfitImageUrl = equippedPetImageUrl(pet.species, equippedOutfit);
+    const petImageUrl = outfitImageUrl ?? accessoryImageUrl ?? `/assets/starter-pets/${pet.species}.png`;
 
     return (
         <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
@@ -26,7 +42,7 @@ export default async function PetGardenPage() {
                             Pet Garden
                         </Title>
                         <Text c="dimmed" size="sm" mt={4}>
-                            Care for your companion — feed it, play with it, and watch it grow.
+                            Care for your companion. Feed it, play with it, and watch it grow.
                         </Text>
                     </Box>
                     <Group gap={8}>
@@ -92,18 +108,20 @@ export default async function PetGardenPage() {
                                         paddingBottom: 48,
                                     }}
                                 >
-                                    <Image
-                                        src={`/assets/starter-pets/${pet.species}.png`}
-                                        alt={pet.name}
-                                        w={300}
-                                        h={300}
-                                        fit="contain"
-                                        style={{
-                                            transform: `scale(${growth.scale})`,
-                                            transition: "transform 0.5s ease",
-                                            filter: "drop-shadow(0 14px 18px rgba(0,0,0,0.25))",
-                                        }}
-                                    />
+                                    <Box style={{ position: "relative", width: 300, height: 300 }}>
+                                        <Image
+                                            src={petImageUrl}
+                                            alt={pet.name}
+                                            w={300}
+                                            h={300}
+                                            fit="contain"
+                                            style={{
+                                                transform: `scale(${growth.scale})`,
+                                                transition: "transform 0.5s ease",
+                                                filter: "drop-shadow(0 14px 18px rgba(0,0,0,0.25))",
+                                            }}
+                                        />
+                                    </Box>
                                 </Box>
                             </Box>
                         </Paper>
@@ -119,8 +137,44 @@ export default async function PetGardenPage() {
                                 </Title>
                             </Group>
                             <Stack gap="sm">
-                                <Group gap="sm" wrap="nowrap" align="flex-start">
-                                </Group>
+                                {activity.length === 0 ? (
+                                    <Text c="dimmed" fz="sm">
+                                        No activity yet. Complete quests, run focus sessions, or style your companion to see it
+                                        here.
+                                    </Text>
+                                ) : (
+                                    activity.map((item) => {
+                                        const meta = ACTIVITY_META[item.kind];
+                                        return (
+                                            <Group key={item.id} gap="sm" wrap="nowrap" align="flex-start">
+                                                <ThemeIcon
+                                                    radius="xl"
+                                                    variant="light"
+                                                    color={meta.color}
+                                                    size={34}
+                                                    style={{ backgroundColor: meta.tint, flexShrink: 0 }}
+                                                >
+                                                    <meta.icon size={16} style={{ color: "light-dark(#495057, #CED4DA)" }} />
+                                                </ThemeIcon>
+                                                <Box style={{ flex: 1 }}>
+                                                    <Text fz="sm" fw={600}>
+                                                        {item.title}
+                                                    </Text>
+                                                    <Group gap={6}>
+                                                        {item.detail && (
+                                                            <Text fz="xs" c="dimmed">
+                                                                {item.detail}
+                                                            </Text>
+                                                        )}
+                                                        <Text fz="xs" c="dimmed">
+                                                            • {relativeTime(item.at)}
+                                                        </Text>
+                                                    </Group>
+                                                </Box>
+                                            </Group>
+                                        );
+                                    })
+                                )}
                             </Stack>
                         </Paper>
                     </Stack>
@@ -147,10 +201,12 @@ export default async function PetGardenPage() {
                                         background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
                                         display: "grid",
                                         placeItems: "center",
+                                        position: "relative",
+                                        overflow: "hidden",
                                     }}
                                 >
                                     <Image
-                                        src={`/assets/starter-pets/${pet.species}.png`}
+                                        src={petImageUrl}
                                         alt={pet.name}
                                         w={64}
                                         h={64}
@@ -192,7 +248,7 @@ export default async function PetGardenPage() {
                             </Group>
                             <Stack gap="xs">
                                 <Text size="sm" c="dimmed">
-                                    • Study sessions restore energy.
+                                    • Energy slowly decays while you&apos;re away, study sessions restore it.
                                 </Text>
                                 <Text size="sm" c="dimmed">
                                     • Sprout evolves to a new stage every 5 levels.
