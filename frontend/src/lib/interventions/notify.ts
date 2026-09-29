@@ -9,6 +9,7 @@ import {
   type ScheduleBlockForRisk,
   type RiskFlag,
 } from "@/lib/interventions/risk";
+import { createPrompt, type PromptType } from "@/lib/interventions/prompts";
 
 const FLAG_TITLES: Record<string, string> = {
   missed_sessions: "Missed sessions check-in",
@@ -16,6 +17,25 @@ const FLAG_TITLES: Record<string, string> = {
   overdue_quests: "Overdue coursework check-in",
   high_scheduled_workload: "Heavy schedule check-in",
 };
+
+const FLAG_TO_PROMPT: Record<string, PromptType> = {
+  missed_sessions: "restart_10min",
+  inactivity: "inactivity",
+  overdue_quests: "schedule_extension",
+  high_scheduled_workload: "schedule_extension",
+};
+
+async function pickQuestId(supabase: SupabaseClient, userId: string) {
+  const { data } = await supabase
+    .from("quests")
+    .select("id")
+    .eq("user_id", userId)
+    .in("status", ["pending", "in_progress"])
+    .order("deadline", { ascending: true, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id as string | undefined;
+}
 
 export async function computeRiskFlags(
   supabase: SupabaseClient,
@@ -56,7 +76,7 @@ export async function computeRiskFlags(
   return { flags, error: null };
 }
 
-// sends notif for each currently-active flag, but only if an
+// sends notif for each currently-active flag, but only if
 // unread risk_flag notification doesn't already exist
 // once user reads/dismisses it, a still-active flag will notify again
 export async function evaluateAndNotifyRisk(
@@ -87,5 +107,25 @@ export async function evaluateAndNotifyRisk(
       _title: FLAG_TITLES[flag.type] ?? "Workload check-in",
       _body: flag.message,
     });
+  }
+
+  // one prompt at a time
+  const promptFlag = flags.find((f) => FLAG_TO_PROMPT[f.type]);
+  if (promptFlag) {
+    const type = FLAG_TO_PROMPT[promptFlag.type];
+    try {
+      await createPrompt(supabase, {
+        userId,
+        type,
+        questId: type === "restart_10min" ? await pickQuestId(supabase, userId) : undefined,
+        payload: {
+          flag_type: promptFlag.type,
+          message: promptFlag.message,
+          ...(type === "restart_10min" ? { duration_minutes: 10 } : {}),
+        },
+      });
+    } catch (e) {
+      console.error("Prompt creation failed:", e);
+    }
   }
 }

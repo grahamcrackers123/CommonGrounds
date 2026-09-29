@@ -8,7 +8,11 @@ export async function POST(req: Request) {
 
   const { duration_minutes, name, goal, linked_task } = await req.json().catch(() => ({}));
   const { data, error } = await supabase.rpc("create_room", {
-    _duration: duration_minutes ?? null,
+    _duration: body.duration_minutes ?? null,
+    _name: body.name ?? null,
+    _study_goal: body.study_goal ?? null,
+    _linked_task_id: body.linked_task_id ?? null,
+    _max_participants: body.max_participants ?? 7,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
