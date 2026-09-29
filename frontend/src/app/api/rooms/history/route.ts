@@ -41,7 +41,7 @@ export async function GET() {
       return {
         id: r.id ?? null,
         name: typeof r.name === "string" ? r.name : null,
-        goal: typeof r.goal === "string" ? r.goal : null,
+        goal: typeof r.study_goal === "string" ? r.study_goal : null,
         duration_minutes: typeof r.duration_minutes === "number" ? r.duration_minutes : null,
         started_at: typeof r.started_at === "string" ? r.started_at : null,
         ended_at: typeof r.ended_at === "string" ? r.ended_at : null,

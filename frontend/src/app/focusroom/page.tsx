@@ -311,7 +311,7 @@ export default function FocusRoomPage() {
           duration_minutes: selectedMinutes,
           name: roomName.trim() || undefined,
           goal: studyGoal.trim() || undefined,
-          linked_task: linkedTask || undefined,
+          linked_task_id: linkedTask || undefined,
         }),
       });
       if (res.ok) {
@@ -375,7 +375,7 @@ export default function FocusRoomPage() {
     const result: SessionResult = {
       roomName: roomName.trim() || "Focus Room",
       studyGoal: studyGoal.trim() || "No goal set",
-      linkedTask,
+      linkedTask: linkedTask ? quests.find((q) => q.id === linkedTask)?.title ?? linkedTask : null,
       plannedMinutes: selectedMinutes,
       actualMinutes,
       participantNames: [youParticipant.name, ...participants.map((p) => p.name)],
@@ -474,7 +474,7 @@ export default function FocusRoomPage() {
         body: JSON.stringify({
           name: roomName.trim() || undefined,
           goal: studyGoal.trim() || undefined,
-          linked_task: linkedTask || undefined,
+          linked_task_id: linkedTask || undefined,
           duration_minutes: selectedMinutes,
         }),
       }).catch(() => undefined);
@@ -1107,7 +1107,7 @@ export default function FocusRoomPage() {
 
                 <Select
                   label="Linked Task"
-                  data={quests.map((q) => ({ value: q.title, label: q.title }))}
+                  data={quests.map((q) => ({ value: q.id, label: q.title }))}
                   value={linkedTask}
                   onChange={(v) => setLinkedTask(v)}
                   searchable
