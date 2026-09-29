@@ -90,7 +90,7 @@ export default async function ProfilePage() {
                         </Group>
                         <Stack gap='sm'>
                             <InfoRow icon={UserRound} tint="#DFF8EA" label="Enrollment" value={profile.enrollment_status} />
-                            <InfoRow icon={CalendarClock} tint='#E7F5FF' label='Availability' value={profile?.weekly_availability.map((slot) => `${slot.day} ${to12Hour(slot.start)}–${to12Hour(slot.end)}`).join(" • ")} />
+                            <InfoRow icon={CalendarClock} tint='#E7F5FF' label='Availability' value={profile?.weekly_availability.map((slot: { day: string; start: string; end: string }) => `${slot.day} ${to12Hour(slot.start)}–${to12Hour(slot.end)}`).join(" • ")} />
                             <InfoRow icon={Clock3} tint='#DFF8EA' label='Preferred Study Period' value={profile.study_time} />
                             <InfoRow icon={Timer} tint='#E7F5FF' label='Focus Length' value={`${profile.focus_length} minutes per session`} />
                         </Stack>
