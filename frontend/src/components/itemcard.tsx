@@ -14,19 +14,20 @@ interface ItemCardProps {
     item: ShopItemBase;
     canAfford: boolean;
     owned: boolean;
+    selected?: boolean;
     imageWidth?: number;
     imageHeight?: number;
     onBuy: (item: ShopItemBase) => void;
 }
 
-export default function ItemCard({ item, owned, imageWidth = 80, imageHeight = 80, onBuy }: ItemCardProps) {
+export default function ItemCard({ item, owned, selected, imageWidth = 80, imageHeight = 80, onBuy }: ItemCardProps) {
     return (
         <Box
             h='180px'
             w='170px'
             style={{
                 backgroundColor: 'white',
-                border: '1px solid #ced4da',
+                border: selected ? '2px solid #2F80ED' : '1px solid #ced4da',
                 borderRadius: '16px',
                 display: 'flex',
                 flexDirection: 'column',

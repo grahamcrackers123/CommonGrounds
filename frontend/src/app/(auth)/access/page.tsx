@@ -95,8 +95,8 @@ function getStrength(password: string) {
 
     return Math.max(
         100 -
-            (100 / (requirements.length + 1)) *
-                multiplier,
+        (100 / (requirements.length + 1)) *
+        multiplier,
         10
     );
 }
@@ -156,8 +156,8 @@ export default function AccessPage() {
         strength === 100
             ? "teal"
             : strength > 50
-              ? "yellow"
-              : "red";
+                ? "yellow"
+                : "red";
 
     /* ----------------------------- */
     /* Sign-in form */
@@ -307,7 +307,7 @@ export default function AccessPage() {
 
             setSigninError(
                 sessionError?.message ||
-                    "Login succeeded, but the session could not be created."
+                "Login succeeded, but the session could not be created."
             );
 
             return;

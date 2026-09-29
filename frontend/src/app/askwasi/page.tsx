@@ -522,166 +522,166 @@ export default function AskWasiPage() {
                                                 </Text>
                                             </Group>
 
-                                           {isUser ? (
-    <Text
-        size="sm"
-        c="white"
-        style={{
-            whiteSpace: "pre-wrap",
-            lineHeight: 1.6,
-        }}
-    >
-        {message.content}
-    </Text>
-) : message.content ? (
-    <div
-        style={{
-            fontSize: 14,
-            lineHeight: 1.6,
-            overflowX: "auto",
-        }}
-    >
-        <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-                table: ({ children }) => (
-                    <div
-                        style={{
-                            width: "100%",
-                            overflowX: "auto",
-                            margin: "12px 0",
-                        }}
-                    >
-                        <table
-                            style={{
-                                width: "100%",
-                                minWidth: 560,
-                                borderCollapse: "collapse",
-                                fontSize: 13,
-                            }}
-                        >
-                            {children}
-                        </table>
-                    </div>
-                ),
+                                            {isUser ? (
+                                                <Text
+                                                    size="sm"
+                                                    c="white"
+                                                    style={{
+                                                        whiteSpace: "pre-wrap",
+                                                        lineHeight: 1.6,
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </Text>
+                                            ) : message.content ? (
+                                                <div
+                                                    style={{
+                                                        fontSize: 14,
+                                                        lineHeight: 1.6,
+                                                        overflowX: "auto",
+                                                    }}
+                                                >
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={{
+                                                            table: ({ children }) => (
+                                                                <div
+                                                                    style={{
+                                                                        width: "100%",
+                                                                        overflowX: "auto",
+                                                                        margin: "12px 0",
+                                                                    }}
+                                                                >
+                                                                    <table
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            minWidth: 560,
+                                                                            borderCollapse: "collapse",
+                                                                            fontSize: 13,
+                                                                        }}
+                                                                    >
+                                                                        {children}
+                                                                    </table>
+                                                                </div>
+                                                            ),
 
-                th: ({ children }) => (
-                    <th
-                        style={{
-                            border:
-                                "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
-                            padding: "8px 10px",
-                            textAlign: "left",
-                            background:
-                                "light-dark(var(--mantine-color-blue-0), #202020)",
-                            fontWeight: 700,
-                        }}
-                    >
-                        {children}
-                    </th>
-                ),
+                                                            th: ({ children }) => (
+                                                                <th
+                                                                    style={{
+                                                                        border:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
+                                                                        padding: "8px 10px",
+                                                                        textAlign: "left",
+                                                                        background:
+                                                                            "light-dark(var(--mantine-color-blue-0), #202020)",
+                                                                        fontWeight: 700,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </th>
+                                                            ),
 
-                td: ({ children }) => (
-                    <td
-                        style={{
-                            border:
-                                "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
-                            padding: "8px 10px",
-                            verticalAlign: "top",
-                        }}
-                    >
-                        {children}
-                    </td>
-                ),
+                                                            td: ({ children }) => (
+                                                                <td
+                                                                    style={{
+                                                                        border:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-3), #333333)",
+                                                                        padding: "8px 10px",
+                                                                        verticalAlign: "top",
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </td>
+                                                            ),
 
-                h1: ({ children }) => (
-                    <Title order={2} mt="md" mb="sm">
-                        {children}
-                    </Title>
-                ),
+                                                            h1: ({ children }) => (
+                                                                <Title order={2} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
 
-                h2: ({ children }) => (
-                    <Title order={3} mt="md" mb="sm">
-                        {children}
-                    </Title>
-                ),
+                                                            h2: ({ children }) => (
+                                                                <Title order={3} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
 
-                h3: ({ children }) => (
-                    <Title order={4} mt="md" mb="sm">
-                        {children}
-                    </Title>
-                ),
+                                                            h3: ({ children }) => (
+                                                                <Title order={4} mt="md" mb="sm">
+                                                                    {children}
+                                                                </Title>
+                                                            ),
 
-                p: ({ children }) => (
-                    <p style={{ margin: "0 0 10px" }}>
-                        {children}
-                    </p>
-                ),
+                                                            p: ({ children }) => (
+                                                                <p style={{ margin: "0 0 10px" }}>
+                                                                    {children}
+                                                                </p>
+                                                            ),
 
-                ul: ({ children }) => (
-                    <ul
-                        style={{
-                            paddingLeft: 22,
-                            marginTop: 6,
-                            marginBottom: 10,
-                        }}
-                    >
-                        {children}
-                    </ul>
-                ),
+                                                            ul: ({ children }) => (
+                                                                <ul
+                                                                    style={{
+                                                                        paddingLeft: 22,
+                                                                        marginTop: 6,
+                                                                        marginBottom: 10,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </ul>
+                                                            ),
 
-                ol: ({ children }) => (
-                    <ol
-                        style={{
-                            paddingLeft: 22,
-                            marginTop: 6,
-                            marginBottom: 10,
-                        }}
-                    >
-                        {children}
-                    </ol>
-                ),
+                                                            ol: ({ children }) => (
+                                                                <ol
+                                                                    style={{
+                                                                        paddingLeft: 22,
+                                                                        marginTop: 6,
+                                                                        marginBottom: 10,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </ol>
+                                                            ),
 
-                li: ({ children }) => (
-                    <li style={{ marginBottom: 4 }}>
-                        {children}
-                    </li>
-                ),
+                                                            li: ({ children }) => (
+                                                                <li style={{ marginBottom: 4 }}>
+                                                                    {children}
+                                                                </li>
+                                                            ),
 
-                code: ({ children }) => (
-                    <code
-                        style={{
-                            background:
-                                "light-dark(var(--mantine-color-gray-1), #222222)",
-                            padding: "2px 5px",
-                            borderRadius: 4,
-                            fontSize: 13,
-                        }}
-                    >
-                        {children}
-                    </code>
-                ),
+                                                            code: ({ children }) => (
+                                                                <code
+                                                                    style={{
+                                                                        background:
+                                                                            "light-dark(var(--mantine-color-gray-1), #222222)",
+                                                                        padding: "2px 5px",
+                                                                        borderRadius: 4,
+                                                                        fontSize: 13,
+                                                                    }}
+                                                                >
+                                                                    {children}
+                                                                </code>
+                                                            ),
 
-                hr: () => (
-                    <hr
-                        style={{
-                            border: 0,
-                            borderTop:
-                                "1px solid light-dark(var(--mantine-color-gray-2), #333333)",
-                            margin: "16px 0",
-                        }}
-                    />
-                ),
-            }}
-        >
-            {message.content}
-        </ReactMarkdown>
-    </div>
-) : (
-    <Text size="sm" c="dimmed">
-        {isStreaming ? "Wasi is thinking..." : ""}
-    </Text>
-)}
+                                                            hr: () => (
+                                                                <hr
+                                                                    style={{
+                                                                        border: 0,
+                                                                        borderTop:
+                                                                            "1px solid light-dark(var(--mantine-color-gray-2), #333333)",
+                                                                        margin: "16px 0",
+                                                                    }}
+                                                                />
+                                                            ),
+                                                        }}
+                                                    >
+                                                        {message.content}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            ) : (
+                                                <Text size="sm" c="dimmed">
+                                                    {isStreaming ? "Wasi is thinking..." : ""}
+                                                </Text>
+                                            )}
                                         </Paper>
                                     </Group>
                                 );
@@ -728,34 +728,34 @@ export default function AskWasiPage() {
                 }}
             >
                 <Group align="flex-end" gap="sm"><Textarea
-                        value={input}
-                        onChange={(event) =>
-                            setInput(
-                                event.currentTarget.value
-                            )
+                    value={input}
+                    onChange={(event) =>
+                        setInput(
+                            event.currentTarget.value
+                        )
+                    }
+                    placeholder="Ask Wasi about your coursework..."
+                    autosize
+                    minRows={2}
+                    maxRows={5}
+                    variant="unstyled"
+                    style={{
+                        flex: 1,
+                        color: "light-dark(var(--mantine-color-text), #FFFFFF)",
+                        background: "light-dark(transparent, #151515)",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                    }}
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === "Enter" &&
+                            !event.shiftKey
+                        ) {
+                            event.preventDefault();
+                            sendMessage();
                         }
-                        placeholder="Ask Wasi about your coursework..."
-                        autosize
-                        minRows={2}
-                        maxRows={5}
-                        variant="unstyled"
-                        style={{
-                            flex: 1,
-                            color: "light-dark(var(--mantine-color-text), #FFFFFF)",
-                            background: "light-dark(transparent, #151515)",
-                            borderRadius: 8,
-                            padding: "8px 10px",
-                        }}
-                        onKeyDown={(event) => {
-                            if (
-                                event.key === "Enter" &&
-                                !event.shiftKey
-                            ) {
-                                event.preventDefault();
-                                sendMessage();
-                            }
-                        }}
-                    />
+                    }}
+                />
 
                     <ActionIcon
                         size={40}

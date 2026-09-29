@@ -1,3 +1,5 @@
+import { xp_per_level } from '@/components/petgrowth'
+import { recordBehavioralEvent } from '@/lib/interventions/events'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -13,12 +15,20 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // fetched before completion so we have the notif title/reward
-  const { data: questInfo } = await supabase
-    .from('quests')
-    .select('title, reward_coins')
-    .eq('id', id)
-    .single()
+  // fetched before completion so we have the notif title/reward and the pet's
+  // pre-completion XP, letting us log exactly how much the pet gained
+  const [{ data: questInfo }, { data: petBefore }] = await Promise.all([
+    supabase
+      .from('quests')
+      .select('title, reward_coins')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('pets')
+      .select('level, xp')
+      .eq('owner_id', user.id)
+      .maybeSingle(),
+  ])
 
   const { data, error } = await supabase.rpc('complete_quest', { p_quest_id: id })
 
@@ -37,6 +47,22 @@ export async function PATCH(
       _type: 'session_completed', // quest or focus session completed
       _title: 'Quest completed!',
       _body: `You earned ${questInfo.reward_coins} coins for "${questInfo.title}"`,
+    })
+  }
+
+  let xpGained = 0
+  if (petBefore && result.pet_level != null && result.pet_xp != null) {
+    xpGained = (result.pet_level - petBefore.level) * xp_per_level + (result.pet_xp - petBefore.xp)
+    if (xpGained < 0) xpGained = 0
+  }
+
+  if (questInfo && xpGained > 0) {
+    await recordBehavioralEvent(user.id, 'pet_quest', {
+      quest_id: id,
+      title: questInfo.title,
+      coins: questInfo.reward_coins ?? 0,
+      xp_gained: xpGained,
+      leveled_up: result.leveled_up ?? false,
     })
   }
 

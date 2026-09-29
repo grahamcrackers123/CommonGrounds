@@ -6,7 +6,12 @@ export type BehavioralEventType =
     | "session_missed"
     | "quest_overdue"
     | "inactivity"
-    | "reschedule_abandoned";
+    | "reschedule_abandoned"
+    | "pet_equipped"
+    | "pet_quest"
+    | "daily_login"
+    | "daily_mission"
+    | "daily_bonus";
 
 export async function recordBehavioralEvent(
     userId: string,
