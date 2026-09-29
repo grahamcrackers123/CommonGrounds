@@ -658,19 +658,8 @@ export default function AccessPage() {
                                             : "md"
                                     }
                                 />
-
-                                <Anchor
-                                    component="button"
-                                    type="button"
-                                    onClick={
-                                        handleForgotPassword
-                                    }
-                                    size={
-                                        isMobile
-                                            ? "xs"
-                                            : "md"
-                                    }
-                                >
+                              
+                                <Anchor component="button" type="button" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
                                     Forgot Password?
                                 </Anchor>
                             </Group>
