@@ -20,7 +20,7 @@ export async function GET() {
   }
 
   // don't block the response on notification writes
-  evaluateAndNotifyRisk(supabase, user.id)
+  await evaluateAndNotifyRisk(supabase, user.id)
 
   let summary = 'No workload risk indicators were detected.'
   if (flags.length > 0) {

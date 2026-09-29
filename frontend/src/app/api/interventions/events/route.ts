@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     // don't block the response on risk evaluation
-    evaluateAndNotifyRisk(supabase, user.id);
+    await evaluateAndNotifyRisk(supabase, user.id);
 
     return NextResponse.json({ event: data }, { status: 201 });
 }
