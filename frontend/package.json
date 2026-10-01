@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.3.0",
+    "@huggingface/inference": "^4.13.30",
     "@mantine/core": "^9.5.1",
     "@mantine/dates": "^9.6.0",
     "@mantine/form": "^9.5.1",
@@ -19,7 +19,6 @@
     "@mantine/schedule": "^9.6.2",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "dayjs": "^1.11.23",
     "@tabler/icons-react": "^3.47.0",
     "dayjs": "^1.11.23",
     "groq-sdk": "^1.5.0",

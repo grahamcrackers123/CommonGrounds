@@ -1,26 +1,8 @@
-import {
-    pipeline,
-    type FeatureExtractionPipeline,
-} from '@huggingface/transformers'
 import { createClient } from '@/lib/supabase/server'
 import { extractTextFromFile } from './extract-text'
 import { chunkText } from './chunk-text'
+import { generateEmbedding } from '@/lib/hf-embeddings'
 
-let embeddingPipeline:
-    | FeatureExtractionPipeline
-    | null = null
-
-async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
-    if (!embeddingPipeline) {
-        embeddingPipeline =
-            (await pipeline(
-                'feature-extraction',
-                'Xenova/all-MiniLM-L6-v2'
-            )) as FeatureExtractionPipeline
-    }
-
-    return embeddingPipeline
-}
 
 export async function processMaterial(
     materialId: string,
@@ -116,9 +98,7 @@ export async function processMaterial(
     =====================================================
     */
 
-    const extractor =
-        await getEmbeddingPipeline()
-
+   
     const rows = []
 
     for (
@@ -129,17 +109,7 @@ export async function processMaterial(
         const content =
             chunks[index]
 
-        const output =
-            await extractor(
-                content,
-                {
-                    pooling: 'mean',
-                    normalize: true,
-                }
-            )
-
-        const embedding =
-            output.tolist()[0]
+        const embedding = await generateEmbedding(content)
 
         rows.push({
             material_id:
