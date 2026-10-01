@@ -43,6 +43,8 @@ import {
 
 import { useRouter } from "next/navigation";
 
+import { createClient } from "@/lib/supabase/client";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -277,6 +279,11 @@ export default function QuestCalendarPage() {
 
   const router = useRouter();
 
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
+
   const { colorScheme } =
     useMantineColorScheme();
 
@@ -345,6 +352,13 @@ export default function QuestCalendarPage() {
 
   const [materials, setMaterials] =
     useState<Material[]>([]);
+
+  /* =======================================================
+     PROFILE SUBJECT STATE
+  ======================================================= */
+
+  const [profileSubjects, setProfileSubjects] =
+    useState<string[]>([]);
 
   /* =======================================================
      UPLOAD STATE
@@ -488,6 +502,64 @@ export default function QuestCalendarPage() {
 
     loadMaterials();
   }, []);
+
+  /* =======================================================
+     LOAD PROFILE SUBJECTS
+  ======================================================= */
+
+  useEffect(() => {
+    const loadProfileSubjects =
+      async () => {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) {
+            setProfileSubjects([]);
+
+            return;
+          }
+
+          const { data, error } =
+            await supabase
+              .from("profiles")
+              .select("subjects")
+              .eq("id", user.id)
+              .single();
+
+          if (error) {
+            throw error;
+          }
+
+          const subjects =
+            Array.isArray(
+              data?.subjects
+            )
+              ? data.subjects.filter(
+                  (
+                    subject
+                  ): subject is string =>
+                    typeof subject ===
+                      "string" &&
+                    subject.trim()
+                      .length > 0
+                )
+              : [];
+
+          setProfileSubjects(subjects);
+        } catch (error) {
+          console.error(
+            "Failed to load profile subjects:",
+            error
+          );
+
+          setProfileSubjects([]);
+        }
+      };
+
+    loadProfileSubjects();
+  }, [supabase]);
 
   /* =======================================================
      CURRENT TIME REFRESH
@@ -702,18 +774,25 @@ export default function QuestCalendarPage() {
      SUBJECT OPTIONS
   ======================================================= */
 
+  /*
+   * Subjects come from the user's academic profile.
+   * Existing quest subjects are merged in so filters
+   * and edits still work for quests that reference a
+   * subject that is no longer on the profile.
+   */
   const subjects =
     Array.from(
-      new Set(
-        quests
+      new Set([
+        ...profileSubjects,
+        ...(quests
           .map(
             (quest) =>
               quest.subject
           )
           .filter(
             Boolean
-          ) as string[]
-      )
+          ) as string[]),
+      ])
     );
 
   /* =======================================================
