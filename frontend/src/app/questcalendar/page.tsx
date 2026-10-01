@@ -2404,7 +2404,7 @@ export default function QuestCalendarPage() {
                 handleStartQuest(selectedQuest)
               }
             >
-              Start Focus Session
+              Mark as In Progress
             </Button>
           )}
 
