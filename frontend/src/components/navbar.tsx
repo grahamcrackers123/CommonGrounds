@@ -9,8 +9,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 interface NotificationRow {
-    id: number;
-    unread: boolean;
+    id: string;
+    read: boolean | null;
     [key: string]: unknown;
 }
 
@@ -168,7 +168,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         fetchNotifications();
     }, [supabase, pathname]);
 
-    const unreadCount = notificationList.filter((n) => n.unread).length;
+    const unreadCount = notificationList.filter((n) => n.read === false).length;
 
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;

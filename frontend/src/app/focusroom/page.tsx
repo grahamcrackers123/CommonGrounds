@@ -33,6 +33,7 @@ import {
   Copy,
   Flame,
   Heart,
+  LogIn,
   MoreHorizontal,
   Music,
   Pause,
@@ -47,6 +48,7 @@ import {
   UserPlus,
   Users,
   Volume2,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -59,6 +61,8 @@ interface Friend {
   initials: string;
   color: string;
   online: boolean;
+  status?: "accepted" | "pending";
+  direction?: "incoming" | "outgoing";
 }
 
 interface Participant {
@@ -145,18 +149,32 @@ const mapBackendFriend = (row: Record<string, unknown>): Friend => {
     (typeof row.full_name === "string" && row.full_name) ||
     "Friend";
   const friendId =
+    (typeof row.friend_user_id === "string" && row.friend_user_id) ||
     (typeof row.friend_id === "string" && row.friend_id) ||
     (typeof row.user_id === "string" && row.user_id) ||
     "";
-  const lastSeen = typeof row.last_seen_at === "string" ? new Date(row.last_seen_at).getTime() : 0;
-  const online = !row.last_seen_at || Date.now() - lastSeen < 3 * 60 * 1000;
+  const status = row.status === "pending" ? "pending" : "accepted";
+  const direction =
+    row.direction === "outgoing" ? "outgoing" : row.direction === "incoming" ? "incoming" : undefined;
+  const lastSeen =
+    (typeof row.last_seen_at === "string" && new Date(row.last_seen_at).getTime()) ||
+    (typeof row.presence === "string" && new Date(row.presence).getTime()) ||
+    0;
+  const online = status === "accepted" && (!lastSeen || Date.now() - lastSeen < 3 * 60 * 1000);
   return {
-    id: row.id != null ? String(row.id) : undefined,
+    id:
+      row.friendship_id != null
+        ? String(row.friendship_id)
+        : row.id != null
+          ? String(row.id)
+          : undefined,
     userId: friendId ? String(friendId) : undefined,
     name,
     initials: initialsOf(name),
     color: colorFor(name),
     online,
+    status,
+    direction,
   };
 };
 
@@ -192,6 +210,9 @@ export default function FocusRoomPage() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [friendCode, setFriendCode] = useState("");
   const [friendReqSending, setFriendReqSending] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [joinedRoom, setJoinedRoom] = useState(false);
 
   const [remaining, setRemaining] = useState(30 * 60);
   const [running, setRunning] = useState(false);
@@ -220,6 +241,12 @@ export default function FocusRoomPage() {
   const runningTodayMinutes = phase === "live" ? todayMinutes + (total - remaining) / 60 : todayMinutes;
   const todayProgress = Math.min(100, (runningTodayMinutes / 120) * 100);
   const onlineFriends = friends.filter((f) => f.online);
+  const incomingRequests = friends.filter(
+    (f) => f.status === "pending" && f.direction !== "outgoing"
+  );
+  const outgoingRequests = friends.filter(
+    (f) => f.status === "pending" && f.direction === "outgoing"
+  );
 
   const tierFor = (minutes: number): RewardTier => {
     let best: RewardTier | null = null;
@@ -366,6 +393,44 @@ export default function FocusRoomPage() {
     return () => clearInterval(poll);
   }, [phase, roomId, displayName, participants]);
 
+  useEffect(() => {
+    if (phase !== "lobby" || !joinedRoom || !roomId) return;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const room = data?.room ?? data;
+        const status = typeof room?.status === "string" ? room.status : null;
+        if (status && !["active", "focus"].includes(status)) return;
+        if (typeof room?.started_at !== "string") return;
+        const minutes = Number(room?.duration_minutes);
+        if (!Number.isFinite(minutes) || minutes <= 0) return;
+        const elapsed = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
+        const left = Math.round(minutes * 60 - elapsed);
+        if (left <= 0) return;
+        if (PRESET_MINUTES.includes(minutes)) {
+          setDurationPreset(minutes);
+        } else {
+          setDurationPreset("custom");
+          setCustomMinutes(minutes);
+        }
+        setRemaining(left);
+        setSessionStartedAt(room.started_at);
+        setRunning(true);
+        setPhase("live");
+        notifications.show({
+          title: "Room started",
+          message: "The host started the shared timer. Lock in!",
+          color: "blue",
+        });
+      } catch {
+        return;
+      }
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [phase, joinedRoom, roomId]);
+
   const finishSession = (completed: boolean) => {
     setRunning(false);
     const elapsed = total - remaining;
@@ -511,7 +576,7 @@ export default function FocusRoomPage() {
     setRemaining(total);
     setParticipants([]);
     refreshHistory();
-    createRoom();
+    if (!joinedRoom) createRoom();
   };
 
   const inviteFriend = async (friend: Friend) => {
@@ -536,6 +601,17 @@ export default function FocusRoomPage() {
         title: "Room not ready",
         message: "The room hasn't been created yet. Try again in a moment.",
         color: "red",
+      });
+      return;
+    }
+    if (friend.status === "pending") {
+      notifications.show({
+        title: "Friend request pending",
+        message:
+          friend.direction === "outgoing"
+            ? `${friend.name} hasn't accepted your friend request yet.`
+            : `Accept ${friend.name}'s friend request before inviting them.`,
+        color: "yellow",
       });
       return;
     }
@@ -589,10 +665,60 @@ export default function FocusRoomPage() {
     setFriends((fs) => fs.filter((f) => f.name !== friend.name));
     setParticipants((ps) => ps.filter((p) => p.name !== friend.name));
     notifications.show({
-      title: "Unfriended",
-      message: `${friend.name} was removed from your friends list.`,
+      title: friend.status === "pending" ? "Request canceled" : "Unfriended",
+      message:
+        friend.status === "pending"
+          ? `Your friend request to ${friend.name} was canceled.`
+          : `${friend.name} was removed from your friends list.`,
       color: "blue",
     });
+  };
+
+  const respondToRequest = async (friend: Friend, action: "accept" | "reject") => {
+    if (!friend.id) return;
+    try {
+      const res = await fetch(`/api/friends/requests/${encodeURIComponent(friend.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notifications.show({
+          title: "Could not update request",
+          message: data.error ?? "Try again later.",
+          color: "red",
+        });
+        return;
+      }
+      if (action === "accept") {
+        setFriends((fs) =>
+          fs.map((f) =>
+            f.id === friend.id
+              ? { ...f, status: "accepted", direction: undefined, online: true }
+              : f
+          )
+        );
+        notifications.show({
+          title: "Friend added",
+          message: `${friend.name} is now your friend.`,
+          color: "green",
+        });
+      } else {
+        setFriends((fs) => fs.filter((f) => f.id !== friend.id));
+        notifications.show({
+          title: "Request declined",
+          message: `You declined ${friend.name}'s friend request.`,
+          color: "blue",
+        });
+      }
+    } catch {
+      notifications.show({
+        title: "Could not update request",
+        message: "You appear to be offline.",
+        color: "red",
+      });
+    }
   };
 
   const submitAddFriend = async () => {
@@ -648,6 +774,87 @@ export default function FocusRoomPage() {
       setFriendReqSending(false);
       setFriendCode("");
       setInviteModalOpen(false);
+    }
+  };
+
+  const joinRoom = async () => {
+    const code = joinCode.trim().toUpperCase();
+    if (!code) {
+      notifications.show({
+        title: "Missing code",
+        message: "Enter the invite code to join a room.",
+        color: "red",
+      });
+      return;
+    }
+    setJoining(true);
+    try {
+      const res = await fetch("/api/rooms/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.room_id) {
+        notifications.show({
+          title: "Could not join",
+          message: data.error ?? "Check the invite code and try again.",
+          color: "red",
+        });
+        return;
+      }
+      const id = String(data.room_id);
+      setRoomId(id);
+      setRoomCode(code);
+      setJoinedRoom(true);
+      setJoinCode("");
+      const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
+      if (stateRes.ok) {
+        const state = await stateRes.json();
+        const room = state?.room ?? state;
+        if (typeof room?.name === "string" && room.name) setRoomName(room.name);
+        if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
+        const minutes = Number(room?.duration_minutes);
+        if (Number.isFinite(minutes) && minutes > 0) {
+          if (PRESET_MINUTES.includes(minutes)) {
+            setDurationPreset(minutes);
+          } else {
+            setDurationPreset("custom");
+            setCustomMinutes(minutes);
+          }
+        }
+        if (Array.isArray(state?.participants)) {
+          const names = state.participants
+            .map((r: Record<string, unknown>) =>
+              typeof r.display_name === "string"
+                ? r.display_name
+                : typeof r.name === "string"
+                  ? r.name
+                  : null
+            )
+            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
+          setParticipants(
+            [...new Set<string>(names)].map((n) => ({
+              name: n,
+              initials: initialsOf(n),
+              color: colorFor(n),
+            }))
+          );
+        }
+      }
+      notifications.show({
+        title: "Joined room",
+        message: "You're in. The shared timer starts when the host begins.",
+        color: "green",
+      });
+    } catch {
+      notifications.show({
+        title: "Could not join",
+        message: "You appear to be offline.",
+        color: "red",
+      });
+    } finally {
+      setJoining(false);
     }
   };
 
@@ -1124,6 +1331,29 @@ export default function FocusRoomPage() {
                 >
                   Start Focus Room
                 </Button>
+
+                <Divider label="Or join a friend's room" labelPosition="center" my={4} />
+
+                <Group gap="xs" align="flex-end" wrap="nowrap">
+                  <TextInput
+                    label="Invite Code"
+                    placeholder="ABCD12"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.currentTarget.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") joinRoom();
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    variant="default"
+                    leftSection={<LogIn size={16} />}
+                    onClick={joinRoom}
+                    loading={joining}
+                  >
+                    Join
+                  </Button>
+                </Group>
               </Stack>
             </Paper>
           </Stack>
@@ -1165,7 +1395,7 @@ export default function FocusRoomPage() {
                           {p.name}
                         </Text>
                         <Text fz="xs" c="dimmed">
-                          {p.isYou ? "Room host" : "In lobby"}
+                          {p.isYou ? (joinedRoom ? "You" : "Room host") : "In lobby"}
                         </Text>
                       </Box>
                     </Group>
@@ -1191,6 +1421,94 @@ export default function FocusRoomPage() {
                   Friends Online
                 </Title>
               </Group>
+
+              {incomingRequests.length > 0 && (
+                <Stack gap="xs" mb="md">
+                  {incomingRequests.map((f) => (
+                    <Group
+                      key={f.id ?? f.userId ?? f.name}
+                      justify="space-between"
+                      p="xs"
+                      style={{ borderRadius: 10, backgroundColor: "#FFF9DB" }}
+                      wrap="nowrap"
+                    >
+                      <Group gap={10} wrap="nowrap">
+                        <Avatar color={f.color} radius="xl" size={32}>
+                          {f.initials}
+                        </Avatar>
+                        <Box>
+                          <Text fz="sm" fw={600}>
+                            {f.name}
+                          </Text>
+                          <Text fz="xs" c="dimmed">
+                            Wants to be friends
+                          </Text>
+                        </Box>
+                      </Group>
+                      <Group gap={4}>
+                        <Tooltip label="Accept">
+                          <ActionIcon
+                            variant="light"
+                            color="green"
+                            aria-label={`Accept friend request from ${f.name}`}
+                            onClick={() => respondToRequest(f, "accept")}
+                          >
+                            <Check size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Decline">
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            aria-label={`Decline friend request from ${f.name}`}
+                            onClick={() => respondToRequest(f, "reject")}
+                          >
+                            <X size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+
+              {outgoingRequests.length > 0 && (
+                <Stack gap="xs" mb="md">
+                  {outgoingRequests.map((f) => (
+                    <Group
+                      key={f.id ?? f.userId ?? f.name}
+                      justify="space-between"
+                      p="xs"
+                      style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                      wrap="nowrap"
+                    >
+                      <Group gap={10} wrap="nowrap">
+                        <Avatar color={f.color} radius="xl" size={32}>
+                          {f.initials}
+                        </Avatar>
+                        <Box>
+                          <Text fz="sm" fw={600}>
+                            {f.name}
+                          </Text>
+                          <Text fz="xs" c="dimmed">
+                            Request pending
+                          </Text>
+                        </Box>
+                      </Group>
+                      <Tooltip label="Cancel request">
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          aria-label={`Cancel friend request to ${f.name}`}
+                          onClick={() => unfriend(f)}
+                        >
+                          <UserMinus size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
 
               <Stack gap="xs" mb="md">
                 {onlineFriends.map((f) => (
