@@ -81,7 +81,8 @@ export async function POST(request: Request) {
     if (!extension || !(extension in ALLOWED_FILE_TYPES)) {
         return NextResponse.json(
             {
-                error: 'Unsupported file type. Only PDF, DOCX, TXT, and MD files are allowed.',
+                error:
+                    'Unsupported file type. Only PDF, DOCX, TXT, and MD files are allowed.',
             },
             { status: 400 }
         )
@@ -92,7 +93,9 @@ export async function POST(request: Request) {
 
     if (file.type && file.type !== expectedMimeType) {
         return NextResponse.json(
-            { error: 'File type does not match its extension.' },
+            {
+                error: 'File type does not match its extension.',
+            },
             { status: 400 }
         )
     }
@@ -100,26 +103,30 @@ export async function POST(request: Request) {
     // 5. Validate file size
     if (file.size > MAX_FILE_SIZE) {
         return NextResponse.json(
-            { error: 'File is too large. Maximum size is 10 MB.' },
+            {
+                error: 'File is too large. Maximum size is 10 MB.',
+            },
             { status: 400 }
         )
     }
 
     if (file.size === 0) {
         return NextResponse.json(
-            { error: 'The uploaded file is empty.' },
+            {
+                error: 'The uploaded file is empty.',
+            },
             { status: 400 }
         )
     }
 
-    // 6. Create a safe filename and user-specific storage path
+    // 6. Create safe filename and user-specific storage path
     const safeFilename = sanitizeFilename(file.name)
 
     const uniqueFilename = `${crypto.randomUUID()}-${safeFilename}`
 
     const storagePath = `${user.id}/${uniqueFilename}`
 
-    // 7. Upload the file to Supabase Storage
+    // 7. Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
         .from('materials')
         .upload(storagePath, file, {
@@ -131,7 +138,9 @@ export async function POST(request: Request) {
         console.error('Material upload error:', uploadError)
 
         return NextResponse.json(
-            { error: 'Could not upload material.' },
+            {
+                error: 'Could not upload material.',
+            },
             { status: 500 }
         )
     }
@@ -151,40 +160,67 @@ export async function POST(request: Request) {
         .select()
         .single()
 
-    // 9. Remove the uploaded file if metadata creation fails
-    if (materialError) {
-        console.error('Material metadata error:', materialError)
+    if (materialError || !material) {
+        console.error(
+            'Material metadata error:',
+            materialError
+        )
 
         await supabase.storage
             .from('materials')
             .remove([storagePath])
 
         return NextResponse.json(
-            { error: 'Could not save material information.' },
+            {
+                error: 'Could not save material information.',
+            },
             { status: 500 }
         )
     }
 
-       // 10. Process material into searchable chunks + embeddings
+    // 9. Process material into searchable chunks + embeddings
     try {
+        console.log(
+            '========== STARTING MATERIAL PROCESSING =========='
+        )
+
+        console.log('Material ID:', material.id)
+        console.log('Material filename:', material.filename)
+        console.log('Material type:', material.file_type)
+
         await processMaterial(
             material.id,
             user.id
         )
+
+        console.log(
+            '========== MATERIAL PROCESSING FINISHED =========='
+        )
     } catch (processingError) {
+        console.error(
+            '========== MATERIAL PROCESSING ERROR =========='
+        )
+
         console.error(
             'Material processing error:',
             processingError
         )
 
-        // Remove the uploaded material metadata
+        console.error(
+            'Material processing error details:',
+            processingError instanceof Error
+                ? processingError.stack
+                : processingError
+        )
+
+        // Remove metadata because processing failed
         await supabase
             .from('materials')
             .delete()
             .eq('id', material.id)
             .eq('user_id', user.id)
 
-        // Remove the uploaded file
+        // Remove uploaded file
         await supabase.storage
             .from('materials')
             .remove([storagePath])
@@ -198,6 +234,7 @@ export async function POST(request: Request) {
         )
     }
 
+    // 10. Success
     return NextResponse.json(
         {
             message:
@@ -207,6 +244,7 @@ export async function POST(request: Request) {
         { status: 201 }
     )
 }
+
 export async function GET() {
     const supabase = await createClient()
 
@@ -223,7 +261,10 @@ export async function GET() {
     }
 
     // 2. Load the user's materials
-    const { data: materials, error } = await supabase
+    const {
+        data: materials,
+        error,
+    } = await supabase
         .from('materials')
         .select(`
             id,
@@ -236,13 +277,20 @@ export async function GET() {
             created_at
         `)
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .order('created_at', {
+            ascending: false,
+        })
 
     if (error) {
-        console.error('Material list error:', error)
+        console.error(
+            'Material list error:',
+            error
+        )
 
         return NextResponse.json(
-            { error: 'Could not load materials.' },
+            {
+                error: 'Could not load materials.',
+            },
             { status: 500 }
         )
     }

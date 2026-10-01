@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.3.0",
+    "@huggingface/inference": "^4.13.30",
     "@mantine/core": "^9.5.1",
     "@mantine/dates": "^9.6.0",
     "@mantine/form": "^9.5.1",
@@ -25,7 +25,6 @@
     "lucide-react": "^1.31.0",
     "mammoth": "^1.12.3",
     "next": "16.3.1",
-    "onnxruntime-node": "1.30.0",
     "pdf-parse": "^2.4.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",

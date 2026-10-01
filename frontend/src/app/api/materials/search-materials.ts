@@ -1,6 +1,5 @@
-import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
 import { createClient } from '@/lib/supabase/server'
-
+import { generateEmbedding } from '@/lib/hf-embeddings'
 export type MaterialChunk = {
     material_id: string
     filename: string
@@ -9,18 +8,7 @@ export type MaterialChunk = {
     similarity: number
 }
 
-let embeddingPipeline: FeatureExtractionPipeline | null = null
 
-async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
-    if (!embeddingPipeline) {
-        embeddingPipeline = await pipeline(
-            'feature-extraction',
-            'Xenova/all-MiniLM-L6-v2'
-        )
-    }
-
-    return embeddingPipeline
-}
 
 export async function searchMaterials(
     userId: string,
@@ -35,14 +23,7 @@ export async function searchMaterials(
     }
 
     // Generate an embedding for the user's question.
-    const extractor = await getEmbeddingPipeline()
-
-    const output = await extractor(cleanQuery, {
-        pooling: 'mean',
-        normalize: true,
-    })
-
-    const queryEmbedding = Array.from(output.data)
+    const queryEmbedding = await generateEmbedding(cleanQuery)
 
     // Search the user's uploaded material chunks using pgvector.
     const { data, error } = await supabase.rpc(
