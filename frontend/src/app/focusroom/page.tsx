@@ -205,6 +205,9 @@ const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
 export default function FocusRoomPage() {
   const supabase = useMemo(() => createClient(), []);
   const roomPromiseRef = useRef<Promise<string | null> | null>(null);
+  const finishingRef = useRef(false);
+  const finishSessionRef = useRef<(completed: boolean) => void>(() => {});
+  const remainingRef = useRef(30 * 60);
   const [phase, setPhase] = useState<Phase>("lobby");
 
   const [roomName, setRoomName] = useState("");
@@ -477,6 +480,7 @@ export default function FocusRoomPage() {
       setRoomCode(code);
       setJoinedRoom(true);
       setJoinCode("");
+      finishingRef.current = false;
       const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
       if (stateRes.ok) {
         const state = await stateRes.json();
@@ -526,13 +530,25 @@ export default function FocusRoomPage() {
 
   useEffect(() => {
     if (phase !== "live" || !roomId) return;
-    const poll = setInterval(() => {
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          applyRoomState(data);
-        })
-        .catch(() => undefined);
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        applyRoomState(data);
+        const room = data?.room ?? data;
+        const status = typeof room?.status === "string" ? room.status : null;
+        if ((status === "ended" || status === "completed") && !finishingRef.current) {
+          notifications.show({
+            title: "Session ended",
+            message: "The room leader ended the session for everyone.",
+            color: "blue",
+          });
+          finishSessionRef.current(remainingRef.current <= 0);
+        }
+      } catch {
+        return;
+      }
     }, 5000);
     return () => clearInterval(poll);
   }, [phase, roomId, userId, displayName]);
@@ -598,6 +614,8 @@ export default function FocusRoomPage() {
   }, [phase, joinedRoom, roomId, roomName, studyGoal]);
 
   const finishSession = (completed: boolean) => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     setRunning(false);
     setOwnStatus("completed");
     const elapsed = total - remaining;
@@ -675,6 +693,14 @@ export default function FocusRoomPage() {
   };
 
   useEffect(() => {
+    finishSessionRef.current = finishSession;
+  });
+
+  useEffect(() => {
+    remainingRef.current = remaining;
+  }, [remaining]);
+
+  useEffect(() => {
     if (!running || phase !== "live") return;
     const interval = setInterval(() => {
       setRemaining((prev) => {
@@ -706,6 +732,7 @@ export default function FocusRoomPage() {
       });
       return;
     }
+    finishingRef.current = false;
     setRemaining(total);
     setRunning(true);
     setPhase("live");
@@ -770,17 +797,23 @@ export default function FocusRoomPage() {
   const endEarly = () => finishSession(false);
 
   const backToLobby = () => {
+    finishingRef.current = false;
     setPhase("lobby");
     setRunning(false);
     setRemaining(total);
     setParticipants([]);
     setOwnStatus("ready");
     refreshHistory();
-    if (!joinedRoom) createRoom();
+    if (joinedRoom) {
+      void leaveLobby();
+      return;
+    }
+    createRoom();
   };
 
   const leaveLobby = async () => {
     if (!joinedRoom) return;
+    finishingRef.current = false;
     if (roomId) {
       await fetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, { method: "POST" }).catch(
         () => undefined
