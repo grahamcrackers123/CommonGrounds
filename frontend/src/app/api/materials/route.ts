@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { processMaterial } from './process-material'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -164,16 +165,48 @@ export async function POST(request: Request) {
         )
     }
 
+       // 10. Process material into searchable chunks + embeddings
+    try {
+        await processMaterial(
+            material.id,
+            user.id
+        )
+    } catch (processingError) {
+        console.error(
+            'Material processing error:',
+            processingError
+        )
+
+        // Remove the uploaded material metadata
+        await supabase
+            .from('materials')
+            .delete()
+            .eq('id', material.id)
+            .eq('user_id', user.id)
+
+        // Remove the uploaded file
+        await supabase.storage
+            .from('materials')
+            .remove([storagePath])
+
+        return NextResponse.json(
+            {
+                error:
+                    'Material was uploaded but could not be processed.',
+            },
+            { status: 500 }
+        )
+    }
+
     return NextResponse.json(
         {
-            message: 'Material uploaded successfully.',
+            message:
+                'Material uploaded and processed successfully.',
             material,
         },
         { status: 201 }
     )
 }
-
-
 export async function GET() {
     const supabase = await createClient()
 

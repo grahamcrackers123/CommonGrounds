@@ -1,6 +1,26 @@
+import {
+    pipeline,
+    type FeatureExtractionPipeline,
+} from '@huggingface/transformers'
 import { createClient } from '@/lib/supabase/server'
 import { extractTextFromFile } from './extract-text'
 import { chunkText } from './chunk-text'
+
+let embeddingPipeline:
+    | FeatureExtractionPipeline
+    | null = null
+
+async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
+    if (!embeddingPipeline) {
+        embeddingPipeline =
+            (await pipeline(
+                'feature-extraction',
+                'Xenova/all-MiniLM-L6-v2'
+            )) as FeatureExtractionPipeline
+    }
+
+    return embeddingPipeline
+}
 
 export async function processMaterial(
     materialId: string,
@@ -8,7 +28,10 @@ export async function processMaterial(
 ): Promise<void> {
     const supabase = await createClient()
 
-    const { data: material, error: materialError } = await supabase
+    const {
+        data: material,
+        error: materialError,
+    } = await supabase
         .from('materials')
         .select(`
             id,
@@ -25,13 +48,17 @@ export async function processMaterial(
         throw new Error('Material not found')
     }
 
-    const { data: fileData, error: downloadError } =
-        await supabase.storage
-            .from('materials')
-            .download(material.storage_path)
+    const {
+        data: fileData,
+        error: downloadError,
+    } = await supabase.storage
+        .from('materials')
+        .download(material.storage_path)
 
     if (downloadError || !fileData) {
-        throw new Error('Could not download material file')
+        throw new Error(
+            'Could not download material file'
+        )
     }
 
     const file = new File(
@@ -42,40 +69,110 @@ export async function processMaterial(
         }
     )
 
-    const extractedText = await extractTextFromFile(
-        file,
-        material.file_type
-    )
+    const extractedText =
+        await extractTextFromFile(
+            file,
+            material.file_type
+        )
 
-    const chunks = chunkText(extractedText)
+    const chunks =
+        chunkText(extractedText)
 
     if (chunks.length === 0) {
-        throw new Error('No text could be extracted from material')
+        throw new Error(
+            'No text could be extracted from material'
+        )
     }
 
-    // Remove existing chunks before saving the newly processed chunks.
-    const { error: deleteError } = await supabase
+    /*
+    =====================================================
+    REMOVE EXISTING CHUNKS
+    =====================================================
+    */
+
+    const {
+        error: deleteError,
+    } = await supabase
         .from('material_chunks')
         .delete()
-        .eq('material_id', material.id)
-        .eq('user_id', userId)
+        .eq(
+            'material_id',
+            material.id
+        )
+        .eq(
+            'user_id',
+            userId
+        )
 
     if (deleteError) {
-        throw new Error('Could not replace existing material chunks')
+        throw new Error(
+            'Could not replace existing material chunks'
+        )
     }
 
-    const rows = chunks.map((content, index) => ({
-        material_id: material.id,
-        user_id: material.user_id,
-        chunk_index: index,
-        content,
-    }))
+    /*
+    =====================================================
+    GENERATE EMBEDDINGS
+    =====================================================
+    */
 
-    const { error: insertError } = await supabase
+    const extractor =
+        await getEmbeddingPipeline()
+
+    const rows = []
+
+    for (
+        let index = 0;
+        index < chunks.length;
+        index++
+    ) {
+        const content =
+            chunks[index]
+
+        const output =
+            await extractor(
+                content,
+                {
+                    pooling: 'mean',
+                    normalize: true,
+                }
+            )
+
+        const embedding =
+            output.tolist()[0]
+
+        rows.push({
+            material_id:
+                material.id,
+            user_id:
+                material.user_id,
+            chunk_index:
+                index,
+            content,
+            embedding,
+        })
+    }
+
+    /*
+    =====================================================
+    SAVE CHUNKS + EMBEDDINGS
+    =====================================================
+    */
+
+    const {
+        error: insertError,
+    } = await supabase
         .from('material_chunks')
         .insert(rows)
 
     if (insertError) {
-        throw new Error('Could not save material chunks')
+        console.error(
+            'Material chunk insert error:',
+            insertError
+        )
+
+        throw new Error(
+            'Could not save material chunks'
+        )
     }
 }
