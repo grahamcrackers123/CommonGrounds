@@ -34,6 +34,7 @@ import {
   Flame,
   Heart,
   LogIn,
+  LogOut,
   MoreHorizontal,
   Music,
   Pause,
@@ -50,7 +51,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Phase = "lobby" | "live" | "summary";
 
@@ -190,6 +191,7 @@ const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
 
 export default function FocusRoomPage() {
   const supabase = useMemo(() => createClient(), []);
+  const roomPromiseRef = useRef<Promise<string | null> | null>(null);
   const [phase, setPhase] = useState<Phase>("lobby");
 
   const [roomName, setRoomName] = useState("");
@@ -284,7 +286,7 @@ export default function FocusRoomPage() {
           title: q.title,
         }));
         setQuests(list);
-        if (list.length > 0) setLinkedTask((prev) => prev ?? list[0].title);
+        if (list.length > 0) setLinkedTask((prev) => prev ?? list[0].id);
       })
       .catch(() => undefined);
   }, []);
@@ -327,29 +329,123 @@ export default function FocusRoomPage() {
     }
   };
 
-  const createRoom = async () => {
-    setRoomId(null);
-    setRoomCode(null);
+  const createRoom = (overrides?: { duration?: number; name?: string; goal?: string }) => {
+    const promise = (async (): Promise<string | null> => {
+      setRoomId(null);
+      setRoomCode(null);
+      try {
+        const res = await fetch("/api/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            duration_minutes: overrides?.duration ?? selectedMinutes,
+            name: (overrides?.name ?? roomName).trim() || undefined,
+            goal: (overrides?.goal ?? studyGoal).trim() || undefined,
+            linked_task_id: linkedTask || undefined,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.room?.id) {
+            const id = String(data.room.id);
+            setRoomId(id);
+            if (data.room.code) setRoomCode(String(data.room.code));
+            return id;
+          }
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    })();
+    roomPromiseRef.current = promise;
+    return promise;
+  };
+
+  const ensureRoom = async (): Promise<string | null> => {
+    if (roomId) return roomId;
+    if (roomPromiseRef.current) return roomPromiseRef.current;
+    return createRoom();
+  };
+
+  const joinRoomWithCode = async (rawCode: string) => {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) {
+      notifications.show({
+        title: "Missing code",
+        message: "Enter the invite code to join a room.",
+        color: "red",
+      });
+      return;
+    }
+    setJoining(true);
     try {
-      const res = await fetch("/api/rooms", {
+      const res = await fetch("/api/rooms/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          duration_minutes: selectedMinutes,
-          name: roomName.trim() || undefined,
-          goal: studyGoal.trim() || undefined,
-          linked_task_id: linkedTask || undefined,
-        }),
+        body: JSON.stringify({ code }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.room?.id) {
-          setRoomId(String(data.room.id));
-          if (data.room.code) setRoomCode(String(data.room.code));
+      const data = await res.json();
+      if (!res.ok || !data.room_id) {
+        notifications.show({
+          title: "Could not join",
+          message: data.error ?? "Check the invite code and try again.",
+          color: "red",
+        });
+        return;
+      }
+      const id = String(data.room_id);
+      setRoomId(id);
+      setRoomCode(code);
+      setJoinedRoom(true);
+      setJoinCode("");
+      const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
+      if (stateRes.ok) {
+        const state = await stateRes.json();
+        const room = state?.room ?? state;
+        if (typeof room?.name === "string" && room.name) setRoomName(room.name);
+        if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
+        const minutes = Number(room?.duration_minutes);
+        if (Number.isFinite(minutes) && minutes > 0) {
+          if (PRESET_MINUTES.includes(minutes)) {
+            setDurationPreset(minutes);
+          } else {
+            setDurationPreset("custom");
+            setCustomMinutes(minutes);
+          }
+        }
+        if (Array.isArray(state?.participants)) {
+          const names = state.participants
+            .map((r: Record<string, unknown>) =>
+              typeof r.display_name === "string"
+                ? r.display_name
+                : typeof r.name === "string"
+                  ? r.name
+                  : null
+            )
+            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
+          setParticipants(
+            [...new Set<string>(names)].map((n) => ({
+              name: n,
+              initials: initialsOf(n),
+              color: colorFor(n),
+            }))
+          );
         }
       }
+      notifications.show({
+        title: "Joined room",
+        message: "You're in. The shared timer starts when the host begins.",
+        color: "green",
+      });
     } catch {
-      return;
+      notifications.show({
+        title: "Could not join",
+        message: "You appear to be offline.",
+        color: "red",
+      });
+    } finally {
+      setJoining(false);
     }
   };
 
@@ -357,7 +453,14 @@ export default function FocusRoomPage() {
     const t = setTimeout(() => {
       loadFriends();
       refreshHistory();
-      createRoom();
+      const params = new URLSearchParams(window.location.search);
+      const invite = params.get("code");
+      if (invite) {
+        window.history.replaceState({}, "", window.location.pathname);
+        joinRoomWithCode(invite);
+      } else {
+        createRoom();
+      }
     }, 0);
     return () => clearTimeout(t);
   }, []);
@@ -394,12 +497,32 @@ export default function FocusRoomPage() {
   }, [phase, roomId, displayName, participants]);
 
   useEffect(() => {
-    if (phase !== "lobby" || !joinedRoom || !roomId) return;
+    if (phase !== "lobby" || !roomId) return;
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
         const data = await res.json();
+        const rows = data?.participants;
+        if (Array.isArray(rows)) {
+          const names = rows
+            .map((r: Record<string, unknown>) =>
+              typeof r.display_name === "string"
+                ? r.display_name
+                : typeof r.name === "string"
+                  ? r.name
+                  : null
+            )
+            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
+          setParticipants(
+            [...new Set<string>(names)].map((n) => ({
+              name: n,
+              initials: initialsOf(n),
+              color: colorFor(n),
+            }))
+          );
+        }
+        if (!joinedRoom) return;
         const room = data?.room ?? data;
         const status = typeof room?.status === "string" ? room.status : null;
         if (status && !["active", "focus"].includes(status)) return;
@@ -429,7 +552,22 @@ export default function FocusRoomPage() {
       }
     }, 5000);
     return () => clearInterval(poll);
-  }, [phase, joinedRoom, roomId]);
+  }, [phase, joinedRoom, roomId, displayName]);
+
+  useEffect(() => {
+    if (phase !== "lobby" || joinedRoom || !roomId) return;
+    const name = roomName.trim();
+    const goal = studyGoal.trim();
+    if (!name && !goal) return;
+    const t = setTimeout(() => {
+      fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, goal }),
+      }).catch(() => undefined);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [phase, joinedRoom, roomId, roomName, studyGoal]);
 
   const finishSession = (completed: boolean) => {
     setRunning(false);
@@ -448,44 +586,47 @@ export default function FocusRoomPage() {
     };
     setSessionResult(result);
     const endedAt = new Date().toISOString();
-    fetch("/api/focus-sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        room_id: roomId,
-        started_at: sessionStartedAt ?? endedAt,
-        ended_at: endedAt,
-        duration_min: actualMinutes,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.saved) return;
-        notifications.show({
-          title: "Session not saved",
-          message:
-            data?.error ??
-            "The session could not be saved. Check that the complete_focus_session SQL has been run.",
-          color: "red",
+    void (async () => {
+      const id = roomId ?? (await ensureRoom());
+      try {
+        const res = await fetch("/api/focus-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            room_id: id,
+            started_at: sessionStartedAt ?? endedAt,
+            ended_at: endedAt,
+            duration_min: actualMinutes,
+          }),
         });
-      })
-      .catch(() => {
+        const data = await res.json().catch(() => ({}));
+        if (!data?.saved) {
+          notifications.show({
+            title: "Session not saved",
+            message:
+              data?.error ??
+              "The session could not be saved. Check that the complete_focus_session SQL has been run.",
+            color: "red",
+          });
+        }
+      } catch {
         notifications.show({
           title: "Session not saved",
           message: "You appear to be offline.",
           color: "red",
         });
-      });
-    if (roomId) {
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/complete`, { method: "POST" }).catch(
-        () => undefined
-      );
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "completed" }),
-      }).catch(() => undefined);
-    }
+      }
+      if (id) {
+        fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" }).catch(
+          () => undefined
+        );
+        fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "completed" }),
+        }).catch(() => undefined);
+      }
+    })();
     setSessionStartedAt(null);
     const row: HistoryRow = {
       room: result.roomName,
@@ -532,8 +673,17 @@ export default function FocusRoomPage() {
     setRunning(true);
     setPhase("live");
     setSessionStartedAt(new Date().toISOString());
-    if (roomId) {
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/start`, {
+    void (async () => {
+      const id = await ensureRoom();
+      if (!id) {
+        notifications.show({
+          title: "Room not saved",
+          message: "Could not create the room. Check your connection and try again.",
+          color: "red",
+        });
+        return;
+      }
+      fetch(`/api/rooms/${encodeURIComponent(id)}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -542,13 +692,23 @@ export default function FocusRoomPage() {
           linked_task_id: linkedTask || undefined,
           duration_minutes: selectedMinutes,
         }),
-      }).catch(() => undefined);
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
+      })
+        .then(async (res) => {
+          if (res.ok) return;
+          const data = await res.json().catch(() => ({}));
+          notifications.show({
+            title: "Room settings not saved",
+            message: data.error ?? "The room could not be started on the server.",
+            color: "red",
+          });
+        })
+        .catch(() => undefined);
+      fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "focus" }),
       }).catch(() => undefined);
-    }
+    })();
   };
 
   const toggleRunning = () => {
@@ -577,6 +737,29 @@ export default function FocusRoomPage() {
     setParticipants([]);
     refreshHistory();
     if (!joinedRoom) createRoom();
+  };
+
+  const leaveLobby = async () => {
+    if (!joinedRoom) return;
+    if (roomId) {
+      await fetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, { method: "POST" }).catch(
+        () => undefined
+      );
+    }
+    setJoinedRoom(false);
+    setParticipants([]);
+    setRoomName("");
+    setStudyGoal("");
+    setDurationPreset(30);
+    setCustomMinutes(45);
+    setRemaining(30 * 60);
+    setRunning(false);
+    notifications.show({
+      title: "Left lobby",
+      message: "You left the room and got a fresh lobby.",
+      color: "blue",
+    });
+    createRoom({ duration: 30, name: "", goal: "" });
   };
 
   const inviteFriend = async (friend: Friend) => {
@@ -631,13 +814,9 @@ export default function FocusRoomPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setParticipants((ps) => [
-          ...ps,
-          { name: friend.name, initials: friend.initials, color: friend.color },
-        ]);
         notifications.show({
           title: "Invite sent",
-          message: `${friend.name} was invited to the room.`,
+          message: `Waiting for ${friend.name} to accept. They'll appear here once they join.`,
           color: "green",
         });
       } else {
@@ -774,87 +953,6 @@ export default function FocusRoomPage() {
       setFriendReqSending(false);
       setFriendCode("");
       setInviteModalOpen(false);
-    }
-  };
-
-  const joinRoom = async () => {
-    const code = joinCode.trim().toUpperCase();
-    if (!code) {
-      notifications.show({
-        title: "Missing code",
-        message: "Enter the invite code to join a room.",
-        color: "red",
-      });
-      return;
-    }
-    setJoining(true);
-    try {
-      const res = await fetch("/api/rooms/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.room_id) {
-        notifications.show({
-          title: "Could not join",
-          message: data.error ?? "Check the invite code and try again.",
-          color: "red",
-        });
-        return;
-      }
-      const id = String(data.room_id);
-      setRoomId(id);
-      setRoomCode(code);
-      setJoinedRoom(true);
-      setJoinCode("");
-      const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
-      if (stateRes.ok) {
-        const state = await stateRes.json();
-        const room = state?.room ?? state;
-        if (typeof room?.name === "string" && room.name) setRoomName(room.name);
-        if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
-        const minutes = Number(room?.duration_minutes);
-        if (Number.isFinite(minutes) && minutes > 0) {
-          if (PRESET_MINUTES.includes(minutes)) {
-            setDurationPreset(minutes);
-          } else {
-            setDurationPreset("custom");
-            setCustomMinutes(minutes);
-          }
-        }
-        if (Array.isArray(state?.participants)) {
-          const names = state.participants
-            .map((r: Record<string, unknown>) =>
-              typeof r.display_name === "string"
-                ? r.display_name
-                : typeof r.name === "string"
-                  ? r.name
-                  : null
-            )
-            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
-          setParticipants(
-            [...new Set<string>(names)].map((n) => ({
-              name: n,
-              initials: initialsOf(n),
-              color: colorFor(n),
-            }))
-          );
-        }
-      }
-      notifications.show({
-        title: "Joined room",
-        message: "You're in. The shared timer starts when the host begins.",
-        color: "green",
-      });
-    } catch {
-      notifications.show({
-        title: "Could not join",
-        message: "You appear to be offline.",
-        color: "red",
-      });
-    } finally {
-      setJoining(false);
     }
   };
 
@@ -1341,14 +1439,14 @@ export default function FocusRoomPage() {
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.currentTarget.value.toUpperCase())}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") joinRoom();
+                      if (e.key === "Enter") joinRoomWithCode(joinCode);
                     }}
                     style={{ flex: 1 }}
                   />
                   <Button
                     variant="default"
                     leftSection={<LogIn size={16} />}
-                    onClick={joinRoom}
+                    onClick={() => joinRoomWithCode(joinCode)}
                     loading={joining}
                   >
                     Join
@@ -1410,6 +1508,18 @@ export default function FocusRoomPage() {
                   </Text>
                 )}
               </Stack>
+              {joinedRoom && (
+                <Button
+                  fullWidth
+                  mt="sm"
+                  variant="light"
+                  color="red"
+                  leftSection={<LogOut size={14} />}
+                  onClick={leaveLobby}
+                >
+                  Leave Lobby
+                </Button>
+              )}
             </Paper>
 
             <Paper p="lg" radius="lg" shadow="sm" withBorder>
@@ -1604,10 +1714,10 @@ export default function FocusRoomPage() {
             <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
               Room
             </Text>
-            <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
+            <Text fz="xs" fw={700} tt="uppercase" c="dimmed" ta='end'>
               Sprint Time
             </Text>
-            <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
+            <Text fz="xs" fw={700} tt="uppercase" c="dimmed" ta='end'>
               Date
             </Text>
           </SimpleGrid>
@@ -1621,7 +1731,7 @@ export default function FocusRoomPage() {
                 style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
                 wrap="nowrap"
               >
-                <Text fz="sm" fw={600} truncate style={{ flex: 1 }}>
+                <Text fz="sm" fw={600} truncate style={{ flex: 1 }} maw={340}>
                   {row.room}
                 </Text>
                 <Badge variant="light" color="blue" radius="xl">

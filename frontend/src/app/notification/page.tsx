@@ -2,7 +2,9 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, UserPlus, Users } from "lucide-react";
+import { notifications as notify } from "@mantine/notifications";
+import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, UserPlus, Users, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type NotificationType = "friend_request" | "quest_deadline" | "risk_flag" | "room_invite" | "session_completed"
@@ -28,6 +30,7 @@ type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social";
 
 export default function NotificationPage() {
     const supabase = createClient();
+    const router = useRouter();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [filter, setFilter] = useState<NotifFilter>("all");
 
@@ -88,6 +91,20 @@ export default function NotificationPage() {
         unread.forEach((n) => {
             fetch(`/api/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" }).catch(() => undefined);
         });
+    };
+
+    const acceptRoomInvite = (notification: NotificationItem) => {
+        const match = notification.body.match(/code\s+([a-z0-9]+)/i);
+        if (!match) {
+            notify.show({
+                title: 'Invite unavailable',
+                message: 'This invite has no room code. Ask the host to send a new one.',
+                color: 'red',
+            });
+            return;
+        }
+        markRead(notification.id);
+        router.push(`/focusroom?code=${encodeURIComponent(match[1].toUpperCase())}`);
     };
 
     const stats = [
@@ -241,6 +258,32 @@ export default function NotificationPage() {
                                             <Badge variant='light' color={meta.color} size='xs' radius='sm' mt={6}>
                                                 {meta.label}
                                             </Badge>
+                                            {notification.type === 'room_invite' && (
+                                                <Group gap={6} mt={8}>
+                                                    <Button
+                                                        size='xs'
+                                                        color='green'
+                                                        leftSection={<Check size={12} />}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            acceptRoomInvite(notification);
+                                                        }}
+                                                    >
+                                                        Accept
+                                                    </Button>
+                                                    <Button
+                                                        size='xs'
+                                                        variant='default'
+                                                        leftSection={<X size={12} />}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            markRead(notification.id);
+                                                        }}
+                                                    >
+                                                        Decline
+                                                    </Button>
+                                                </Group>
+                                            )}
                                         </Box>
                                         {notification.unread ? (
                                             <ThemeIcon radius='xl' size={26} variant='light' color='green' style={{ flexShrink: 0 }}>
