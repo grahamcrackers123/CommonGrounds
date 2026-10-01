@@ -212,7 +212,32 @@ const getStatusColor = (
       return "gray";
   }
 };
+const toISOStringFromLocalDateTime = (
+  value: string
+) => {
+  if (!value) {
+    return null;
+  }
 
+  const [datePart, timePart] =
+    value.split("T");
+
+  const [year, month, day] =
+    datePart.split("-").map(Number);
+
+  const [hours, minutes] =
+    timePart.split(":").map(Number);
+
+  const localDate = new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes
+  );
+
+  return localDate.toISOString();
+};
 const formatQuestTime = (
   deadline: string | null
 ) => {
@@ -933,8 +958,9 @@ export default function QuestCalendarPage() {
                     null,
 
                   deadline:
-                    newQuest.deadline ||
-                    null,
+  toISOStringFromLocalDateTime(
+    newQuest.deadline
+  ),
 
                   priority:
                     newQuest.priority,
@@ -981,8 +1007,9 @@ export default function QuestCalendarPage() {
                     null,
 
                   deadline:
-                    newQuest.deadline ||
-                    null,
+  toISOStringFromLocalDateTime(
+    newQuest.deadline
+  ),
 
                   priority:
                     newQuest.priority,
