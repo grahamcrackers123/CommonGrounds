@@ -31,10 +31,12 @@ import {
   CloudRain,
   Coffee,
   Copy,
+  Crown,
   Flame,
   Heart,
   LogIn,
   LogOut,
+  Lock,
   MoreHorizontal,
   Music,
   Pause,
@@ -71,6 +73,8 @@ interface Participant {
   initials: string;
   color: string;
   isYou?: boolean;
+  userId?: string;
+  status?: "ready" | "focus" | "break" | "completed";
 }
 
 interface HistoryRow {
@@ -122,6 +126,15 @@ const colorFor = (name: string) => {
   for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return FRIEND_COLORS[hash % FRIEND_COLORS.length];
 };
+
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  ready: { label: "Ready", color: "#ADB5BD" },
+  focus: { label: "Focusing", color: "#2F9E44" },
+  break: { label: "On break", color: "#F08C00" },
+  completed: { label: "Finished", color: "#868E96" },
+};
+
+const statusOf = (status?: string) => STATUS_META[status ?? "ready"] ?? STATUS_META.ready;
 
 const fmt = (totalSeconds: number) => {
   const m = Math.floor(totalSeconds / 60);
@@ -205,6 +218,9 @@ export default function FocusRoomPage() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [displayName, setDisplayName] = useState("You");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [ownStatus, setOwnStatus] = useState<Participant["status"]>();
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
@@ -222,13 +238,21 @@ export default function FocusRoomPage() {
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
 
+  const isLeader = !joinedRoom;
   const youParticipant: Participant = {
     name: displayName,
     initials: initialsOf(displayName),
     color: "green",
     isYou: true,
+    userId: userId ?? undefined,
+    status: ownStatus ?? (phase === "live" ? (running ? "focus" : "break") : "ready"),
   };
   const lobbyParticipants = [youParticipant, ...participants];
+  const leaderId = ownerId ?? (isLeader ? userId : null);
+  const isParticipantLeader = (p: Participant) =>
+    leaderId != null && p.userId != null
+      ? p.userId === leaderId
+      : isLeader && Boolean(p.isYou);
   const selectedMinutes = durationPreset === "custom" ? Math.max(1, customMinutes) : durationPreset;
   const total = selectedMinutes * 60;
   const progress = Math.round(((total - remaining) / total) * 100);
@@ -267,6 +291,7 @@ export default function FocusRoomPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       const { data } = await supabase
         .from("profiles")
         .select("display_name")
@@ -368,6 +393,59 @@ export default function FocusRoomPage() {
     return createRoom();
   };
 
+  const applyRoomState = (state: {
+    room?: Record<string, unknown>;
+    participants?: unknown[];
+  }) => {
+    const room = (state?.room ?? state) as Record<string, unknown>;
+    if (typeof room?.owner_id === "string") setOwnerId(room.owner_id);
+    if (joinedRoom) {
+      if (typeof room?.name === "string" && room.name) setRoomName(room.name);
+      if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
+    }
+
+    const rows = Array.isArray(state?.participants) ? state.participants : [];
+    type RoomMember = {
+      name: string;
+      status: Participant["status"] | undefined;
+      userId: string | undefined;
+    };
+    const mapped = rows
+      .map((r): RoomMember | null => {
+        const rec = r as Record<string, unknown>;
+        const name =
+          typeof rec.display_name === "string"
+            ? rec.display_name
+            : typeof rec.name === "string"
+              ? rec.name
+              : null;
+        if (!name) return null;
+        const status =
+          typeof rec.status === "string" && rec.status in STATUS_META
+            ? (rec.status as Participant["status"])
+            : undefined;
+        const uid = typeof rec.user_id === "string" ? rec.user_id : undefined;
+        return { name, status, userId: uid };
+      })
+      .filter((p): p is RoomMember => p !== null);
+
+    const self = mapped.find((p) => (userId && p.userId === userId) || p.name === displayName);
+    if (self?.status) setOwnStatus(self.status);
+
+    const others = mapped.filter(
+      (p) => !(userId && p.userId === userId) && p.name !== displayName
+    );
+    setParticipants(
+      [...new Map(others.map((p) => [p.userId ?? p.name, p])).values()].map((p) => ({
+        name: p.name,
+        initials: initialsOf(p.name),
+        color: colorFor(p.name),
+        status: p.status,
+        userId: p.userId,
+      }))
+    );
+  };
+
   const joinRoomWithCode = async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase();
     if (!code) {
@@ -402,9 +480,8 @@ export default function FocusRoomPage() {
       const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
       if (stateRes.ok) {
         const state = await stateRes.json();
+        applyRoomState(state);
         const room = state?.room ?? state;
-        if (typeof room?.name === "string" && room.name) setRoomName(room.name);
-        if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
         const minutes = Number(room?.duration_minutes);
         if (Number.isFinite(minutes) && minutes > 0) {
           if (PRESET_MINUTES.includes(minutes)) {
@@ -413,24 +490,6 @@ export default function FocusRoomPage() {
             setDurationPreset("custom");
             setCustomMinutes(minutes);
           }
-        }
-        if (Array.isArray(state?.participants)) {
-          const names = state.participants
-            .map((r: Record<string, unknown>) =>
-              typeof r.display_name === "string"
-                ? r.display_name
-                : typeof r.name === "string"
-                  ? r.name
-                  : null
-            )
-            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
-          setParticipants(
-            [...new Set<string>(names)].map((n) => ({
-              name: n,
-              initials: initialsOf(n),
-              color: colorFor(n),
-            }))
-          );
         }
       }
       notifications.show({
@@ -471,30 +530,12 @@ export default function FocusRoomPage() {
       fetch(`/api/rooms/${encodeURIComponent(roomId)}`)
         .then((res) => res.json())
         .then((data) => {
-          const rows = data?.participants;
-          if (!Array.isArray(rows)) return;
-          const names = rows
-            .map((r: Record<string, unknown>) =>
-              typeof r.display_name === "string"
-                ? r.display_name
-                : typeof r.name === "string"
-                  ? r.name
-                  : null
-            )
-            .filter((n: string | null): n is string => Boolean(n));
-          const joined = names.filter(
-            (n) => n !== displayName && !participants.some((p) => p.name === n)
-          );
-          if (joined.length === 0) return;
-          setParticipants((ps) => [
-            ...ps,
-            ...joined.map((n) => ({ name: n, initials: initialsOf(n), color: colorFor(n) })),
-          ]);
+          applyRoomState(data);
         })
         .catch(() => undefined);
-    }, 8000);
+    }, 5000);
     return () => clearInterval(poll);
-  }, [phase, roomId, displayName, participants]);
+  }, [phase, roomId, userId, displayName]);
 
   useEffect(() => {
     if (phase !== "lobby" || !roomId) return;
@@ -503,25 +544,7 @@ export default function FocusRoomPage() {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
         const data = await res.json();
-        const rows = data?.participants;
-        if (Array.isArray(rows)) {
-          const names = rows
-            .map((r: Record<string, unknown>) =>
-              typeof r.display_name === "string"
-                ? r.display_name
-                : typeof r.name === "string"
-                  ? r.name
-                  : null
-            )
-            .filter((n: string | null): n is string => Boolean(n) && n !== displayName);
-          setParticipants(
-            [...new Set<string>(names)].map((n) => ({
-              name: n,
-              initials: initialsOf(n),
-              color: colorFor(n),
-            }))
-          );
-        }
+        applyRoomState(data);
         if (!joinedRoom) return;
         const room = data?.room ?? data;
         const status = typeof room?.status === "string" ? room.status : null;
@@ -542,9 +565,14 @@ export default function FocusRoomPage() {
         setSessionStartedAt(room.started_at);
         setRunning(true);
         setPhase("live");
+        fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "focus" }),
+        }).catch(() => undefined);
         notifications.show({
           title: "Room started",
-          message: "The host started the shared timer. Lock in!",
+          message: "The leader started the shared timer. Lock in!",
           color: "blue",
         });
       } catch {
@@ -552,7 +580,7 @@ export default function FocusRoomPage() {
       }
     }, 5000);
     return () => clearInterval(poll);
-  }, [phase, joinedRoom, roomId, displayName]);
+  }, [phase, joinedRoom, roomId, userId, displayName]);
 
   useEffect(() => {
     if (phase !== "lobby" || joinedRoom || !roomId) return;
@@ -571,6 +599,7 @@ export default function FocusRoomPage() {
 
   const finishSession = (completed: boolean) => {
     setRunning(false);
+    setOwnStatus("completed");
     const elapsed = total - remaining;
     const actualMinutes = completed
       ? selectedMinutes
@@ -669,10 +698,19 @@ export default function FocusRoomPage() {
 
 
   const startSession = () => {
+    if (!isLeader) {
+      notifications.show({
+        title: "Only the leader can start",
+        message: "Wait for the room leader to start the shared session.",
+        color: "yellow",
+      });
+      return;
+    }
     setRemaining(total);
     setRunning(true);
     setPhase("live");
     setSessionStartedAt(new Date().toISOString());
+    setOwnStatus("focus");
     void (async () => {
       const id = await ensureRoom();
       if (!id) {
@@ -714,6 +752,7 @@ export default function FocusRoomPage() {
   const toggleRunning = () => {
     const next = !running;
     setRunning(next);
+    setOwnStatus(next ? "focus" : "break");
     if (roomId) {
       fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
         method: "PUT",
@@ -735,6 +774,7 @@ export default function FocusRoomPage() {
     setRunning(false);
     setRemaining(total);
     setParticipants([]);
+    setOwnStatus("ready");
     refreshHistory();
     if (!joinedRoom) createRoom();
   };
@@ -1152,19 +1192,32 @@ export default function FocusRoomPage() {
                             <Box
                               w={7}
                               h={7}
-                              style={{ borderRadius: 99, backgroundColor: running ? "#2F9E44" : "#ADB5BD" }}
+                              style={{ borderRadius: 99, backgroundColor: statusOf(p.status).color }}
                             />
                             <Text fz="xs" c="dimmed">
-                              {running ? "Focusing" : "On break"}
+                              {statusOf(p.status).label}
                             </Text>
                           </Group>
                         </Box>
                       </Group>
-                      {running && (
-                        <Badge variant="light" color="green" size="xs" radius="xl">
-                          <Flame size={10} />
-                        </Badge>
-                      )}
+                      <Group gap={6} wrap="nowrap">
+                        {isParticipantLeader(p) && (
+                          <Badge
+                            variant="light"
+                            color="yellow"
+                            size="xs"
+                            radius="xl"
+                            leftSection={<Crown size={10} />}
+                          >
+                            Leader
+                          </Badge>
+                        )}
+                        {p.status === "focus" && (
+                          <Badge variant="light" color="green" size="xs" radius="xl">
+                            <Flame size={10} />
+                          </Badge>
+                        )}
+                      </Group>
                     </Group>
                   ))}
                 </Stack>
@@ -1365,11 +1418,13 @@ export default function FocusRoomPage() {
                   label="Room Name"
                   value={roomName}
                   onChange={(e) => setRoomName(e.currentTarget.value)}
+                  disabled={!isLeader}
                 />
                 <TextInput
                   label="Study Goal"
                   value={studyGoal}
                   onChange={(e) => setStudyGoal(e.currentTarget.value)}
+                  disabled={!isLeader}
                 />
 
                 <Box>
@@ -1384,6 +1439,7 @@ export default function FocusRoomPage() {
                         radius="xl"
                         variant={durationPreset === m ? "filled" : "default"}
                         onClick={() => setDurationPreset(m)}
+                        disabled={!isLeader}
                       >
                         {m}m
                       </Button>
@@ -1393,6 +1449,7 @@ export default function FocusRoomPage() {
                       radius="xl"
                       variant={durationPreset === "custom" ? "filled" : "default"}
                       onClick={() => setDurationPreset("custom")}
+                      disabled={!isLeader}
                     >
                       Custom
                     </Button>
@@ -1406,6 +1463,7 @@ export default function FocusRoomPage() {
                       min={5}
                       max={240}
                       style={{ maxWidth: 160 }}
+                      disabled={!isLeader}
                     />
                   )}
                 </Box>
@@ -1418,16 +1476,18 @@ export default function FocusRoomPage() {
                   searchable
                   clearable
                   nothingFoundMessage="No pending quests"
+                  disabled={!isLeader}
                 />
 
                 <Button
                   size="md"
                   fullWidth
                   mt="sm"
-                  leftSection={<Play size={16} />}
+                  leftSection={isLeader ? <Play size={16} /> : <Lock size={16} />}
                   onClick={startSession}
+                  disabled={!isLeader}
                 >
-                  Start Focus Room
+                  {isLeader ? "Start Focus Room" : "Waiting for leader to start"}
                 </Button>
 
                 <Divider label="Or join a friend's room" labelPosition="center" my={4} />
@@ -1493,13 +1553,31 @@ export default function FocusRoomPage() {
                           {p.name}
                         </Text>
                         <Text fz="xs" c="dimmed">
-                          {p.isYou ? (joinedRoom ? "You" : "Room host") : "In lobby"}
+                          {isParticipantLeader(p)
+                            ? p.isYou
+                              ? "You · Leader"
+                              : "Leader"
+                            : p.isYou
+                              ? "You"
+                              : "In lobby"}
                         </Text>
                       </Box>
                     </Group>
-                    <Badge variant="light" color={p.isYou ? "blue" : "green"} size="xs" radius="xl">
-                      {p.isYou ? "You" : "Ready"}
-                    </Badge>
+                    {isParticipantLeader(p) ? (
+                      <Badge
+                        variant="light"
+                        color="yellow"
+                        size="xs"
+                        radius="xl"
+                        leftSection={<Crown size={10} />}
+                      >
+                        Leader
+                      </Badge>
+                    ) : (
+                      <Badge variant="light" color={p.isYou ? "blue" : "green"} size="xs" radius="xl">
+                        {p.isYou ? "You" : "Ready"}
+                      </Badge>
+                    )}
                   </Group>
                 ))}
                 {lobbyParticipants.length < MAX_PARTICIPANTS && (
