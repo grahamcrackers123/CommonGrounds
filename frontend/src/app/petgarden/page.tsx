@@ -248,7 +248,7 @@ export default async function PetGardenPage() {
                             </Group>
                             <Stack gap="xs">
                                 <Text size="sm" c="dimmed">
-                                    • Energy slowly decays while you&apos;re away, study sessions restore it.
+                                    • Energy slowly decays while you&apos;re away; focus sessions and completed quests restore it.
                                 </Text>
                                 <Text size="sm" c="dimmed">
                                     • Sprout evolves to a new stage every 5 levels.

@@ -46,6 +46,7 @@ import {
 
 import { useRouter } from "next/navigation";
 
+import { QUEST_ENERGY_REWARD } from "@/lib/quest-rewards";
 import { createClient } from "@/lib/supabase/client";
 
 /* =========================================================
@@ -1512,10 +1513,38 @@ export default function QuestCalendarPage() {
           );
         }
 
+        const rewards: string[] = [];
+
+        if ((quest.reward_coins ?? 0) > 0) {
+          rewards.push(
+            `+${quest.reward_coins} coins`
+          );
+        }
+
+        if (
+          typeof data.xp === "number" &&
+          data.xp > 0
+        ) {
+          rewards.push(`+${data.xp} XP`);
+        }
+
+        if (
+          typeof data.energy === "number" &&
+          data.energy > 0
+        ) {
+          rewards.push(
+            `+${data.energy} energy`
+          );
+        }
+
         notifications.show({
           title: "Quest completed!",
-          message: `+${quest.reward_coins ?? 0
-            } coins · "${quest.title}"`,
+          message:
+            rewards.length > 0
+              ? `${rewards.join(
+                  " · "
+                )} · "${quest.title}"`
+              : `"${quest.title}" marked as done.`,
           color: "green",
         });
 
@@ -2667,7 +2696,22 @@ export default function QuestCalendarPage() {
                               size="xs"
                               c={isDarkMode ? "#f3f4f6" : "#222"}
                             >
-                              🐾 Pet XP
+                              🐾{" "}
+                              <b>
+                                +{selectedQuest.reward_coins ?? 0}
+                              </b>{" "}
+                              Pet XP
+                            </Text>
+
+                            <Text
+                              size="xs"
+                              c={isDarkMode ? "#f3f4f6" : "#222"}
+                            >
+                              ⚡{" "}
+                              <b>
+                                +{QUEST_ENERGY_REWARD}
+                              </b>{" "}
+                              Energy
                             </Text>
                           </Group>
 
