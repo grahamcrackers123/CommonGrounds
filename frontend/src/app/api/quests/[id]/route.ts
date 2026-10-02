@@ -26,6 +26,18 @@ export async function PATCH(
     if (field in body) updates[field] = body[field]
   }
 
+  if (updates.status === 'completed') {
+    const { data: existing } = await supabase
+      .from('quests')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existing && existing.status !== 'completed') {
+      updates.completed_at = new Date().toISOString()
+    }
+  }
+
   const { data, error } = await supabase
     .from('quests')
     .update(updates)
