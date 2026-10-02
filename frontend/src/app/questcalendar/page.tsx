@@ -353,8 +353,17 @@ export default function QuestCalendarPage() {
   const fileInputRef =
     useRef<HTMLInputElement | null>(null);
 
+  const questFileInputRef =
+    useRef<HTMLInputElement | null>(null);
+
   const [uploadingMaterial, setUploadingMaterial] =
     useState(false);
+
+  const [uploadingQuestAttachment, setUploadingQuestAttachment] =
+    useState(false);
+
+  const [questAttachment, setQuestAttachment] =
+    useState<File | null>(null);
 
   /* =======================================================
      FILTER STATE
@@ -1466,6 +1475,50 @@ export default function QuestCalendarPage() {
         );
       }
     };
+  /* =======================================================
+     QUEST ATTACHMENT
+  ======================================================= */
+
+  const handleQuestAttachmentSelected = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const allowedExtensions = [
+      ".pdf",
+      ".docx",
+      ".txt",
+      ".md",
+    ];
+
+    const lowerName = file.name.toLowerCase();
+
+    const validExtension = allowedExtensions.some(
+      (extension) => lowerName.endsWith(extension)
+    );
+
+    if (!validExtension) {
+      alert(
+        "Unsupported file type. Only PDF, DOCX, TXT, and MD files are allowed."
+      );
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert(
+        "File is too large. Maximum size is 10 MB."
+      );
+      return;
+    }
+
+    setQuestAttachment(file);
+  };
 
   /* =======================================================
      REGENERATE PLAN
