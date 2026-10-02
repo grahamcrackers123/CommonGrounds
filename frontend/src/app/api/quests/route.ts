@@ -1,6 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+const DEFAULT_REWARD_COINS = 20
+const MAX_REWARD_COINS = 500
+
+function clampRewardCoins(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_REWARD_COINS
+  }
+
+  return Math.min(Math.max(Math.round(parsed), 0), MAX_REWARD_COINS)
+}
+
 // GET /api/quests?status=pending&...
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -60,6 +73,7 @@ export async function POST(request: Request) {
       estimated_duration: body.estimated_duration ?? null,
       checklist: body.checklist ?? [],
       status: body.status ?? 'pending',
+      reward_coins: clampRewardCoins(body.reward_coins),
     })
     .select()
     .single()

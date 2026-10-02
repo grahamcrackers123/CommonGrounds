@@ -44,6 +44,13 @@ function defaultSlots(): DaySlot[] {
     return DAYS.map((day) => ({ day, enabled: false, start: '09:00', end: '12:00' }));
 }
 
+function to12Hour(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hour = hours % 12 === 0 ? 12 : hours % 12;
+    return `${hour}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
 function readDraft(): SetupDraft {
     if (typeof window === 'undefined') return {};
     try {
@@ -66,13 +73,16 @@ export default function SetupPage() {
     const [courseworkTypes, setCourseworkTypes] = useState<string[]>(initialDraft.courseworkTypes ?? []);
     const [priorities, setPriorities] = useState<Record<string, string>>(initialDraft.priorities ?? {});
     const [courseworkInput, setCourseworkInput] = useState('');
+    const [availabilityError, setAvailabilityError] = useState(false);
 
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
     );
 
-    const updateSlot = (day: string, patch: Partial<DaySlot>) =>
+    const updateSlot = (day: string, patch: Partial<DaySlot>) => {
         setSlots((prev) => prev.map((s) => (s.day === day ? { ...s, ...patch } : s)));
+        setAvailabilityError(false);
+    };
 
     const addCoursework = () => {
         const value = courseworkInput.trim();
@@ -118,7 +128,24 @@ export default function SetupPage() {
         const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
         if (hasErrors) return;
 
+        if (active === 1 && enabledSlots.length === 0) {
+            setAvailabilityError(true);
+            return;
+        }
+
         if (active === totalSteps - 1) {
+            // validate all steps again so a field cleared after going back cannot be submitted
+            const firstInvalidStep = Object.keys(stepFields)
+                .map(Number)
+                .sort((a, b) => a - b)
+                .find((step) => stepFields[step].some((field) => setUpForm.validateField(field).hasError));
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+                setActive(firstInvalidStep ?? 1);
+                setAvailabilityError(true);
+                notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
+                return;
+            }
+
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -300,7 +327,7 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>When are you usually available to study?</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>CommonGrounds uses this to generate realistic focus blocks and prevent overloaded schedules.</Text>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Time</Text>
+                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Period</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' mb='xs' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                                         <Chip.Group value={setUpForm.values.studyTime} onChange={(value) => setUpForm.setFieldValue('studyTime', value)}>
                                             <Chip radius="lg" variant='light' value='Morning' size={isMobile ? 'xs' : 'md'}>Morning</Chip>
@@ -309,7 +336,7 @@ export default function SetupPage() {
                                             <Chip radius="lg" variant='light' value='Late Night' size={isMobile ? 'xs' : 'md'}>Late Night</Chip>
                                         </Chip.Group>
                                     </Flex>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability to Study</Text>
+                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability Study Schedule</Text>
                                     {slots.map((slot) => (
                                         <Flex key={slot.day} direction={{ base: 'column', sm: 'row' }} align='center' gap='md' mb='xs' w='100%'>
                                             <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'}>
@@ -338,6 +365,9 @@ export default function SetupPage() {
                                             </Flex>
                                         </Flex>
                                     ))}
+                                    {availabilityError && (
+                                        <Text c="red" size="sm" mb="xs">Select at least one day you&apos;re available to study.</Text>
+                                    )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
                                         <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
@@ -389,22 +419,22 @@ export default function SetupPage() {
                                         />
                                         <Button size={isMobile ? 'xs' : 'md'} radius="lg" onClick={addCoursework} leftSection={<Plus size={16} />} style={{ flexShrink: 0 }}>Add</Button>
                                     </Flex>
-                                    <Text fw={500} fz={{ base: 'xs', md: 'sm' }}>Priority Rules:</Text>
+                                    <Text fw={500} fz={{ base: 'xs', md: 'md' }} mb='5px'>Priority Rules:</Text>
                                     <Flex direction='column' w='100%' gap='md'>
                                         {courseworkTypes.length === 0 ? (
                                             <Text fz={{ base: 'sm', md: 'md' }} c='dimmed'>Add coursework types above to set their priority.</Text>
                                         ) : (
                                             courseworkTypes.map((type) => (
                                                 <Flex key={type} direction={{ base: 'column', sm: 'row' }} w={{ base: '100%', md: '60%' }} gap={{ base: '0', sm: 'md' }} style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
-                                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>{type}</Text>
+                                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500}>{type}</Text>
                                                     <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
                                                             onChange={(v) => setPriorities((prev) => ({ ...prev, [type]: v }))}
                                                         >
-                                                            <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'md'}>High</Chip>
-                                                            <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'md'}>Medium</Chip>
-                                                            <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'md'}>Low</Chip>
+                                                            <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'sm'}>High</Chip>
+                                                            <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
+                                                            <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'sm'}>Low</Chip>
                                                         </Chip.Group>
                                                     </Flex>
                                                 </Flex>
@@ -478,7 +508,7 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Preferred Study Time: {setUpForm.values.studyTime}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${slot.start} - ${slot.end})`).join(', ') || 'No days selected'}</Text>
+                                        <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Coursework Types and Priorities: {courseworkTypes.map(type => `${type} (${priorities[type] || 'No priority set'})`).join(', ') || 'No coursework types added'}</Text>

@@ -25,3 +25,36 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* CommonGrounds theme toggle icons */
+
+.theme-icon-wrapper {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+
+.theme-icon-wrapper svg {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 0;
+  left: 0;
+}
+
+.theme-icon-light {
+  display: block;
+}
+
+.theme-icon-dark {
+  display: none;
+}
+
+html[data-mantine-color-scheme="dark"] .theme-icon-light {
+  display: none;
+}
+
+html[data-mantine-color-scheme="dark"] .theme-icon-dark {
+  display: block;
+}
