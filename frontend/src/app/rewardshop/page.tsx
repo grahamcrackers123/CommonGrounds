@@ -517,7 +517,7 @@ export default function RewardShopPage() {
 
                     {/* Right column: preview panel */}
                     <Box>
-                        <Paper p="lg" radius="lg" shadow="sm" withBorder style={{ position: 'sticky', top: 20 }}>
+                        <Paper p="lg" radius="lg" shadow="sm" withBorder style={{ top: 20 }}>
                             {selectedItem ? (
                                 <Stack gap="md">
                                     <Group justify="space-between">
