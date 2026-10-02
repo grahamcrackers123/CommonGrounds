@@ -21,9 +21,17 @@ export async function PATCH(
   const allowedFields = [
     'title', 'subject', 'description', 'deadline',
     'priority', 'estimated_duration', 'checklist', 'status',
+    'reward_coins',
   ]
   for (const field of allowedFields) {
     if (field in body) updates[field] = body[field]
+  }
+
+  if ('reward_coins' in updates) {
+    const parsed = Number(updates.reward_coins)
+    updates.reward_coins = Number.isFinite(parsed)
+      ? Math.min(Math.max(Math.round(parsed), 0), 500)
+      : 0
   }
 
   if (updates.status === 'completed') {
