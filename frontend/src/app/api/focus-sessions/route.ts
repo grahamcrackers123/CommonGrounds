@@ -41,11 +41,19 @@ export async function POST(req: Request) {
   const result = data?.[0];
   if (!result) return NextResponse.json({ error: "Session could not be saved" }, { status: 500 });
 
+  const sessionRewards: string[] = [];
+  if ((result.earned_coins ?? 0) > 0) sessionRewards.push(`${result.earned_coins} coins`);
+  if ((result.earned_streak_xp ?? 0) > 0) sessionRewards.push(`${result.earned_streak_xp} XP`);
+  if ((result.earned_pet_energy ?? 0) > 0) sessionRewards.push(`${result.earned_pet_energy} energy`);
+
   await supabase.rpc("create_notification", {
     _user_id: user.id,
     _type: "session_completed",
     _title: "Focus session complete!",
-    _body: `You earned ${result.earned_coins ?? 0} coins and ${result.earned_streak_xp ?? 0} XP`,
+    _body:
+      sessionRewards.length > 0
+        ? `You earned ${sessionRewards.join(", ")}`
+        : "Nice work finishing a focus session!",
   });
 
   return NextResponse.json(

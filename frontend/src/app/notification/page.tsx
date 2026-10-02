@@ -2,10 +2,12 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, UserPlus, Users } from "lucide-react";
+import { notifications as notify } from "@mantine/notifications";
+import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-type NotificationType = "friend_request" | "quest_deadline" | "risk_flag" | "room_invite" | "session_completed"
+type NotificationType = "friend_request" | "quest_deadline" | "quest_completed" | "risk_flag" | "room_invite" | "session_completed"
 
 interface NotificationItem {
     id: string;
@@ -19,15 +21,19 @@ interface NotificationItem {
 const types: Record<NotificationType, { icon: typeof Bell; tint: string; color: string; label: string }> = {
     friend_request: { icon: UserPlus, tint: "#E3FAFC", color: "#0C8599", label: "Friend request" },
     quest_deadline: { icon: Timer, tint: "#FFEAEA", color: "#E03131", label: "Deadline reminder" },
+    quest_completed: { icon: Trophy, tint: "#EBFBEE", color: "#2F9E44", label: "Quest completed" },
     risk_flag: { icon: Megaphone, tint: "#FFF4E6", color: "#E8590C", label: "Workload check-in" },
     room_invite: { icon: Users, tint: "#EDF2FF", color: "#3B5BDB", label: "Focus room invite" },
     session_completed: { icon: Sparkles, tint: "#EBFBEE", color: "#2F9E44", label: "Session reward" },
 };
 
+const fallbackType = { icon: Bell, tint: "#F1F3F5", color: "#495057", label: "Update" };
+
 type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social";
 
 export default function NotificationPage() {
     const supabase = createClient();
+    const router = useRouter();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [filter, setFilter] = useState<NotifFilter>("all");
 
@@ -43,18 +49,30 @@ export default function NotificationPage() {
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
-                .eq('user_id', user.id);
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
 
             if (error) console.error('Error fetching notifications:', error);
             else {
-                const rows = (data ?? []).map((n) => ({
-                    id: String(n.id),
-                    type: n.type as NotificationType,
-                    title: String(n.title ?? ""),
-                    body: String(n.body ?? ""),
-                    createdAt: String(n.created_at ?? ""),
-                    unread: n.read === false,
-                }));
+                const rows = (data ?? []).map((n) => {
+                    const title = String(n.title ?? "");
+                    const rawType = String(n.type ?? "");
+
+                    // Older quest notifications were stored as session_completed.
+                    const type: NotificationType =
+                        rawType === "session_completed" && title === "Quest completed!"
+                            ? "quest_completed"
+                            : (rawType as NotificationType);
+
+                    return {
+                        id: String(n.id),
+                        type,
+                        title,
+                        body: String(n.body ?? ""),
+                        createdAt: String(n.created_at ?? ""),
+                        unread: n.read === false,
+                    };
+                });
                 setNotifications(rows);
             }
         }
@@ -68,7 +86,7 @@ export default function NotificationPage() {
             case 'deadline':
                 return notifications.filter((n) => n.type === 'quest_deadline');
             case 'reward':
-                return notifications.filter((n) => n.type === 'session_completed');
+                return notifications.filter((n) => n.type === 'session_completed' || n.type === 'quest_completed');
             case 'social':
                 return notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite' || n.type === 'risk_flag');
             default:
@@ -88,6 +106,20 @@ export default function NotificationPage() {
         unread.forEach((n) => {
             fetch(`/api/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" }).catch(() => undefined);
         });
+    };
+
+    const acceptRoomInvite = (notification: NotificationItem) => {
+        const match = notification.body.match(/code\s+([a-z0-9]+)/i);
+        if (!match) {
+            notify.show({
+                title: 'Invite unavailable',
+                message: 'This invite has no room code. Ask the host to send a new one.',
+                color: 'red',
+            });
+            return;
+        }
+        markRead(notification.id);
+        router.push(`/focusroom?code=${encodeURIComponent(match[1].toUpperCase())}`);
     };
 
     const stats = [
@@ -187,7 +219,7 @@ export default function NotificationPage() {
                     ) : (
                         <Stack gap={4}>
                             {filteredNotifications.map((notification) => {
-                                const meta = types[notification.type];
+                                const meta = types[notification.type] ?? fallbackType;
                                 return (
                                     <Group
                                         key={notification.id}
@@ -241,6 +273,32 @@ export default function NotificationPage() {
                                             <Badge variant='light' color={meta.color} size='xs' radius='sm' mt={6}>
                                                 {meta.label}
                                             </Badge>
+                                            {notification.type === 'room_invite' && (
+                                                <Group gap={6} mt={8}>
+                                                    <Button
+                                                        size='xs'
+                                                        color='green'
+                                                        leftSection={<Check size={12} />}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            acceptRoomInvite(notification);
+                                                        }}
+                                                    >
+                                                        Accept
+                                                    </Button>
+                                                    <Button
+                                                        size='xs'
+                                                        variant='default'
+                                                        leftSection={<X size={12} />}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            markRead(notification.id);
+                                                        }}
+                                                    >
+                                                        Decline
+                                                    </Button>
+                                                </Group>
+                                            )}
                                         </Box>
                                         {notification.unread ? (
                                             <ThemeIcon radius='xl' size={26} variant='light' color='green' style={{ flexShrink: 0 }}>

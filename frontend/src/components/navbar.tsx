@@ -9,8 +9,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 interface NotificationRow {
-    id: number;
-    unread: boolean;
+    id: string;
+    read: boolean | null;
     [key: string]: unknown;
 }
 
@@ -155,6 +155,8 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;
+        let cancelled = false;
+
         async function fetchNotifications() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -163,12 +165,24 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                 .select('*')
                 .eq('user_id', user.id);
             if (error) console.error('Error fetching notifications:', error);
-            else setNotificationList(data ?? []);
+            else if (!cancelled) setNotificationList(data ?? []);
         }
+
         fetchNotifications();
+
+        // Keep the unread badge in sync while the page stays open.
+        const interval = window.setInterval(fetchNotifications, 60_000);
+        const handleFocus = () => fetchNotifications();
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [supabase, pathname]);
 
-    const unreadCount = notificationList.filter((n) => n.unread).length;
+    const unreadCount = notificationList.filter((n) => n.read === false).length;
 
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;

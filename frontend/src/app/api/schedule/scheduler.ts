@@ -48,24 +48,22 @@ TIMEZONE
 All weekly availability entered by the user is treated as
 Philippine time (Asia/Manila / UTC+8).
 
-Supabase stores timestamps as absolute timestamps, normally
-displayed as UTC.
-
-Example:
-
-Philippine time:
-October 1, 2026 10:00 AM
-
-Stored as UTC:
-October 1, 2026 02:00 UTC
-
-This conversion is intentional.
-=========================================================
+Supabase stores timestamps as absolute instants (UTC), so
+every helper below converts between a real UTC instant and
+Philippine calendar fields (year, month, day, day-of-week).
+========================================================
 */
 
 const PHILIPPINE_OFFSET_HOURS = 8
 const PHILIPPINE_OFFSET_MS =
     PHILIPPINE_OFFSET_HOURS * 60 * 60 * 1000
+
+type PhilippineDateParts = {
+    year: number
+    month: number
+    day: number
+    dayIndex: number
+}
 
 function getPriorityWeight(
     priority: string | null
@@ -78,74 +76,46 @@ function getPriorityWeight(
 }
 
 /*
-Get the current date/time represented in Philippine local
-calendar terms.
-
-We use UTC calculations internally so the result does not
-depend on the server's own timezone.
+Read the Philippine calendar fields of a real UTC instant.
 */
-function getPhilippineNow(): Date {
-    return new Date(
-        Date.now() + PHILIPPINE_OFFSET_MS
+function getPhilippineDateParts(
+    date: Date
+): PhilippineDateParts {
+    const shifted = new Date(
+        date.getTime() + PHILIPPINE_OFFSET_MS
     )
+
+    return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth(),
+        day: shifted.getUTCDate(),
+        dayIndex: shifted.getUTCDay(),
+    }
 }
 
 /*
-Create a UTC Date from a Philippine calendar date and
-Philippine local time.
+Convert Philippine calendar fields plus an HH:MM time
+into a real UTC instant.
 
-Example:
-
-date = Oct 1, 2026
-time = 10:00
-
-returns:
-
-2026-10-01T02:00:00.000Z
+Date.UTC normalizes overflow, so a day value past the end
+of the month rolls into the next month or year correctly.
 */
-function createPhilippineDateTime(
-    date: Date,
+function philippineDateTimeToUtc(
+    year: number,
+    month: number,
+    day: number,
     time: string
 ): Date {
     const [hours, minutes] =
         time.split(':').map(Number)
 
-    const year = date.getUTCFullYear()
-    const month = date.getUTCMonth()
-    const day = date.getUTCDate()
-
-    const utcMilliseconds = Date.UTC(
-        year,
-        month,
-        day,
-        hours,
-        minutes,
-        0,
-        0
-    )
-
-    return new Date(
-        utcMilliseconds -
-            PHILIPPINE_OFFSET_MS
-    )
-}
-
-/*
-Return a Philippine calendar date at midnight,
-represented internally as UTC.
-*/
-function createPhilippineDate(
-    year: number,
-    month: number,
-    day: number
-): Date {
     return new Date(
         Date.UTC(
             year,
             month,
             day,
-            0,
-            0,
+            hours,
+            minutes,
             0,
             0
         ) - PHILIPPINE_OFFSET_MS
@@ -153,91 +123,88 @@ function createPhilippineDate(
 }
 
 /*
-Get the Philippine day-of-week for a UTC timestamp.
+Get the next UTC instant matching a weekly availability
+window that starts after fromDate.
 
-The timestamp is converted to Philippine local calendar
-terms before checking the day.
-*/
-function getPhilippineDayIndex(
-    date: Date
-): number {
-    const philippineTime =
-        new Date(
-            date.getTime() +
-                PHILIPPINE_OFFSET_MS
-        )
-
-    return philippineTime.getUTCDay()
-}
-
-/*
-Get the next occurrence of a weekly availability window.
-
-IMPORTANT:
-The availability day and time are interpreted as
-Philippine local time.
+Example: fromDate is Wednesday 10:00 Philippine time and
+the window is Thursday 19:00, so the result is Thursday of
+the same week at 19:00 Philippine time.
 */
 function getNextOccurrence(
     dayName: string,
     startTime: string,
     fromDate: Date
 ): Date | null {
-    const targetDay =
-        DAY_INDEX[dayName]
+    const targetDay = DAY_INDEX[dayName]
 
     if (targetDay === undefined) {
         return null
     }
 
-    const philippineNow =
-        getPhilippineNow()
-
-    const currentDay =
-        philippineNow.getUTCDay()
+    const now = getPhilippineDateParts(fromDate)
 
     const daysUntilTarget =
-    (targetDay - currentDay + 7) % 7
+        (targetDay - now.dayIndex + 7) % 7
 
-    /*
-    Construct today's Philippine calendar date.
-    */
-    const candidateDate =
-        createPhilippineDate(
-            philippineNow.getUTCFullYear(),
-            philippineNow.getUTCMonth(),
-            philippineNow.getUTCDate()
-        )
-
-    candidateDate.setUTCDate(
-        candidateDate.getUTCDate() +
-            daysUntilTarget
+    const candidate = philippineDateTimeToUtc(
+        now.year,
+        now.month,
+        now.day + daysUntilTarget,
+        startTime
     )
 
-    const candidate =
-        createPhilippineDateTime(
-            candidateDate,
-            startTime
-        )
-
-    /*
-    If this week's occurrence has already passed,
-    move to next week's occurrence.
-
-    Compare against the actual UTC instant.
-    */
-    if (candidate <= fromDate) {
-        candidateDate.setUTCDate(
-            candidateDate.getUTCDate() +
-                7
-        )
-
-        return createPhilippineDateTime(
-            candidateDate,
-            startTime
-        )
+    if (candidate > fromDate) {
+        return candidate
     }
 
-    return candidate
+    return philippineDateTimeToUtc(
+        now.year,
+        now.month,
+        now.day + daysUntilTarget + 7,
+        startTime
+    )
+}
+
+/*
+Get the UTC instant at which the availability window that
+starts at windowStart ends.
+
+A window whose end time is not after its start time (for
+example 22:00 to 01:00) is treated as an overnight window
+that ends on the following day.
+*/
+function getWindowEnd(
+    windowStart: Date,
+    startTime: string,
+    endTime: string
+): Date {
+    const parts =
+        getPhilippineDateParts(windowStart)
+
+    const start = philippineDateTimeToUtc(
+        parts.year,
+        parts.month,
+        parts.day,
+        startTime
+    )
+
+    const end = philippineDateTimeToUtc(
+        parts.year,
+        parts.month,
+        parts.day,
+        endTime
+    )
+
+    if (end > start) {
+        return end
+    }
+
+    return philippineDateTimeToUtc(
+        parts.year,
+        parts.month,
+        parts.day + 1,
+        endTime
+    )
 }
 
 /*
@@ -265,28 +232,6 @@ function isOverlapping(
                 end > existingStart
             )
         }
-    )
-}
-
-/*
-Create the end of a Philippine availability window.
-
-The date is already represented as a Philippine calendar
-date encoded internally as UTC.
-*/
-function createWindowEnd(
-    date: Date,
-    time: string
-): Date {
-    const philippineDate =
-        new Date(
-            date.getTime() +
-                PHILIPPINE_OFFSET_MS
-        )
-
-    return createPhilippineDateTime(
-        philippineDate,
-        time
     )
 }
 
@@ -363,7 +308,8 @@ export function generateSchedule(
         /*
         Build candidate availability windows.
 
-        Every window is interpreted in Philippine time.
+        Every window is interpreted in Philippine time and
+        lands on the actual day selected by the user.
         */
         const candidateWindows =
             availability
@@ -375,56 +321,20 @@ export function generateSchedule(
                                 window.start,
                                 now
                             )
-                            console.log("WINDOW TEST:", {
-    day: window.day,
-    startTime: window.start,
-    calculatedStart: start?.toISOString(),
-    now: now.toISOString(),
-})
 
                         if (!start) {
                             return null
                         }
 
-                        /*
-                        Reconstruct the Philippine calendar
-                        date corresponding to this candidate.
-
-                        Adding the Philippine offset allows us
-                        to read the UTC date as Philippine
-                        calendar values.
-                        */
-                        const philippineCandidate =
-                            new Date(
-                                start.getTime() +
-                                    PHILIPPINE_OFFSET_MS
-                            )
-
-                        const candidateDate =
-                            createPhilippineDate(
-                                philippineCandidate.getUTCFullYear(),
-                                philippineCandidate.getUTCMonth(),
-                                philippineCandidate.getUTCDate()
-                            )
-
-                        const windowEnd =
-                            createWindowEnd(
-                                candidateDate,
-                                window.end
-                            )
-
-                            console.log('WINDOW DEBUG:', {
-    day: window.day,
-    start: window.start,
-    end: window.end,
-    windowStart: start.toISOString(),
-    windowEnd: windowEnd.toISOString(),
-})
-
                         return {
                             window,
                             start,
-                            windowEnd,
+                            windowEnd:
+                                getWindowEnd(
+                                    start,
+                                    window.start,
+                                    window.end
+                                ),
                         }
                     }
                 )

@@ -30,7 +30,7 @@ export async function POST(
     _user_id: friend_id,
     _type: "room_invite",
     _title: "Room invite",
-    _body: `Join "${room.name ?? room.code}"`,
+    _body: `Join "${room.name ?? room.code}" · Code ${room.code}`,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

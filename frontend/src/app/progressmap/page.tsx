@@ -224,14 +224,20 @@ export default async function ProgressMapPage() {
     const minutesLast30 = sessionsLast30.reduce((sum, session) => sum + session.minutes, 0);
     const activeDays = new Set(sessionsLast30.map((session) => startOfDay(session.at).getTime())).size;
 
-    const completedWithDeadline = completedQuests.filter((quest) => quest.completed_at && quest.deadline);
+    const completedWithDeadline = completedQuests.filter((quest) => quest.deadline);
     const onTimeCount = completedWithDeadline.filter(
-        (quest) => new Date(quest.completed_at as string).getTime() <= new Date(quest.deadline as string).getTime()
+        (quest) => quest.completed_at && new Date(quest.completed_at).getTime() <= new Date(quest.deadline as string).getTime()
     ).length;
-    const onTimeValue =
-        completedWithDeadline.length > 0
-            ? `${onTimeCount} of ${completedWithDeadline.length} (${Math.round((onTimeCount / completedWithDeadline.length) * 100)}%)`
-            : "No deadlines yet";
+    const timedCompletions = completedWithDeadline.filter((quest) => quest.completed_at).length;
+    const untimedCompletions = completedWithDeadline.length - timedCompletions;
+    let onTimeValue = "No deadlines yet";
+    if (timedCompletions > 0) {
+        const percent = Math.round((onTimeCount / timedCompletions) * 100);
+        onTimeValue = `${onTimeCount} of ${timedCompletions} (${percent}%)`;
+        if (untimedCompletions > 0) onTimeValue += ` • ${untimedCompletions} completion time not recorded`;
+    } else if (untimedCompletions > 0) {
+        onTimeValue = `${untimedCompletions} completed • completion time not recorded`;
+    }
 
     const weekdayMinutes = [0, 0, 0, 0, 0, 0, 0];
     const windowMinutes = [0, 0, 0, 0];

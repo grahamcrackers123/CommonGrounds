@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -18,7 +20,8 @@ export async function POST(
   };
   if (typeof name === "string" && name.trim()) updates.name = name.trim();
   if (typeof goal === "string" && goal.trim()) updates.study_goal = goal.trim();
-  if (typeof linked_task_id === "string" && linked_task_id) updates.linked_task_id = linked_task_id;
+  if (typeof linked_task_id === "string" && UUID_RE.test(linked_task_id))
+    updates.linked_task_id = linked_task_id;
   if (typeof duration_minutes === "number" && duration_minutes > 0)
     updates.duration_minutes = duration_minutes;
 
