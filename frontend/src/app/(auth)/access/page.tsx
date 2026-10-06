@@ -109,15 +109,15 @@ function getStrength(password: string) {
 /* User code generator */
 /* ----------------------------- */
 
-function generateUserCode() {
-    return (
-        "U" +
-        Math.random()
-            .toString(36)
-            .slice(2, 8)
-            .toUpperCase()
-    );
-}
+// function generateUserCode() {
+//     return (
+//         "U" +
+//         Math.random()
+//             .toString(36)
+//             .slice(2, 8)
+//             .toUpperCase()
+//     );
+// }
 
 /* ----------------------------- */
 /* Access page */
@@ -346,25 +346,18 @@ export default function AccessPage() {
             " " +
             values.lastName;
 
-        const {
-            data: { user },
-            error,
-        } =
-            await supabase.auth.signUp({
-                email: values.email,
-                password: values.password,
-
-                options: {
-                    data: {
-                        display_name:
-                            displayName,
-                    },
-
-                    emailRedirectTo:
-                        window.location.origin +
-                        "/callback",
+        const { error } = await supabase.auth.signUp({
+            email: values.email,
+            password: values.password,
+            options: {
+                data: {
+                    display_name: displayName,
+                    first_name: values.firstName,
+                    last_name: values.lastName,
                 },
-            });
+                emailRedirectTo: window.location.origin + "/callback",
+            },
+        });
 
         setSignupLoading(false);
 
@@ -397,30 +390,26 @@ export default function AccessPage() {
             return;
         }
 
-        /*
-         * Keep the existing profile insert
-         * behavior from the original page.
-         */
 
-        if (user) {
-            const { error: insertError } =
-                await supabase
-                    .from("profiles")
-                    .insert({
-                        id: user.id,
-                        user_code:
-                            generateUserCode(),
-                        display_name:
-                            displayName,
-                    });
+        // if (user) {
+        //     const { error: insertError } =
+        //         await supabase
+        //             .from("profiles")
+        //             .insert({
+        //                 id: user.id,
+        //                 user_code:
+        //                     generateUserCode(),
+        //                 display_name:
+        //                     displayName,
+        //             });
 
-            if (insertError) {
-                console.error(
-                    "profile insert error:",
-                    insertError
-                );
-            }
-        }
+        //     if (insertError) {
+        //         console.error(
+        //             "profile insert error:",
+        //             insertError
+        //         );
+        //     }
+        // }
 
         setSignupError(
             "We will send an automated confirmation email if an account does not already exist with this email."
