@@ -327,25 +327,17 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>When are you usually available to study?</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>CommonGrounds uses this to generate realistic focus blocks and prevent overloaded schedules.</Text>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Period</Text>
-                                    <Flex direction='row' gap='md' wrap='wrap' mb='xs' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group value={setUpForm.values.studyTime} onChange={(value) => setUpForm.setFieldValue('studyTime', value)}>
-                                            <Chip radius="lg" variant='light' value='Morning' size={isMobile ? 'xs' : 'md'}>Morning</Chip>
-                                            <Chip radius="lg" variant='light' value='Afternoon' size={isMobile ? 'xs' : 'md'}>Afternoon</Chip>
-                                            <Chip radius="lg" variant='light' value='Evening' size={isMobile ? 'xs' : 'md'}>Evening</Chip>
-                                            <Chip radius="lg" variant='light' value='Late Night' size={isMobile ? 'xs' : 'md'}>Late Night</Chip>
-                                        </Chip.Group>
-                                    </Flex>
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability Study Schedule</Text>
                                     {slots.map((slot) => (
                                         <Flex key={slot.day} direction={{ base: 'column', sm: 'row' }} align='center' gap='md' mb='xs' w='100%'>
-                                            <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'}>
+                                            <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'} style={{ label: { width: 130, justifyContent: 'center' } }}>
                                                 {slot.day}
                                             </Chip>
-                                            <Flex direction='row' gap='xs' wrap='wrap' style={{ alignItems: 'center', justifyContent: 'center' }}>
+                                            <Flex direction='row' gap='xs' wrap='nowrap' style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
                                                 <TimePicker
                                                     format="12h"
                                                     withDropdown
+                                                    w={130}
                                                     value={slot.start}
                                                     onChange={(v) => updateSlot(slot.day, { start: v })}
                                                     disabled={!slot.enabled}
@@ -356,6 +348,7 @@ export default function SetupPage() {
                                                 <TimePicker
                                                     format="12h"
                                                     withDropdown
+                                                    w={130}
                                                     value={slot.end}
                                                     onChange={(v) => updateSlot(slot.day, { end: v })}
                                                     disabled={!slot.enabled}
