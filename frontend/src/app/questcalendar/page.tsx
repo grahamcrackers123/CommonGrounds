@@ -931,16 +931,38 @@ export default function QuestCalendarPage() {
 
   const handleSaveQuest =
     async () => {
-      if (
-        !newQuest.title.trim()
-      ) {
-        alert(
-          "Please enter a quest title."
-        );
+      if (!newQuest.title.trim()) {
+  alert("Please enter a quest title.");
+  return;
+}
 
-        return;
-      }
+if (!newQuest.description.trim()) {
+  alert("Please enter a description.");
+  return;
+}
 
+if (!newQuest.subject) {
+  alert("Please select a subject.");
+  return;
+}
+
+if (!newQuest.deadline) {
+  alert("Please select a deadline.");
+  return;
+}
+
+if (!newQuest.priority) {
+  alert("Please select a priority.");
+  return;
+}
+
+if (
+  !newQuest.estimated_duration ||
+  Number(newQuest.estimated_duration) <= 0
+) {
+  alert("Please enter a valid estimated duration in minutes.");
+  return;
+}
       try {
         setSavingQuest(true);
 
@@ -3215,6 +3237,7 @@ export default function QuestCalendarPage() {
     <Textarea
       label="Description"
       placeholder="Describe the quest..."
+      required
       minRows={3}
       value={
         newQuest.description
@@ -3233,6 +3256,7 @@ export default function QuestCalendarPage() {
     <Select
       label="Subject"
       placeholder="Select subject"
+      required
       searchable
       clearable
       data={subjects.map(
@@ -3256,6 +3280,7 @@ export default function QuestCalendarPage() {
 
     <TextInput
       label="Deadline"
+      required
       type="datetime-local"
       value={
         newQuest.deadline
@@ -3274,6 +3299,7 @@ export default function QuestCalendarPage() {
     <NumberInput
       label="Estimated Duration"
       description="How many minutes this quest should take."
+      required
       min={15}
       step={15}
       value={
@@ -3293,6 +3319,7 @@ export default function QuestCalendarPage() {
 
     <Select
       label="Priority"
+      required
       data={[
         {
           value: "low",
