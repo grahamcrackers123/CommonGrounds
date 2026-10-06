@@ -92,7 +92,13 @@ type Material = {
   file_size: number;
   created_at: string;
 };
-
+type ScheduleBlock = {
+  id?: string;
+  quest_id: string;
+  starts_at: string;
+  ends_at: string;
+  source?: "auto" | "manual";
+};
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -317,6 +323,9 @@ export default function QuestCalendarPage() {
   const [loadingQuests, setLoadingQuests] =
     useState(true);
 
+  const [scheduleBlocks, setScheduleBlocks] =
+  useState<ScheduleBlock[]>([]);
+
   const [generatingPlan, setGeneratingPlan] =
     useState(false);
 
@@ -431,7 +440,6 @@ export default function QuestCalendarPage() {
           if (!current) {
             return null;
           }
-
           return (
             loadedQuests.find(
               (quest) =>
@@ -1542,6 +1550,49 @@ if (
     setQuestAttachment(file);
   };
 
+/* =======================================================
+   LOAD SCHEDULE BLOCKS
+======================================================= */
+
+const loadScheduleBlocks = useCallback(
+  async () => {
+    try {
+      const response = await fetch(
+        "/api/schedule",
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load schedule blocks."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      setScheduleBlocks(
+        Array.isArray(data.blocks)
+          ? data.blocks
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load schedule blocks:",
+        error
+      );
+
+      setScheduleBlocks([]);
+    }
+  },
+  []
+);
+
+useEffect(() => {
+  loadScheduleBlocks();
+}, [loadScheduleBlocks]);
   /* =======================================================
      REGENERATE PLAN
   ======================================================= */
@@ -1576,6 +1627,7 @@ if (
         );
 
         await loadQuests();
+        await loadScheduleBlocks();
       } catch (error) {
         console.error(
           "Regenerate plan error:",
@@ -1609,6 +1661,15 @@ if (
         checklistIndex
       );
     };
+
+    const selectedQuestSchedule =
+    selectedQuest
+      ? scheduleBlocks.find(
+          (block) =>
+            block.quest_id ===
+            selectedQuest.id
+        )
+      : null;
 
   /* =======================================================
      RENDER
@@ -2269,16 +2330,54 @@ if (
             {getStatusLabel(selectedQuest.status)}
           </Text>
 
-          <Text
-            size="xs"
-            c={isDarkMode ? "#f3f4f6" : "#222"}
-          >
-            <b>Schedule:</b>
-            <br />
-            {formatQuestDate(selectedQuest.deadline)}
-            <br />
-            {formatQuestTime(selectedQuest.deadline)}
-          </Text>
+         <Text
+  size="xs"
+  c={isDarkMode ? "#f3f4f6" : "#222"}
+>
+  <b>Study Time:</b>
+  <br />
+
+  {selectedQuestSchedule ? (
+    <>
+      {new Date(
+        selectedQuestSchedule.starts_at
+      ).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}
+      <br />
+
+      {new Date(
+        selectedQuestSchedule.starts_at
+      ).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })}{" "}
+      –{" "}
+      {new Date(
+        selectedQuestSchedule.ends_at
+      ).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+    </>
+  ) : (
+    "Not scheduled yet."
+  )}
+</Text>
+
+<Text
+  size="xs"
+  c={isDarkMode ? "#f3f4f6" : "#222"}
+>
+  <b>Deadline:</b>
+  <br />
+  {formatQuestDate(selectedQuest.deadline)}
+  <br />
+  {formatQuestTime(selectedQuest.deadline)}
+</Text>
         </Stack>
       </Paper>
 
