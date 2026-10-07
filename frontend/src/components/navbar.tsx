@@ -96,6 +96,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         { label: "Pet Garden", path: "/petgarden" },
         { label: "Reward Shop", path: "/rewardshop" },
         { label: "Progress Map", path: "/progressmap" },
+        { label: "Help & Tutorials", path: "/help" },
         { label: "Settings", path: "/settings" },
     ];
 
@@ -258,29 +259,19 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         </Text>
                     </Group>
 
-                    <Group gap="sm">
-                        <ActionIcon
-                            variant="default"
-                            size="lg"
-                            radius="md"
-                            onClick={handleThemeToggle}
-                            aria-label="Toggle color scheme"
-                        >
-                            {colorScheme === "dark" ? (
-                                <Sun size={18} />
-                            ) : (
-                                <Moon size={18} />
-                            )}
-                        </ActionIcon>
-
-                        <Burger
-                            opened={opened}
-                            onClick={toggle}
-                            hiddenFrom="sm"
-                            size="sm"
-                            lineSize={2}
-                        />
-                    </Group>
+                    <ActionIcon
+                        variant="default"
+                        size="lg"
+                        radius="md"
+                        onClick={handleThemeToggle}
+                        aria-label="Toggle color scheme"
+                    >
+                        {colorScheme === "dark" ? (
+                            <Sun size={18} />
+                        ) : (
+                            <Moon size={18} />
+                        )}
+                    </ActionIcon>
                     <Group visibleFrom="md" gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }} w='100%'>
                         <Badge
                             size='lg'

@@ -3,6 +3,7 @@ import DailyRewards from "@/components/daily-rewards";
 import { getPetGrowth } from "@/components/petgrowth";
 import QuestPanel from "@/components/quest-panel";
 import StreakBadge from "@/components/streak-badge";
+import TutorialModal from "@/components/tutorialmodal";
 import WelcomeRewardModal from "@/components/welcomerewardmodal";
 import WorkloadStatusChip from "@/components/workload-status-chip";
 import { applyEnergyDecay } from "@/lib/pet-energy";
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
     ] = await Promise.all([
         supabase
             .from("profiles")
-            .select("new_user_reward_claimed, display_name, student_coins")
+            .select("new_user_reward_claimed, display_name, student_coins, tutorial_completed")
             .eq("id", user.id)
             .single(),
         supabase.from("pets").select("*").eq("owner_id", user.id).maybeSingle(),
@@ -120,6 +121,7 @@ export default async function DashboardPage() {
     const petEnergy = pet ? await applyEnergyDecay(supabase, pet) : 0;
 
     const showReward = !profile?.new_user_reward_claimed;
+    const showTutorial = profile?.new_user_reward_claimed && !profile?.tutorial_completed;
     const hour = now.getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -166,6 +168,9 @@ export default async function DashboardPage() {
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* modal for welcome reward */}
                 {showReward && <WelcomeRewardModal />}
+
+                {/* modal for tutorial */}
+                {showTutorial && <TutorialModal />}
 
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={28} wrap="wrap">
