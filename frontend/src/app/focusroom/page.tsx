@@ -72,7 +72,7 @@ interface HistoryRow {
   id?: string;
   room: string;
   minutes: number;
-  date: string;
+  startedAt: string;
 }
 
 interface SessionResult {
@@ -126,15 +126,37 @@ const fmt = (totalSeconds: number) => {
 
 const loadHistory = (): HistoryRow[] => {
   if (typeof window === "undefined") return [];
+
   try {
     const raw = localStorage.getItem("focusroom-history");
+
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+
+      if (Array.isArray(parsed)) {
+        return parsed.map((row: Record<string, unknown>) => ({
+          id: row.id != null ? String(row.id) : undefined,
+          room:
+            typeof row.room === "string" && row.room
+              ? row.room
+              : "Focus Room",
+          minutes:
+            typeof row.minutes === "number"
+              ? row.minutes
+              : 0,
+          startedAt:
+            typeof row.startedAt === "string"
+              ? row.startedAt
+              : typeof row.date === "string"
+                ? row.date
+                : "",
+        }));
+      }
     }
   } catch {
     return [];
   }
+
   return [];
 };
 
@@ -164,10 +186,7 @@ const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
   id: row.id != null ? String(row.id) : undefined,
   room: typeof row.name === "string" && row.name ? row.name : "Focus Room",
   minutes: typeof row.duration_minutes === "number" ? row.duration_minutes : 0,
-  date:
-    (typeof row.ended_at === "string" && row.ended_at) ||
-    (typeof row.started_at === "string" && row.started_at) ||
-    "",
+  startedAt: typeof row.started_at === "string" ? row.started_at : "",
 });
 
 export default function FocusRoomPage() {
@@ -213,8 +232,8 @@ export default function FocusRoomPage() {
   const inviteCode = roomCode ?? "";
 
   const todayRows = history.filter(
-    (h) => new Date(h.date).toDateString() === new Date().toDateString()
-  );
+  (h) => h.startedAt && new Date(h.startedAt).toDateString() === new Date().toDateString()
+);
   const todaySessions = todayRows.length;
   const todayMinutes = todayRows.reduce((sum, row) => sum + row.minutes, 0);
   const runningTodayMinutes = phase === "live" ? todayMinutes + (total - remaining) / 60 : todayMinutes;
@@ -287,18 +306,90 @@ export default function FocusRoomPage() {
   };
 
   const refreshHistory = async () => {
-    try {
-      const res = await fetch("/api/rooms/history");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.history)) {
-          setHistory(data.history.map((row: Record<string, unknown>) => mapHistoryRow(row)));
-        }
+  try {
+    const res = await fetch("/api/rooms/history");
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    if (!Array.isArray(data.history)) return;
+
+    const backendHistory = data.history.map(
+      (row: Record<string, unknown>) => mapHistoryRow(row)
+    );
+
+    setHistory((currentHistory) => {
+    const merged = backendHistory.map((backendRow: HistoryRow) => {
+        const matchingLocal = currentHistory.find((localRow) => {
+          if (backendRow.id && localRow.id) {
+            return backendRow.id === localRow.id;
+          }
+
+          return (
+            localRow.room === backendRow.room &&
+            localRow.minutes === backendRow.minutes
+          );
+        });
+
+        return {
+          ...backendRow,
+
+          // Keep the real local room name when the backend has none.
+          room:
+            backendRow.room !== "Focus Room"
+              ? backendRow.room
+              : matchingLocal?.room ?? "Focus Room",
+
+          // Keep the actual local sprint duration when available.
+          minutes:
+            matchingLocal?.minutes ?? backendRow.minutes,
+
+          // Keep the actual local start time when the backend has none.
+          startedAt:
+            backendRow.startedAt ||
+            matchingLocal?.startedAt ||
+            "",
+        };
+      });
+
+      // Keep local sessions that the backend has not returned yet.
+      const localOnly = currentHistory.filter(
+        (localRow) =>
+        !merged.some((mergedRow: HistoryRow) => {
+            if (localRow.id && mergedRow.id) {
+              return localRow.id === mergedRow.id;
+            }
+
+            return (
+              localRow.room === mergedRow.room &&
+              localRow.minutes === mergedRow.minutes &&
+              localRow.startedAt === mergedRow.startedAt
+            );
+          })
+      );
+
+    const next = [...merged, ...localOnly].sort((a, b) => {
+  const timeA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+  const timeB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+
+  return timeB - timeA;
+});
+      try {
+        localStorage.setItem(
+          "focusroom-history",
+          JSON.stringify(next)
+        );
+      } catch {
+        console.warn("Could not persist merged focus history.");
       }
-    } catch {
-      return;
-    }
-  };
+
+      return next;
+    });
+  } catch {
+    return;
+  }
+};
 
   const createRoom = async () => {
     setRoomId(null);
@@ -423,10 +514,10 @@ export default function FocusRoomPage() {
     }
     setSessionStartedAt(null);
     const row: HistoryRow = {
-      room: result.roomName,
-      minutes: actualMinutes,
-      date: endedAt,
-    };
+  room: result.roomName,
+  minutes: actualMinutes,
+  startedAt: sessionStartedAt ?? endedAt,
+};
     setHistory((prev) => {
       const next = [row, ...prev];
       try {
@@ -1282,46 +1373,69 @@ export default function FocusRoomPage() {
               Focus Room History
             </Title>
           </Group>
-          <SimpleGrid cols={3} mb={8}>
-            <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
-              Room
-            </Text>
-            <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
-              Sprint Time
-            </Text>
-            <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
-              Date
-            </Text>
-          </SimpleGrid>
-          <Divider mb="sm" />
-          <Stack gap="xs">
-            {history.map((row, i) => (
-              <Group
-                key={row.id ?? `${row.room}-${i}`}
-                justify="space-between"
-                p="xs"
-                style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
-                wrap="nowrap"
-              >
-                <Text fz="sm" fw={600} truncate style={{ flex: 1 }}>
-                  {row.room}
-                </Text>
-                <Badge variant="light" color="blue" radius="xl">
-                  {row.minutes}m
-                </Badge>
-                <Text fz="xs" c="dimmed" w={90} ta="right">
-                  {row.date
-                    ? new Date(row.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-                    : "—"}
-                </Text>
-              </Group>
-            ))}
-            {history.length === 0 && (
-              <Text c="dimmed" fz="sm">
-                No sessions yet. Start your first focus room!
-              </Text>
-            )}
-          </Stack>
+          <Box
+  style={{
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 120px 120px",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 8,
+  }}
+>
+  <Text fz="xs" fw={700} tt="uppercase" c="dimmed">
+    Room
+  </Text>
+
+  <Text fz="xs" fw={700} tt="uppercase" c="dimmed" ta="center">
+    Sprint Time
+  </Text>
+
+  <Text fz="xs" fw={700} tt="uppercase" c="dimmed" ta="right">
+    Date
+  </Text>
+</Box>
+
+<Divider mb="sm" />
+
+<Stack gap="xs">
+  {history.map((row, i) => (
+    <Box
+      key={row.id ?? `${row.room}-${i}`}
+      p="xs"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) 120px 120px",
+        alignItems: "center",
+        gap: 16,
+        borderRadius: 10,
+        backgroundColor: "#F8F9FA",
+      }}
+    >
+      <Text fz="sm" fw={600} truncate>
+        {row.room}
+      </Text>
+
+      <Text fz="sm" fw={600} ta="center">
+        {row.minutes}m
+      </Text>
+
+      <Text fz="xs" c="dimmed" ta="right">
+        {row.startedAt
+          ? new Date(row.startedAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })
+          : "—"}
+      </Text>
+    </Box>
+  ))}
+
+  {history.length === 0 && (
+    <Text c="dimmed" fz="sm">
+      No sessions yet. Start your first focus room!
+    </Text>
+  )}
+</Stack>
         </Paper>
       </Box>
 

@@ -692,32 +692,26 @@ return (
         gap: 10,
     }}
 >
-    <button
-        type="button"
+    <div
         style={{
-            flex: 1,
-            border: "none",
-            background: "transparent",
-            color: "light-dark(var(--mantine-color-text), #FFFFFF)",
-            borderRadius: 8,
-            padding: "9px 10px",
             display: "flex",
             alignItems: "center",
             gap: 8,
-            textAlign: "left",
-            cursor: "pointer",
+            minWidth: 0,
         }}
     >
         <IconFileText size={17} />
 
-        Materials
+        <Text size="sm" fw={600}>
+            Materials
+        </Text>
 
         {materials.length > 0 && (
-            <Badge size="xs" variant="light" ml="auto">
+            <Badge size="xs" variant="light">
                 {materials.length}
             </Badge>
         )}
-    </button>
+    </div>
 
     <Button
         size="xs"
@@ -725,35 +719,19 @@ return (
         loading={uploadingMaterial}
         onClick={handleUploadMaterial}
     >
-        Upload Material
+        Upload
     </Button>
 </div>
-            <button
-                type="button"
-                style={{
-                    width: "100%",
-                    border: "none",
-                    background: "transparent",
-                    color: "light-dark(var(--mantine-color-text), #FFFFFF)",
-                    borderRadius: 8,
-                    padding: "9px 10px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    textAlign: "left",
-                    cursor: "pointer",
-                }}
-            >
-                <IconFileText size={17} />
-Materials
-{materials.length > 0 && (
-    <Badge size="xs" variant="light" ml="auto">
-        {materials.length}
-    </Badge>
-)}
-            </button>
 
-            {loadingMaterials ? (
+<input
+    ref={fileInputRef}
+    type="file"
+    accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+    onChange={handleMaterialSelected}
+    style={{ display: "none" }}
+/>
+
+{loadingMaterials ? (
     <Text size="xs" c="dimmed" pl={10}>
         Loading materials...
     </Text>

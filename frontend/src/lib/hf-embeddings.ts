@@ -1,31 +1,30 @@
-import { InferenceClient } from '@huggingface/inference'
+import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
 
-const token = process.env.HF_TOKEN
+const EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2'
 
-if (!token) {
-    throw new Error('HF_TOKEN is not configured')
-}
+let extractor: FeatureExtractionPipeline | null = null
 
-const hf = new InferenceClient(token)
-
-const EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'
-
-export async function generateEmbedding(
-    text: string
-): Promise<number[]> {
-    const output = await hf.featureExtraction({
-        model: EMBEDDING_MODEL,
-        inputs: text,
-        provider: 'hf-inference',
-    })
-
-    if (
-        Array.isArray(output) &&
-        output.length > 0 &&
-        Array.isArray(output[0])
-    ) {
-        return output[0] as number[]
+async function getExtractor(): Promise<FeatureExtractionPipeline> {
+    if (!extractor) {
+        extractor = await pipeline('feature-extraction', EMBEDDING_MODEL)
     }
 
-    return output as number[]
+    return extractor
+}
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+    const cleanText = text.trim()
+
+    if (!cleanText) {
+        throw new Error('Cannot generate an embedding from empty text')
+    }
+
+    const model = await getExtractor()
+
+    const output = await model(cleanText, {
+        pooling: 'mean',
+        normalize: true,
+    })
+
+    return Array.from(output.data)
 }
