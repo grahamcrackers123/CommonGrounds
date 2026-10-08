@@ -585,23 +585,39 @@ export default function AccessPage() {
                     justify="center"
                     bg="white"
                 >
-                    {/* Logo / title */}
-
-                    <Flex
+                    {/* Logo / title (mobile only)*/}
+                    <Group
+                        hiddenFrom="md"
                         justify="center"
+                        gap="sm"
                         mb="xl"
                     >
-                        <Title
-                            order={1}
-                            fz={{
-                                base: "xl",
-                                md: "2xl",
+                        <ThemeIcon
+                            size={36}
+                            radius="md"
+                            style={{
+                                background: "#5c6fda",
+                                color: "white",
                             }}
-                            fw={700}
                         >
+                            <BookOpen size={20} />
+                        </ThemeIcon>
+
+                        <Title order={2} c="#36458c">
                             CommonGrounds
                         </Title>
-                    </Flex>
+                    </Group>
+
+                    <Text
+                        hiddenFrom="md"
+                        ta="center"
+                        c="dimmed"
+                        mb="md"
+                    >
+                        {value === "signin"
+                            ? "Welcome back! Please enter your details."
+                            : "Create an account to get started!"}
+                    </Text>
 
                     {/* Welcome message */}
 
@@ -610,62 +626,6 @@ export default function AccessPage() {
                         align="center"
                         gap="md"
                     >
-                        {value === "signin" ? (
-                            <Flex
-                                direction="column"
-                                align="center"
-                            >
-                                <Text
-                                    fw="bold"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                >
-                                    Welcome back!
-                                </Text>
-
-                                <Text
-                                    c="dimmed"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                    ta="center"
-                                >
-                                    Please enter your
-                                    details.
-                                </Text>
-                            </Flex>
-                        ) : (
-                            <Flex
-                                direction="column"
-                                align="center"
-                            >
-                                <Text
-                                    fw="bold"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                >
-                                    Welcome!
-                                </Text>
-
-                                <Text
-                                    c="dimmed"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                    ta="center"
-                                >
-                                    Create an account
-                                    to get started!
-                                </Text>
-                            </Flex>
-                        )}
-
                         {/* Sign-in / Sign-up switch */}
 
                         <SegmentedControl
