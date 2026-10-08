@@ -15,19 +15,28 @@ import {
     Popover,
     Progress,
     SegmentedControl,
+    Stack,
     Text,
     TextInput,
+    ThemeIcon,
     Title,
 } from "@mantine/core";
+
+// adjust this path to wherever your theme file lives
+import { commonGroundsTheme } from "../../../theme/commonGroundsTheme";
+
 
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
 
 import {
+    BookOpen,
+    CalendarClock,
     Check,
     Lock,
     Mail,
     User,
+    Sprout,
     X,
 } from "lucide-react";
 
@@ -118,6 +127,23 @@ function getStrength(password: string) {
 //             .toUpperCase()
 //     );
 // }
+
+/* ----------------------------- */
+/* Branding panel content */
+/* ----------------------------- */
+
+const brandPoints = [
+    {
+        icon: CalendarClock,
+        title: "Adaptive study scheduling",
+        text: "Plans that adjust to your context.",
+    },
+    {
+        icon: Sprout,
+        title: "Stay motivated",
+        text: "Earn rewards and grow your pet as you study.",
+    },
+];
 
 /* ----------------------------- */
 /* Access page */
@@ -461,12 +487,92 @@ export default function AccessPage() {
                 {/* Left side */}
 
                 <Flex
+                    visibleFrom="md"
                     direction="column"
-                    gap="md"
+                    justify="space-between"
                     mih="100vh"
                     w="50%"
-                    p="md"
-                />
+                    p="xl"
+                    style={{
+                        background:
+                            "#edf5fd"
+                    }}
+                >
+                    <Group gap="sm">
+                        <ThemeIcon
+                            size={44}
+                            radius="md"
+                            style={{
+                                background: "#228be6",
+                                color: "white",
+                            }}
+                        >
+                            <BookOpen size={24} />
+                        </ThemeIcon>
+
+                        <Title order={2} c="#36458c">
+                            CommonGrounds
+                        </Title>
+                    </Group>
+
+                    <Stack gap="xl" maw={480}>
+                        <Stack gap="xs">
+                            <Title
+                                order={1}
+                                c="#36458c"
+                                fz={{ md: 34, lg: 42 }}
+                                lh={1.15}
+                            >
+                                {value === "signin"
+                                    ? "Welcome back!"
+                                    : "Your context-aware learning companion."}
+                            </Title>
+
+                            <Text c="#4352a5" fz={{ md: "md", lg: "lg" }}>
+                                {value === "signin"
+                                    ? "Sign in to pick up where you left off."
+                                    : "Study smarter with a plan that fits your day."}
+                            </Text>
+                        </Stack>
+
+                        {value === "signup" && (
+                            <Stack gap="lg">
+                                {brandPoints.map(({ icon: Icon, title, text }) => (
+                                    <Group
+                                        key={title}
+                                        gap="md"
+                                        wrap="nowrap"
+                                        align="flex-start"
+                                    >
+                                        <ThemeIcon
+                                            size={40}
+                                            radius="md"
+                                            style={{
+                                                background: "white",
+                                                color: "#5c6fda",
+                                            }}
+                                        >
+                                            <Icon size={20} />
+                                        </ThemeIcon>
+
+                                        <Box>
+                                            <Text fw={600} c="#36458c">
+                                                {title}
+                                            </Text>
+                                            <Text size="sm" c="#4f60c0">
+                                                {text}
+                                            </Text>
+                                        </Box>
+                                    </Group>
+                                ))}
+                            </Stack>
+                        )}
+                    </Stack>
+
+                    <Text size="xs" c="#4f60c0">
+                        © {new Date().getFullYear()} CommonGrounds
+                    </Text>
+                </Flex>
 
                 {/* Right side */}
 
@@ -474,7 +580,7 @@ export default function AccessPage() {
                     direction="column"
                     gap="md"
                     mih="100vh"
-                    w="50%"
+                    w={{ base: "100%", md: "50%" }}
                     p="md"
                     justify="center"
                     bg="white"
@@ -729,7 +835,7 @@ export default function AccessPage() {
                             )}
                         >
                             <Flex
-                                direction="row"
+                                direction={{ base: "column", sm: "row" }}
                                 gap="md"
                                 w="100%"
                                 justify="space-between"

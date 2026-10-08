@@ -23,7 +23,6 @@ const ENROLLMENT_OPTIONS = ["Working Student", "Full time Student", "Part time S
 const COURSEWORK_SUGGESTIONS = ["Worksheet", "Quiz", "Project", "Reading", "Flashcards"];
 const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-// const TIMES = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 const DEFAULT_START = '09:00';
 const DEFAULT_END = '12:00';
 const FOCUS_LENGTHS = [
