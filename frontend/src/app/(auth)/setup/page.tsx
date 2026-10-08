@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Stepper, Switch, TagsInput, Text, TextInput } from "@mantine/core";
+import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -26,7 +26,6 @@ type SetupDraft = {
     school?: string;
     program?: string;
     enrollmentStatus?: string;
-    studyTime?: string;
     focusLength?: string;
     subjects?: string[];
     deadlineReminders?: boolean;
@@ -102,7 +101,6 @@ export default function SetupPage() {
             school: initialDraft.school ?? '',
             program: initialDraft.program ?? '',
             enrollmentStatus: initialDraft.enrollmentStatus ?? '',
-            studyTime: initialDraft.studyTime ?? '',
             focusLength: initialDraft.focusLength ?? '',
             subjects: initialDraft.subjects ?? [],
             deadlineReminders: initialDraft.deadlineReminders ?? false,
@@ -117,7 +115,6 @@ export default function SetupPage() {
             school: (value) => (value.length > 0 ? null : 'School is required'),
             program: (value) => (value.length > 0 ? null : 'Program/Track/Strand is required'),
             enrollmentStatus: (value) => (value.length > 0 ? null : 'Enrollment status is required'),
-            studyTime: (value) => (value.length > 0 ? null : 'Preferred study time is required'),
             focusLength: (value) => (value.length > 0 ? null : 'Preferred focus session length is required'),
             subjects: (value) => (value.length > 0 ? null : 'Subjects are required'),
         }
@@ -162,7 +159,6 @@ export default function SetupPage() {
                 school: setUpForm.values.school,
                 program: setUpForm.values.program,
                 enrollment_status: setUpForm.values.enrollmentStatus,
-                study_time: setUpForm.values.studyTime,
                 focus_length: setUpForm.values.focusLength === 'Custom' ? 0 : parseInt(setUpForm.values.focusLength, 10), // revisit when a custom-minutes input is added
                 subjects: setUpForm.values.subjects,
                 weekly_availability: slots.filter((s) => s.enabled).map(({ day, start, end }) => ({ day, start, end })), // disabled days are not included
@@ -230,7 +226,7 @@ export default function SetupPage() {
     // double check the fields that needs to be validated or required
     const stepFields: Record<number, (keyof typeof setUpForm.values)[]> = {
         0: ['level', 'school', 'program', 'enrollmentStatus'],
-        1: ['studyTime', 'focusLength'],
+        1: ['focusLength'],
         2: ['subjects'],
     };
 
@@ -312,8 +308,8 @@ export default function SetupPage() {
                             </Flex>
                         </Stepper.Step>
                         <Stepper.Step label='Step 2' description='Study Time'>
-                            <Flex direction={{ base: 'column', md: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
-                                <Flex direction='column' w={{ base: '100%', md: '40%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
+                            <Flex direction={{ base: 'column', lg: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
+                                <Flex direction='column' w={{ base: '100%', lg: '40%' }} mih={{ base: 'auto', lg: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>Let’s personalize your learning companion.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>Your answers help CommonGrounds create realistic schedules, quests, reminders, and wellness nudges.</Text>
                                     <Text fw={700} fz={{ base: 'sm', md: 'md' }}>Why this matters:</Text>
@@ -324,40 +320,71 @@ export default function SetupPage() {
                                         <List.Item>Notifications that fit your routine</List.Item>
                                     </List>
                                 </Flex>
-                                <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
+                                <Flex direction='column' w={{ base: '100%', lg: '60%' }} mih={{ base: 'auto', lg: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>When are you usually available to study?</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>CommonGrounds uses this to generate realistic focus blocks and prevent overloaded schedules.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability Study Schedule</Text>
-                                    {slots.map((slot) => (
-                                        <Flex key={slot.day} direction={{ base: 'column', sm: 'row' }} align='center' gap='md' mb='xs' w='100%'>
-                                            <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'} style={{ label: { width: 130, justifyContent: 'center' } }}>
-                                                {slot.day}
-                                            </Chip>
-                                            <Flex direction='row' gap='xs' wrap='nowrap' style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
-                                                <TimePicker
-                                                    format="12h"
-                                                    withDropdown
-                                                    w={130}
-                                                    value={slot.start}
-                                                    onChange={(v) => updateSlot(slot.day, { start: v })}
-                                                    disabled={!slot.enabled}
-                                                    radius='lg'
-                                                    size={isMobile ? 'xs' : 'md'}
-                                                />
-                                                <Text fz={{ base: 'xs', md: 'sm' }}>to</Text>
-                                                <TimePicker
-                                                    format="12h"
-                                                    withDropdown
-                                                    w={130}
-                                                    value={slot.end}
-                                                    onChange={(v) => updateSlot(slot.day, { end: v })}
-                                                    disabled={!slot.enabled}
-                                                    radius='lg'
-                                                    size={isMobile ? 'xs' : 'md'}
-                                                />
-                                            </Flex>
-                                        </Flex>
-                                    ))}
+                                    <Box
+                                        w='100%'
+                                        mb='md'
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '120px minmax(0, 1fr)',
+                                            columnGap: 'var(--mantine-spacing-xs)',
+                                            rowGap: 'var(--mantine-spacing-xs)',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        {slots.map((slot) => (
+                                            <Box key={slot.day} style={{ display: isMobile ? 'block' : 'contents' }}>
+                                                <Chip 
+                                                    checked={slot.enabled} 
+                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} 
+                                                    variant='light' 
+                                                    size='sm'
+                                                    styles={{ 
+                                                        root: { display: 'block', width: '100%' }, 
+                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 } 
+                                                    }}
+                                                >
+                                                    {slot.day}
+                                                </Chip>
+                                                <Box
+                                                    mt={isMobile ? 'xs' : 0}
+                                                    mb={isMobile ? 'sm' : 0}
+                                                    style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: 'minmax(105px, 1fr) auto minmax(105px, 1fr)',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--mantine-spacing-xs)',
+                                                        minWidth: 0
+                                                    }}
+                                                >
+                                                    <TimePicker
+                                                        format="12h"
+                                                        withDropdown
+                                                        w='100%'
+                                                        value={slot.start}
+                                                        onChange={(v) => updateSlot(slot.day, { start: v })}
+                                                        disabled={!slot.enabled}
+                                                        radius='lg'
+                                                        size='sm'
+                                                    />
+                                                    <Text fz={{ base: 'xs', md: 'sm' }}>to</Text>
+                                                    <TimePicker
+                                                        format="12h"
+                                                        withDropdown
+                                                        w='100%'
+                                                        value={slot.end}
+                                                        onChange={(v) => updateSlot(slot.day, { end: v })}
+                                                        disabled={!slot.enabled}
+                                                        radius='lg'
+                                                        size='sm'
+                                                    />
+                                                </Box>
+                                            </Box>
+                                        ))}
+                                    </Box>
                                     {availabilityError && (
                                         <Text c="red" size="sm" mb="xs">Select at least one day you&apos;re available to study.</Text>
                                     )}
@@ -500,7 +527,6 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>School or Institution: {setUpForm.values.school}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Study Time: {setUpForm.values.studyTime}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
