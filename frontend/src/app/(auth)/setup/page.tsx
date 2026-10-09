@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -18,6 +18,7 @@ function generateUserCode() {
 
 const STORAGE_KEY = 'setupFormData';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const STEP_LABELS = ['Academic Profile', 'Study Time', 'Subjects', 'Notifications', 'Review Setup'];
 const LEVEL_PRESETS = ['Elementary', 'Junior High School', 'Senior High School', 'College', 'Graduate School'];
 const OTHER_LEVEL = 'Other';
 
@@ -305,7 +306,16 @@ export default function SetupPage() {
                         <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
                         <Text fw={700} size='xl'>CommonGrounds Setup</Text>
                     </Group>
-                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'}>
+                    
+                    {isMobile && (
+                        <Box w='100%'>
+                            <Text fw={600} size='sm'>
+                                Step {active + 1} of {totalSteps}: {STEP_LABELS[active]}
+                            </Text>
+                            <Progress value={((active + 1) / totalSteps) * 100} radius='xl' size='sm' mt={6} />
+                        </Box>
+                    )}
+                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'} styles={isMobile ? { steps: { display: 'none' }, content: { paddingTop: 'var(--mantine-spacing-xs)' } } : undefined}>
                         <Stepper.Step label='Step 1' description='Academic Profile'>
                             <Flex direction={{ base: 'column', md: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
                                 <Flex direction='column' w={{ base: '100%', md: '40%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
