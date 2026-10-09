@@ -5,17 +5,17 @@ import { Avatar, Badge, Box, Button, Chip, Divider, FileButton, Flex, Group, Pap
 import { useForm, type UseFormReturnType } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { Bell, BookOpen, CalendarClock, FileDown, FileUp, GraduationCap, KeyRound, LogOut, Moon, Palette, Plus, Save, ShieldCheck, Trash2, User, X } from 'lucide-react';
+import { Bell, BookOpen, CalendarClock, FileUp, GraduationCap, KeyRound, LogOut, Moon, Palette, Plus, Save, Trash2, User, X } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type TabSection = "account" | "academic" | "schedule" | "notifications" | "privacy";
+type TabSection = "account" | "academic" | "schedule" | "notifications";
 const tabs: { key: TabSection; label: string; icon: typeof User }[] = [
     { key: "account", label: "Account", icon: User },
     { key: "academic", label: "Academic Profile", icon: GraduationCap },
     { key: "schedule", label: "Study Schedule", icon: CalendarClock },
     { key: "notifications", label: "Notifications", icon: Bell },
-    { key: "privacy", label: "Privacy & Data", icon: ShieldCheck },
+    // { key: "privacy", label: "Privacy & Data", icon: ShieldCheck },
 ];
 
 const ENROLLMENT_OPTIONS = ["Working Student", "Full time Student", "Part time Student"];
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                                 {activeTab === 'academic' && <AcademicTab form={form} markUnsavedChanges={markUnsavedChanges} />}
                                 {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} />}
                                 {activeTab === 'notifications' && <NotificationsTab form={form} markUnsavedChanges={markUnsavedChanges} />}
-                                {activeTab === 'privacy' && <PrivacyTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {/* {activeTab === 'privacy' && <PrivacyTab form={form} markUnsavedChanges={markUnsavedChanges} />} */}
                             </>
                         )}
 
@@ -745,44 +745,44 @@ function NotificationsTab({ form }: TabProps) {
     );
 }
 
-function PrivacyTab({ markUnsavedChanges }: TabProps) {
-    return (
-        <Stack gap='lg'>
-            <div>
-                <SectionTitle icon={ShieldCheck}>Privacy & Data</SectionTitle>
-                <Paper radius='lg' p='xs' withBorder>
-                    <Stack gap={4}>
-                        <ToggleRow
-                            label="Share study stats with friends"
-                            description='Let friends see your streaks and focus time.'
-                            checked={true}
-                            onChange={() => { }}
-                        />
-                        <ToggleRow
-                            label="Anonymous usage analytics"
-                            description='Help us improve CommonGrounds with anonymized data.'
-                            checked={false}
-                            onChange={() => { }}
-                        />
-                    </Stack>
-                </Paper>
-            </div>
+// function PrivacyTab({ markUnsavedChanges }: TabProps) {
+//     return (
+//         <Stack gap='lg'>
+//             <div>
+//                 <SectionTitle icon={ShieldCheck}>Privacy & Data</SectionTitle>
+//                 <Paper radius='lg' p='xs' withBorder>
+//                     <Stack gap={4}>
+//                         <ToggleRow
+//                             label="Share study stats with friends"
+//                             description='Let friends see your streaks and focus time.'
+//                             checked={true}
+//                             onChange={() => { }}
+//                         />
+//                         <ToggleRow
+//                             label="Anonymous usage analytics"
+//                             description='Help us improve CommonGrounds with anonymized data.'
+//                             checked={false}
+//                             onChange={() => { }}
+//                         />
+//                     </Stack>
+//                 </Paper>
+//             </div>
 
-            <Divider />
+//             <Divider />
 
-            <div>
-                <Text fw={700} mb='xs'>
-                    Your data
-                </Text>
-                <Stack gap='sm'>
-                    <ActionRow icon={FileUp} label='Uploaded learning materials' action='Manage files' onClick={markUnsavedChanges} />
-                    <ActionRow icon={FileDown} label='Export account data' action='Export' onClick={markUnsavedChanges} />
-                    <ActionRow icon={Trash2} label='Delete all data' action='Delete' danger onClick={markUnsavedChanges} />
-                </Stack>
-            </div>
-        </Stack>
-    );
-}
+//             <div>
+//                 <Text fw={700} mb='xs'>
+//                     Your data
+//                 </Text>
+//                 <Stack gap='sm'>
+//                     <ActionRow icon={FileUp} label='Uploaded learning materials' action='Manage files' onClick={markUnsavedChanges} />
+//                     <ActionRow icon={FileDown} label='Export account data' action='Export' onClick={markUnsavedChanges} />
+//                     <ActionRow icon={Trash2} label='Delete all data' action='Delete' danger onClick={markUnsavedChanges} />
+//                 </Stack>
+//             </div>
+//         </Stack>
+//     );
+// }
 
 function ToggleRow({
     label,
