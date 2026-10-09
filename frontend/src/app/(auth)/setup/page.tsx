@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -18,11 +18,14 @@ function generateUserCode() {
 
 const STORAGE_KEY = 'setupFormData';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const LEVEL_PRESETS = ['Elementary', 'Junior High School', 'Senior High School', 'College', 'Graduate School'];
+const OTHER_LEVEL = 'Other';
 
 type DaySlot = { day: string; enabled: boolean; start: string; end: string };
 
 type SetupDraft = {
     level?: string;
+    levelOption?: string | null;
     school?: string;
     program?: string;
     enrollmentStatus?: string;
@@ -73,6 +76,13 @@ export default function SetupPage() {
     const [priorities, setPriorities] = useState<Record<string, string>>(initialDraft.priorities ?? {});
     const [courseworkInput, setCourseworkInput] = useState('');
     const [availabilityError, setAvailabilityError] = useState(false);
+    const [levelOption, setLevelOption] = useState<string | null>(
+        initialDraft.levelOption !== undefined
+            ? initialDraft.levelOption
+            : initialDraft.level
+                ? (LEVEL_PRESETS.includes(initialDraft.level) ? initialDraft.level : OTHER_LEVEL)
+                : null
+    );
 
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
@@ -241,6 +251,18 @@ export default function SetupPage() {
         }
     }, [setUpForm.values, slots, courseworkTypes, priorities, active]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, slots, courseworkTypes, priorities, active]);
+
     return (
         <Container fluid mih='100vh' p={{ base: '20px', sm: '60px' }} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC' }}>
             <Paper w={{ base: '100%', md: '70%' }} radius='xl' p='xl' style={{ border: '2px solid #DDE5F0', boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)' }}>
@@ -266,16 +288,35 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>Tell us about your academic profile.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>This helps the app understand your learning environment and task expectations.</Text>
-                                    <TextInput
+                                    <Select
                                         label="Level of Education"
-                                        placeholder="Enter your level of education"
+                                        placeholder="Select your level of education"
+                                        data={[...LEVEL_PRESETS, OTHER_LEVEL]}
                                         radius="lg"
                                         mb="md"
                                         w='100%'
-                                        key={setUpForm.key('level')}
-                                        {...setUpForm.getInputProps('level')}
+                                        allowDeselect={false}
+                                        maxDropdownHeight={320}
+                                        value={levelOption}
+                                        onChange={(value) => {
+                                            setLevelOption(value);
+                                            setUpForm.setFieldValue('level', value && value !== OTHER_LEVEL ? value : '');
+                                        }}
+                                        error={levelOption !== OTHER_LEVEL ? setUpForm.errors.level : undefined}
                                         size={isMobile ? 'xs' : 'md'}
                                     />
+                                    {levelOption === OTHER_LEVEL && (
+                                        <TextInput
+                                            label="Specify your level of education"
+                                            placeholder="Enter your level of education"
+                                            radius="lg"
+                                            mb="md"
+                                            w='100%'
+                                            key={setUpForm.key('level')}
+                                            {...setUpForm.getInputProps('level')}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
                                     <TextInput
                                         label="School or Institution"
                                         placeholder="Enter your school or institution"
