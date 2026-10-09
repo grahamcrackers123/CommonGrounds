@@ -14,7 +14,7 @@ export default function HelpPage() {
     return (
         <Suspense
             fallback={
-                <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+                <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
                     <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                         <Text c="dimmed">Loading tutorials…</Text>
                     </Box>
@@ -43,13 +43,13 @@ function SidebarItem({
                 p='sm'
                 style={{
                     borderRadius: 10,
-                    backgroundColor: active ? '#E7F5FF' : 'transparent',
-                    border: `1px solid ${active ? "#74C0FC" : "transparent"}`,
+                    backgroundColor: active ? 'light-dark(#E7F5FF, #1B2A3A)' : 'transparent',
+                    border: `1px solid ${active ? "light-dark(#74C0FC, #3B82F6)" : "transparent"}`,
                     transition: 'background-color 0.15s ease'
                 }}
             >
-                <Icon size={17} style={{ color: active ? '#1C7ED6' : '#868E96' }} />
-                <Text fw={600} size='sm' c={active ? '#1C7ED6' : '#495057'}>
+                <Icon size={17} style={{ color: active ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#868E96, #ADB5BD)' }} />
+                <Text fw={600} size='sm' c={active ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#495057, #CED4DA)'}>
                     {label}
                 </Text>
             </Group>
@@ -90,7 +90,7 @@ function HelpContent() {
     };
 
     return (
-        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+        <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
                     <Box>

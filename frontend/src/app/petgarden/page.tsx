@@ -33,7 +33,7 @@ export default async function PetGardenPage() {
     const petImageUrl = outfitImageUrl ?? accessoryImageUrl ?? `/assets/starter-pets/${pet.species}.png`;
 
     return (
-        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+        <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
             <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
@@ -198,7 +198,7 @@ export default async function PetGardenPage() {
                                     h={80}
                                     style={{
                                         borderRadius: 24,
-                                        background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                        background: "linear-gradient(135deg, light-dark(#D3F9D8, #173128), light-dark(#EBFBEE, #10241C))",
                                         display: "grid",
                                         placeItems: "center",
                                         position: "relative",

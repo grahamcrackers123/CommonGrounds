@@ -214,7 +214,7 @@ export default function SettingsPage() {
     };
 
     return (
-        <Box style={{ backgroundColor: '#F7F9FC', minHeight: '100vh' }}>
+        <Box style={{ backgroundColor: 'light-dark(#F7F9FC, #000000)', minHeight: '100vh' }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
                     <Box>
@@ -248,13 +248,13 @@ export default function SettingsPage() {
                                             p='sm'
                                             style={{
                                                 borderRadius: 10,
-                                                backgroundColor: isActive ? '#E7F5FF' : 'transparent',
-                                                border: `1px solid ${isActive ? "#74C0FC" : "transparent"}`,
+                                                backgroundColor: isActive ? 'light-dark(#E7F5FF, #1B2A3A)' : 'transparent',
+                                                border: `1px solid ${isActive ? "light-dark(#74C0FC, #3B82F6)" : "transparent"}`,
                                                 transition: 'background-color 0.15s ease'
                                             }}
                                         >
-                                            <tab.icon size={17} style={{ color: isActive ? '#1C7ED6' : '#868E96' }} />
-                                            <Text fw={600} size='sm' c={isActive ? '#1C7ED6' : '#495057'}>
+                                            <tab.icon size={17} style={{ color: isActive ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#868E96, #ADB5BD)' }} />
+                                            <Text fw={600} size='sm' c={isActive ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#495057, #CED4DA)'}>
                                                 {tab.label}
                                             </Text>
                                         </Group>
@@ -374,7 +374,7 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
             <div>
                 <SectionTitle icon={User}>Account</SectionTitle>
                 <Group gap='lg' align='center'>
-                    <Avatar size={95} radius={95} color='blue' style={{ border: '3px solid #D3F9D8' }}>
+                    <Avatar size={95} radius={95} color='blue' style={{ border: '3px solid light-dark(#D3F9D8, #14311F)' }}>
                         <Text fw={800} fz={26}>
                             {initials}
                         </Text>
@@ -500,7 +500,7 @@ function AcademicTab({ form }: TabProps) {
                 ) : (
                     <Stack gap={8}>
                         {Object.entries(form.values.coursework_priorities).map(([type, priority]) => (
-                            <Group key={type} gap="sm" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
+                            <Group key={type} gap="sm" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA, #151515)', border: '1px solid light-dark(#E9ECEF, #2C2E33)' }}>
                                 <Text fz="sm" fw={600} style={{ flex: 1 }}>
                                     {type}
                                 </Text>
@@ -633,7 +633,7 @@ function ScheduleTab({ form }: TabProps) {
                 {form.values.weekly_availability.length > 0 ? (
                     <Stack gap={8} mt="md">
                         {form.values.weekly_availability.map((slot) => (
-                            <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
+                            <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA, #151515)', border: '1px solid light-dark(#E9ECEF, #2C2E33)' }}>
                                 <Text fz="sm" fw={700} w={56}>
                                     {slot.day}
                                 </Text>
@@ -824,7 +824,7 @@ function ActionRow({
     onClick: () => void;
 }) {
     return (
-        <Group justify="space-between" p="sm" style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }} wrap="nowrap">
+        <Group justify="space-between" p="sm" style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }} wrap="nowrap">
             <Group gap={10} wrap="nowrap">
                 <ThemeIcon radius="xl" size={32} variant="light" color={danger ? "red" : "blue"}>
                     <Icon size={16} />

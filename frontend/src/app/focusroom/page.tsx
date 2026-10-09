@@ -132,10 +132,10 @@ const colorFor = (name: string) => {
 
 // member status dot colors + labels
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  ready: { label: "Ready", color: "#ADB5BD" },
-  focus: { label: "Focusing", color: "#2F9E44" },
-  break: { label: "On break", color: "#F08C00" },
-  completed: { label: "Finished", color: "#868E96" },
+  ready: { label: "Ready", color: "light-dark(#ADB5BD, #6C757D)" },
+  focus: { label: "Focusing", color: "light-dark(#2F9E44, #51CF66)" },
+  break: { label: "On break", color: "light-dark(#F08C00, #FFA94D)" },
+  completed: { label: "Finished", color: "light-dark(#868E96, #ADB5BD)" },
 };
 
 const statusOf = (status?: string) => STATUS_META[status ?? "ready"] ?? STATUS_META.ready;
@@ -1110,7 +1110,7 @@ export default function FocusRoomPage() {
   // live view: shared countdown, ambience and members
   if (phase === "live") {
     return (
-      <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+      <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
         <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
           {/* Header */}
           <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
@@ -1154,13 +1154,13 @@ export default function FocusRoomPage() {
               <Box style={{ display: "grid", placeItems: "center", padding: "24px 0 8px" }}>
                 <Box style={{ position: "relative", width: 260, height: 260 }}>
                   <svg width={260} height={260} viewBox="0 0 260 260" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx={130} cy={130} r={118} fill="none" stroke="#F1F3F5" strokeWidth={14} />
+                    <circle cx={130} cy={130} r={118} fill="none" stroke="light-dark(#F1F3F5, #2C2E33)" strokeWidth={14} />
                     <circle
                       cx={130}
                       cy={130}
                       r={118}
                       fill="none"
-                      stroke={running ? "#1C7ED6" : "#ADB5BD"}
+                      stroke={running ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#ADB5BD, #6C757D)"}
                       strokeWidth={14}
                       strokeLinecap="round"
                       strokeDasharray={2 * Math.PI * 118}
@@ -1251,8 +1251,8 @@ export default function FocusRoomPage() {
                         p="sm"
                         style={{
                           borderRadius: 12,
-                          border: `1px solid ${active ? "#74C0FC" : "#E9ECEF"}`,
-                          backgroundColor: active ? "#E7F5FF" : "#FFFFFF",
+                          border: `1px solid ${active ? "light-dark(#74C0FC, #3B82F6)" : "light-dark(#E9ECEF, #2C2E33)"}`,
+                          backgroundColor: active ? "light-dark(#E7F5FF, #1B2A3A)" : "light-dark(#FFFFFF, #151515)",
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
@@ -1261,8 +1261,8 @@ export default function FocusRoomPage() {
                         }}
                         onClick={() => setSound(s.key)}
                       >
-                        <s.icon size={16} color={active ? "#1C7ED6" : "#868E96"} />
-                        <Text fz="sm" fw={600} c={active ? "#1C7ED6" : "#495057"}>
+                        <s.icon size={16} color={active ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#868E96, #ADB5BD)"} />
+                        <Text fz="sm" fw={600} c={active ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#495057, #CED4DA)"}>
                           {s.label}
                         </Text>
                       </Box>
@@ -1271,7 +1271,7 @@ export default function FocusRoomPage() {
                 </SimpleGrid>
                 <Group justify="space-between" mt="md" mb={4}>
                   <Group gap={6}>
-                    <Volume2 size={15} color="#868E96" />
+                    <Volume2 size={15} color="light-dark(#868E96, #ADB5BD)" />
                     <Text fz="sm" fw={600} c="dimmed">
                       Volume
                     </Text>
@@ -1315,7 +1315,7 @@ export default function FocusRoomPage() {
                       key={p.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1405,7 +1405,7 @@ export default function FocusRoomPage() {
     const groupBonus = result.participantNames.length > 1;
 
     return (
-      <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+      <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
         <Box maw={760} mx="auto" p={{ base: 20, md: 40 }}>
           <Paper p="xl" radius="lg" shadow="sm" withBorder>
             {/* result header */}
@@ -1525,7 +1525,7 @@ export default function FocusRoomPage() {
 
   // lobby / setup view
   return (
-    <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+    <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
       <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
         {/* Header */}
         <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
@@ -1689,7 +1689,7 @@ export default function FocusRoomPage() {
                     key={p.name}
                     justify="space-between"
                     p="xs"
-                    style={{ borderRadius: 10, backgroundColor: p.isYou ? "#E7F5FF" : "#F8F9FA" }}
+                    style={{ borderRadius: 10, backgroundColor: p.isYou ? "light-dark(#E7F5FF, #1B2A3A)" : "light-dark(#F8F9FA, #151515)" }}
                     wrap="nowrap"
                   >
                     <Group gap={10} wrap="nowrap">
@@ -1767,7 +1767,7 @@ export default function FocusRoomPage() {
                       key={f.id ?? f.userId ?? f.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#FFF9DB" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#FFF9DB, #332D13)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1818,7 +1818,7 @@ export default function FocusRoomPage() {
                       key={f.id ?? f.userId ?? f.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1856,7 +1856,7 @@ export default function FocusRoomPage() {
                     key={f.name}
                     justify="space-between"
                     p="xs"
-                    style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                    style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                     wrap="nowrap"
                   >
                     <Group gap={10} wrap="nowrap">
@@ -1868,7 +1868,7 @@ export default function FocusRoomPage() {
                           {f.name}
                         </Text>
                         <Group gap={5}>
-                          <Box w={7} h={7} style={{ borderRadius: 99, backgroundColor: "#2F9E44" }} />
+                          <Box w={7} h={7} style={{ borderRadius: 99, backgroundColor: "light-dark(#2F9E44, #51CF66)" }} />
                           <Text fz="xs" c="dimmed">
                             Online
                           </Text>
@@ -1960,7 +1960,7 @@ export default function FocusRoomPage() {
                 key={row.id ?? `${row.room}-${i}`}
                 justify="space-between"
                 p="xs"
-                style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                 wrap="nowrap"
               >
                 <Text fz="sm" fw={600} truncate style={{ flex: 1 }} maw={340}>

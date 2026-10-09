@@ -129,32 +129,32 @@ export default async function DashboardPage() {
         {
             label: "Study Time",
             icon: Clock,
-            tint: "#E7F5FF",
-            color: "#1C7ED6",
+            tint: "light-dark(#E7F5FF, #1B2A3A)",
+            color: "light-dark(#1C7ED6, #4DABF7)",
             value: fmtMinutes(today.minutes),
             sub: `${pctDelta(today.minutes, yesterday.minutes)} vs yesterday`,
         },
         {
             label: "XP Earned",
             icon: Zap,
-            tint: "#EBFBEE",
-            color: "#2F9E44",
+            tint: "light-dark(#EBFBEE, #173128)",
+            color: "light-dark(#2F9E44, #51CF66)",
             value: `${today.xp} XP`,
             sub: `${pctDelta(today.xp, yesterday.xp)} vs yesterday`,
         },
         {
             label: "Coins",
             icon: Coins,
-            tint: "#FFF4E6",
-            color: "#E8590C",
+            tint: "light-dark(#FFF4E6, #342417)",
+            color: "light-dark(#E8590C, #FFA94D)",
             value: (profile?.student_coins ?? 0).toLocaleString(),
             sub: `+${today.coins} earned today`,
         },
         {
             label: "Day Streak",
             icon: Flame,
-            tint: "#FFF0F6",
-            color: "#E64980",
+            tint: "light-dark(#FFF0F6, #331B26)",
+            color: "light-dark(#E64980, #F783AC)",
             value: `${streakData?.current_streak ?? 0}`,
             sub: `Best: ${streakData?.longest_streak ?? 0} days`,
         },
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
     const upNextTitle = upNextBlock?.quests?.title ?? nextQuest?.title ?? null;
 
     return (
-        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+        <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* modal for welcome reward */}
                 {showReward && <WelcomeRewardModal />}
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
                                                             width: "100%",
                                                             height: `${d.minutes > 0 ? pct : 4}%`,
                                                             borderRadius: 8,
-                                                            backgroundColor: d.minutes > 0 ? "#748FFC" : "#E9ECEF",
+                                                            backgroundColor: d.minutes > 0 ? "#748FFC" : "light-dark(#E9ECEF, #2C2E33)",
                                                         }}
                                                     />
                                                 </Box>
@@ -297,7 +297,7 @@ export default async function DashboardPage() {
                                     h={100}
                                     style={{
                                         borderRadius: 24,
-                                        background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                        background: "linear-gradient(135deg, light-dark(#D3F9D8, #173128), light-dark(#EBFBEE, #10241C))",
                                         display: 'grid',
                                         placeItems: 'center',
                                     }}

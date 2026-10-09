@@ -34,12 +34,12 @@ export default async function ProfilePage() {
     if (!userBadges) return null;
 
     return (
-        <Box style={{ backgroundColor: '#F7F9FC', minHeight: '100vh' }}>
+        <Box style={{ backgroundColor: 'light-dark(#F7F9FC, #000000)', minHeight: '100vh' }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 <Paper p={{ base: 'lg', md: 'xl' }} shadow="sm" radius="lg" withBorder mb={24}>
                     <Group justify='space-between' align='flex-start' wrap='wrap'>
                         <Group gap='lg' wrap='nowrap' align='center'>
-                            <Avatar size={110} radius={110} color='green' style={{ border: '3px solid #D3F9D8' }}>
+                            <Avatar size={110} radius={110} color='green' style={{ border: '3px solid light-dark(#D3F9D8, #14311F)' }}>
                                 <Text fw={800} fz={32}>
                                     NA
                                 </Text>
@@ -52,13 +52,13 @@ export default async function ProfilePage() {
                                     <CopyUserCode userCode={profile.user_code} />
                                 </Group>
                                 <Group gap={6} mt={6}>
-                                    <School size={15} color="#868E96" />
+                                    <School size={15} color="light-dark(#868E96, #ADB5BD)" />
                                     <Text c='dimmed' size='sm' fw={500}>
                                         {profile.school}
                                     </Text>
                                 </Group>
                                 <Group gap={6} mt={2}>
-                                    <GraduationCap size={15} color="#868E96" />
+                                    <GraduationCap size={15} color="light-dark(#868E96, #ADB5BD)" />
                                     <Text c='dimmed' size='sm' fw={500}>
                                         {profile.program}
                                     </Text>
@@ -89,10 +89,10 @@ export default async function ProfilePage() {
                             </Title>
                         </Group>
                         <Stack gap='sm'>
-                            <InfoRow icon={UserRound} tint="#DFF8EA" label="Enrollment" value={profile.enrollment_status} />
-                            <InfoRow icon={CalendarClock} tint='#E7F5FF' label='Availability' value={profile?.weekly_availability.map((slot: { day: string; start: string; end: string }) => `${slot.day} ${to12Hour(slot.start)}–${to12Hour(slot.end)}`).join(" • ")} />
-                            <InfoRow icon={Clock3} tint='#DFF8EA' label='Preferred Study Period' value={profile.study_time} />
-                            <InfoRow icon={Timer} tint='#E7F5FF' label='Focus Length' value={`${profile.focus_length} minutes per session`} />
+                            <InfoRow icon={UserRound} tint="light-dark(#DFF8EA, #173128)" label="Enrollment" value={profile.enrollment_status} />
+                            <InfoRow icon={CalendarClock} tint='light-dark(#E7F5FF, #1B2A3A)' label='Availability' value={profile?.weekly_availability.map((slot: { day: string; start: string; end: string }) => `${slot.day} ${to12Hour(slot.start)}–${to12Hour(slot.end)}`).join(" • ")} />
+                            <InfoRow icon={Clock3} tint='light-dark(#DFF8EA, #173128)' label='Preferred Study Period' value={profile.study_time} />
+                            <InfoRow icon={Timer} tint='light-dark(#E7F5FF, #1B2A3A)' label='Focus Length' value={`${profile.focus_length} minutes per session`} />
                         </Stack>
                     </Paper>
 
@@ -111,7 +111,7 @@ export default async function ProfilePage() {
                                 h={150}
                                 style={{
                                     borderRadius: 40,
-                                    background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                    background: "linear-gradient(135deg, light-dark(#D3F9D8, #173128), light-dark(#EBFBEE, #10241C))",
                                     display: 'grid',
                                     placeItems: 'center',
                                 }}
@@ -166,7 +166,7 @@ export default async function ProfilePage() {
                                             borderRadius: 28,
                                             display: 'grid',
                                             placeItems: 'center',
-                                            backgroundColor: '#EBFBEE'
+                                            backgroundColor: 'light-dark(#EBFBEE, #173128)'
                                         }}
                                     >
                                         {/* badge owned */}
@@ -199,7 +199,7 @@ function InfoRow({
     return (
         <Group gap='sm' wrap='nowrap' align='center'>
             <ThemeIcon radius='xl' variant='light' color='blue' size={33} style={{ backgroundColor: tint }}>
-                <Icon size={16} style={{ color: '#495057' }} />
+                <Icon size={16} style={{ color: 'light-dark(#495057, #CED4DA)' }} />
             </ThemeIcon>
             <Box style={{ flex: 1 }}>
                 <Text fz='xs' c='dimmed' fw={600} tt='uppercase' lts={0.8}>

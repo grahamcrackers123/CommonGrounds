@@ -154,7 +154,7 @@ export default function QuestPanel() {
                                 p='xs'
                                 style={{
                                     borderRadius: 10,
-                                    backgroundColor: q.status === "completed" ? "#F1F3F5" : "#F8F9FA",
+                                    backgroundColor: q.status === "completed" ? "light-dark(#F1F3F5, #222222)" : "light-dark(#F8F9FA, #151515)",
                                 }}
                                 wrap='nowrap'
                             >

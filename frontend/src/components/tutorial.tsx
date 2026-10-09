@@ -157,7 +157,7 @@ export function TutorialWelcome({
                 shows how everything connects, so you can get the most out of your study time.
             </Text>
 
-            <Paper radius='lg' p='md' withBorder style={{ backgroundColor: '#F1F9FF' }}>
+            <Paper radius='lg' p='md' withBorder style={{ backgroundColor: 'light-dark(#F1F9FF, #1B2A3A)' }}>
                 <Text fw={700} mb={6}>
                     The study loop
                 </Text>
@@ -247,10 +247,10 @@ export function TutorialStepPanel({
             </List>
 
             {tip && (
-                <Paper radius='lg' p='sm' withBorder style={{ backgroundColor: '#FFF9DB' }}>
+                <Paper radius='lg' p='sm' withBorder style={{ backgroundColor: 'light-dark(#FFF9DB, #332D13)' }}>
                     <Group gap={8} wrap='nowrap' align='flex-start'>
-                        <Lightbulb size={16} style={{ color: '#E67700', flexShrink: 0, marginTop: 2 }} />
-                        <Text size='sm' c='#856404'>
+                        <Lightbulb size={16} style={{ color: 'light-dark(#E67700, #FFD43B)', flexShrink: 0, marginTop: 2 }} />
+                        <Text size='sm' c='light-dark(#856404, #FFE066)'>
                             {tip}
                         </Text>
                     </Group>

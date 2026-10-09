@@ -96,15 +96,15 @@ const categoryByTab: Record<TabSection, ItemCategory> = {
 };
 
 const CATEGORY_META: Record<ItemCategory, { label: TabSection; icon: typeof Egg; color: string; tint: string }> = {
-    egg: { label: 'Eggs', icon: Egg, color: '#7048E8', tint: '#F3F0FF' },
-    pet: { label: 'Pet Style', icon: Shirt, color: '#E64980', tint: '#FFF0F6' },
-    garden: { label: 'Garden Decor', icon: Flower2, color: '#0C8599', tint: '#E3FAFC' },
+    egg: { label: 'Eggs', icon: Egg, color: 'light-dark(#7048E8, #B197FC)', tint: 'light-dark(#F3F0FF, #241F3D)' },
+    pet: { label: 'Pet Style', icon: Shirt, color: 'light-dark(#E64980, #F783AC)', tint: 'light-dark(#FFF0F6, #331B26)' },
+    garden: { label: 'Garden Decor', icon: Flower2, color: 'light-dark(#0C8599, #3BC9DB)', tint: 'light-dark(#E3FAFC, #15303A)' },
 };
 
 const formatCoins = (n: number) => n.toLocaleString('en-US');
 
 const itemBackground = (item: ShopItem): string =>
-    item.type === 'garden' ? '#F1F3F5' : (item.backgroundColor ?? '#F1F3F5');
+    item.type === 'garden' ? 'light-dark(#F1F3F5, #2C2E33)' : (item.backgroundColor ?? 'light-dark(#F1F3F5, #2C2E33)');
 
 export default function RewardShopPage() {
     const [activeTab, setActiveTab] = useState<TabSection>('Eggs');
@@ -339,7 +339,7 @@ export default function RewardShopPage() {
     const categoryMeta = CATEGORY_META[activeCategory];
 
     return (
-        <Box style={{ backgroundColor: '#F7F9FC', minHeight: '100vh' }}>
+        <Box style={{ backgroundColor: 'light-dark(#F7F9FC, #000000)', minHeight: '100vh' }}>
             <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
@@ -395,13 +395,13 @@ export default function RewardShopPage() {
                                             radius="md"
                                             style={{
                                                 backgroundColor: isActive ? meta.tint : 'transparent',
-                                                border: `1px solid ${isActive ? meta.color : '#E9ECEF'}`,
+                                                border: `1px solid ${isActive ? meta.color : 'light-dark(#E9ECEF, #2C2E33)'}`,
                                                 transition: 'all 0.15s ease',
                                             }}
                                         >
                                             <Group justify="center" gap={8} wrap="nowrap">
-                                                <meta.icon size={18} style={{ color: isActive ? meta.color : '#868E96' }} />
-                                                <Text fw={700} size="sm" c={isActive ? meta.color : '#495057'}>
+                                                <meta.icon size={18} style={{ color: isActive ? meta.color : 'light-dark(#868E96, #ADB5BD)' }} />
+                                                <Text fw={700} size="sm" c={isActive ? meta.color : 'light-dark(#495057, #CED4DA)'}>
                                                     {tab}
                                                 </Text>
                                                 <Badge size="xs" variant="light" color="gray" radius="xl">
@@ -454,8 +454,8 @@ export default function RewardShopPage() {
                                                 shadow="sm"
                                                 withBorder
                                                 style={{
-                                                    backgroundColor: '#FFFFFF',
-                                                    borderColor: isSelected ? CATEGORY_META[item.type].color : '#E9ECEF',
+                                                    backgroundColor: 'light-dark(#FFFFFF, #151515)',
+                                                    borderColor: isSelected ? CATEGORY_META[item.type].color : 'light-dark(#E9ECEF, #2C2E33)',
                                                     borderWidth: isSelected ? 2 : 1,
                                                     opacity: affordable || itemOwned ? 1 : 0.65,
                                                     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
@@ -496,7 +496,7 @@ export default function RewardShopPage() {
                                                     ) : (
                                                         <Group gap={4} justify="center">
                                                             <Image src="/assets/currency/student-coin.png" alt="" w={16} h={16} />
-                                                            <Text fw={800} size="sm" c={affordable ? '#212529' : '#E03131'}>
+                                                            <Text fw={800} size="sm" c={affordable ? 'light-dark(#212529, #F1F3F5)' : 'light-dark(#E03131, #FF8787)'}>
                                                                 {formatCoins(item.price)}
                                                             </Text>
                                                         </Group>
@@ -594,9 +594,9 @@ export default function RewardShopPage() {
                                         </Stack>
                                     ) : confirming ? (
                                         <Stack gap="sm">
-                                            <Paper p="sm" radius="md" style={{ backgroundColor: '#FFF9DB', border: '1px solid #FFEC99' }}>
+                                            <Paper p="sm" radius="md" style={{ backgroundColor: 'light-dark(#FFF9DB, #332D13)', border: '1px solid light-dark(#FFEC99, #5C4B1A)' }}>
                                                 <Group gap={6}>
-                                                    <Info size={16} color="#E8590C" />
+                                                    <Info size={16} color="light-dark(#E8590C, #FFA94D)" />
                                                     <Text size="sm" fw={600}>
                                                         Confirm purchase of {formatCoins(selectedItem.price)} coins?
                                                     </Text>
@@ -614,8 +614,8 @@ export default function RewardShopPage() {
                                     ) : (
                                         <Stack gap="sm">
                                             {!canAfford && (
-                                                <Paper p="sm" radius="md" style={{ backgroundColor: '#FFF5F5', border: '1px solid #FFC9C9' }}>
-                                                    <Text size="sm" fw={600} c="#E03131" ta="center">
+                                                <Paper p="sm" radius="md" style={{ backgroundColor: 'light-dark(#FFF5F5, #2A1215)', border: '1px solid light-dark(#FFC9C9, #6E2A2A)' }}>
+                                                    <Text size="sm" fw={600} c="light-dark(#E03131, #FF8787)" ta="center">
                                                         You need {formatCoins(selectedItem.price - balance)} more coins
                                                     </Text>
                                                 </Paper>
@@ -636,7 +636,7 @@ export default function RewardShopPage() {
                                                     <Text c="dimmed" fz="xs" fw={600}>
                                                         AFTER PURCHASE
                                                     </Text>
-                                                    <Text fw={700} c={canAfford ? '#2F9E44' : '#E03131'}>
+                                                    <Text fw={700} c={canAfford ? 'light-dark(#2F9E44, #51CF66)' : 'light-dark(#E03131, #FF8787)'}>
                                                         {formatCoins(balance - selectedItem.price)}
                                                     </Text>
                                                 </Box>
