@@ -3449,6 +3449,27 @@ useEffect(() => {
       }
     />
 
+<Paper
+  radius="md"
+  p="sm"
+  mt="sm"
+  bg={isDarkMode ? "#1f2937" : "#eff6ff"}
+>
+  <Text
+    size="sm"
+    fw={600}
+    c={isDarkMode ? "#f3f4f6" : "#1d4ed8"}
+  >
+    🪙 You'll get{" "}
+    {newQuest.priority === "high"
+      ? 50
+      : newQuest.priority === "medium"
+        ? 25
+        : 10}{" "}
+    Student Coins when you finish this quest!
+  </Text>
+</Paper>
+
     <Group
       justify="space-between"
       mt="md"
