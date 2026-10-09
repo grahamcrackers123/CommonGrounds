@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -40,6 +40,7 @@ type SetupDraft = {
     courseworkTypes?: string[];
     priorities?: Record<string, string>;
     active?: number;
+    customFocusMinutes?: number | string;
 };
 
 function defaultSlots(): DaySlot[] {
@@ -83,6 +84,8 @@ export default function SetupPage() {
                 ? (LEVEL_PRESETS.includes(initialDraft.level) ? initialDraft.level : OTHER_LEVEL)
                 : null
     );
+    const [customFocusMinutes, setCustomFocusMinutes] = useState<number | string>(initialDraft.customFocusMinutes ?? '');
+    const [customFocusError, setCustomFocusError] = useState(false);
 
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
@@ -130,6 +133,10 @@ export default function SetupPage() {
         }
     });
 
+    const customMinutesInvalid =
+        setUpForm.values.focusLength === 'Custom' &&
+        !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
+
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
         const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
@@ -140,15 +147,29 @@ export default function SetupPage() {
             return;
         }
 
+        if (active === 1 && customMinutesInvalid) {
+            setCustomFocusError(true);
+            return;
+        }
+
         if (active === totalSteps - 1) {
             // validate all steps again so a field cleared after going back cannot be submitted
             const firstInvalidStep = Object.keys(stepFields)
                 .map(Number)
                 .sort((a, b) => a - b)
                 .find((step) => stepFields[step].some((field) => setUpForm.validateField(field).hasError));
-            if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+
+            // if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+            //     setActive(firstInvalidStep ?? 1);
+            //     setAvailabilityError(true);
+            //     notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
+            //     return;
+            // }
+
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0 || customMinutesInvalid) {
                 setActive(firstInvalidStep ?? 1);
-                setAvailabilityError(true);
+                setAvailabilityError(enabledSlots.length === 0);
+                setCustomFocusError(customMinutesInvalid);
                 notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
                 return;
             }
@@ -169,7 +190,7 @@ export default function SetupPage() {
                 school: setUpForm.values.school,
                 program: setUpForm.values.program,
                 enrollment_status: setUpForm.values.enrollmentStatus,
-                focus_length: setUpForm.values.focusLength === 'Custom' ? 0 : parseInt(setUpForm.values.focusLength, 10), // revisit when a custom-minutes input is added
+                focus_length: setUpForm.values.focusLength === 'Custom' ? Number(customFocusMinutes) : parseInt(setUpForm.values.focusLength, 10),
                 subjects: setUpForm.values.subjects,
                 weekly_availability: slots.filter((s) => s.enabled).map(({ day, start, end }) => ({ day, start, end })), // disabled days are not included
                 coursework_priorities: priorities,
@@ -262,6 +283,19 @@ export default function SetupPage() {
             console.error('Failed to persist setup draft', error);
         }
     }, [setUpForm.values, levelOption, slots, courseworkTypes, priorities, active]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                customFocusMinutes,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, customFocusMinutes, slots, courseworkTypes, priorities, active]);
 
     return (
         <Container fluid mih='100vh' p={{ base: '20px', sm: '60px' }} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC' }}>
@@ -431,13 +465,40 @@ export default function SetupPage() {
                                     )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
+                                        <Chip.Group 
+                                            value={setUpForm.values.focusLength} 
+                                            onChange={(value) => {
+                                                setUpForm.setFieldValue('focusLength', value);
+                                                setCustomFocusError(false);
+                                            }}
+                                        >
                                             <Chip radius="lg" variant='light' value='30 mins' size={isMobile ? 'xs' : 'md'}>30 mins</Chip>
                                             <Chip radius="lg" variant='light' value='45 mins' size={isMobile ? 'xs' : 'md'}>45 mins</Chip>
                                             <Chip radius="lg" variant='light' value='60 mins' size={isMobile ? 'xs' : 'md'}>60 mins</Chip>
                                             <Chip radius="lg" variant='light' value='Custom' size={isMobile ? 'xs' : 'md'}>Custom</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.values.focusLength === 'Custom' && (
+                                        <NumberInput
+                                            mt='sm'
+                                            label="Custom session length (5 to 240 min.)"
+                                            placeholder="e.g. 50"
+                                            radius="lg"
+                                            w='100%'
+                                            min={5}
+                                            max={240}
+                                            allowDecimal={false}
+                                            allowNegative={false}
+                                            suffix=" mins"
+                                            value={customFocusMinutes}
+                                            onChange={(v) => {
+                                                setCustomFocusMinutes(v);
+                                                setCustomFocusError(false);
+                                            }}
+                                            error={customFocusError ? 'Enter a length between 5 and 240 minutes.' : undefined}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -569,7 +630,7 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
+                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength === 'Custom' ? `${customFocusMinutes} mins` : setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Coursework Types and Priorities: {courseworkTypes.map(type => `${type} (${priorities[type] || 'No priority set'})`).join(', ') || 'No coursework types added'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Notification Preferences: {notificationPref.filter((p) => setUpForm.values[p.value as keyof typeof setUpForm.values]).map((p) => p.label).join(', ') || 'All off'}</Text>
