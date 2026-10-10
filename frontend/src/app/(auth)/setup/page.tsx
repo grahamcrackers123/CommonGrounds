@@ -150,13 +150,14 @@ export default function SetupPage() {
     
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
-        const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
-        if (hasErrors) return;
+        const hasErrors = fieldsToValidate
+            .map((field) => setUpForm.validateField(field).hasError)
+            .some(Boolean);
 
-        if (active === 1 && enabledSlots.length === 0) {
-            setAvailabilityError(true);
-            return;
-        }
+        const slotsMissing = active === 1 && enabledSlots.length === 0;
+        if (slotsMissing) setAvailabilityError(true);
+
+        if (hasErrors || slotsMissing) return;
 
         if (active === 1 && customMinutesInvalid) {
             setCustomFocusError(true);
@@ -424,6 +425,7 @@ export default function SetupPage() {
                                             <Chip radius="lg" variant='light' value='Part time Student' size={isMobile ? 'xs' : 'md'}>Part time Student</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.errors.enrollmentStatus && (<Text c="red" size="sm" mb="xs">{setUpForm.errors.enrollmentStatus}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -544,6 +546,7 @@ export default function SetupPage() {
                                             size={isMobile ? 'xs' : 'md'}
                                         />
                                     )}
+                                    {setUpForm.errors.focusLength && (<Text c="red" size="sm" mt="xs">{setUpForm.errors.focusLength}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
