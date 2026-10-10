@@ -87,10 +87,12 @@ export default function SetupPage() {
     );
     const [customFocusMinutes, setCustomFocusMinutes] = useState<number | string>(initialDraft.customFocusMinutes ?? '');
     const [customFocusError, setCustomFocusError] = useState(false);
-
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
     );
+    const [courseworkError, setCourseworkError] = useState<string | null>(null);
+    const courseworkInvalid =
+        courseworkTypes.length === 0 || courseworkTypes.some((type) => !priorities[type]);
 
     const updateSlot = (day: string, patch: Partial<DaySlot>) => {
         setSlots((prev) => prev.map((s) => (s.day === day ? { ...s, ...patch } : s)));
@@ -102,6 +104,7 @@ export default function SetupPage() {
         if (value && !courseworkTypes.includes(value)) {
             setCourseworkTypes((prev) => [...prev, value]);
             setCourseworkInput('');
+            setCourseworkError(null);
         }
     };
 
@@ -134,10 +137,17 @@ export default function SetupPage() {
         }
     });
 
+    const hasNotifications = setUpForm.values.deadlineReminders || setUpForm.values.focusReminders || setUpForm.values.burnoutNudges || setUpForm.values.rewardAlerts || setUpForm.values.friendInvites;
+
     const customMinutesInvalid =
         setUpForm.values.focusLength === 'Custom' &&
         !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
 
+    const getCourseworkMessage = () =>
+    courseworkTypes.length === 0
+        ? 'Add at least one coursework type.'
+        : 'Set a priority for every coursework type.';
+    
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
         const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
@@ -150,6 +160,27 @@ export default function SetupPage() {
 
         if (active === 1 && customMinutesInvalid) {
             setCustomFocusError(true);
+            return;
+        }
+
+        if (active === 2 && courseworkInvalid) {
+            setCourseworkError(getCourseworkMessage());
+            return;
+        }
+
+        if (active === 3 && !hasNotifications) {
+            modals.openConfirmModal({
+                title: 'No notifications enabled',
+                size: 'sm',
+                centered: true,
+                children: (
+                    <Text size="sm">
+                        You haven't turned on any notifications, so you won't get deadline, focus, wellness, or reward reminders. Continue anyway?
+                    </Text>
+                ),
+                labels: { confirm: 'Continue', cancel: 'Go back' },
+                onConfirm: () => setActive((prev) => prev + 1),
+            });
             return;
         }
 
@@ -167,10 +198,14 @@ export default function SetupPage() {
             //     return;
             // }
 
-            if (firstInvalidStep !== undefined || enabledSlots.length === 0 || customMinutesInvalid) {
-                setActive(firstInvalidStep ?? 1);
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0 || customMinutesInvalid || courseworkInvalid) {
+                setActive(
+                    firstInvalidStep ??
+                    (enabledSlots.length === 0 || customMinutesInvalid ? 1 : 2)
+                );
                 setAvailabilityError(enabledSlots.length === 0);
                 setCustomFocusError(customMinutesInvalid);
+                setCourseworkError(courseworkInvalid ? getCourseworkMessage() : null);
                 notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
                 return;
             }
@@ -562,7 +597,10 @@ export default function SetupPage() {
                                                     <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
-                                                            onChange={(v) => setPriorities((prev) => ({ ...prev, [type]: v }))}
+                                                            onChange={(v) => {
+                                                                setPriorities((prev) => ({ ...prev, [type]: v }));
+                                                                setCourseworkError(null);
+                                                            }}
                                                         >
                                                             <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'sm'}>High</Chip>
                                                             <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
@@ -573,6 +611,7 @@ export default function SetupPage() {
                                             ))
                                         )}
                                     </Flex>
+                                    {courseworkError && (<Text c="red" size="sm" mt="xs">{courseworkError}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
