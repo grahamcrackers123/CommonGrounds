@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  clampMaxParticipants,
+  DEFAULT_MAX_PARTICIPANTS,
+  PARTY_SIZE_MAX,
+  PARTY_SIZE_MIN,
+} from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
   ActionIcon,
@@ -16,8 +22,8 @@ import {
   Paper,
   Progress,
   Select,
-  Slider,
   SimpleGrid,
+  Slider,
   Stack,
   Text,
   TextInput,
@@ -103,7 +109,6 @@ interface RewardTier {
   streak_xp: number;
 }
 
-const MAX_PARTICIPANTS = 4;
 const PRESET_MINUTES = [15, 30, 45, 60];
 
 // ambience options, each maps to a looping track in /public/sounds
@@ -217,6 +222,7 @@ export default function FocusRoomPage() {
   const finishSessionRef = useRef<(completed: boolean) => void>(() => { });
   const remainingRef = useRef(30 * 60);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const savedMaxRef = useRef(DEFAULT_MAX_PARTICIPANTS);
   // which view is showing: lobby -> live -> summary
   const [phase, setPhase] = useState<Phase>("lobby");
 
@@ -225,6 +231,7 @@ export default function FocusRoomPage() {
   const [studyGoal, setStudyGoal] = useState("");
   const [durationPreset, setDurationPreset] = useState<number | "custom">(30);
   const [customMinutes, setCustomMinutes] = useState(45);
+  const [maxParticipants, setMaxParticipants] = useState(DEFAULT_MAX_PARTICIPANTS);
   const [linkedTask, setLinkedTask] = useState<string | null>(null);
   const [quests, setQuests] = useState<{ id: string; title: string }[]>([]);
   const [rewardTiers, setRewardTiers] = useState<RewardTier[]>([]);
@@ -275,6 +282,7 @@ export default function FocusRoomPage() {
   const selectedMinutes = durationPreset === "custom" ? Math.max(1, customMinutes) : durationPreset;
   const total = selectedMinutes * 60;
   const progress = Math.round(((total - remaining) / total) * 100);
+  const partySize = clampMaxParticipants(maxParticipants);
   // ambience track currently selected
   const activeSound = SOUNDS.find((s) => s.key === sound) ?? SOUNDS[0];
   const soundFile = activeSound.audio;
@@ -384,10 +392,16 @@ export default function FocusRoomPage() {
   };
 
   // create the room on the backend, remembering the promise so it only happens once
-  const createRoom = (overrides?: { duration?: number; name?: string; goal?: string }) => {
+  const createRoom = (overrides?: {
+    duration?: number;
+    name?: string;
+    goal?: string;
+    maxParticipants?: number;
+  }) => {
     const promise = (async (): Promise<string | null> => {
       setRoomId(null);
       setRoomCode(null);
+      const sentMax = clampMaxParticipants(overrides?.maxParticipants ?? maxParticipants);
       try {
         const res = await fetch("/api/rooms", {
           method: "POST",
@@ -397,6 +411,7 @@ export default function FocusRoomPage() {
             name: (overrides?.name ?? roomName).trim() || undefined,
             goal: (overrides?.goal ?? studyGoal).trim() || undefined,
             linked_task_id: linkedTask || undefined,
+            max_participants: sentMax,
           }),
         });
         if (res.ok) {
@@ -405,6 +420,7 @@ export default function FocusRoomPage() {
             const id = String(data.room.id);
             setRoomId(id);
             if (data.room.code) setRoomCode(String(data.room.code));
+            savedMaxRef.current = sentMax;
             return id;
           }
         }
@@ -434,6 +450,8 @@ export default function FocusRoomPage() {
     if (joinedRoom) {
       if (typeof room?.name === "string" && room.name) setRoomName(room.name);
       if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
+      if (typeof room?.max_participants === "number")
+        setMaxParticipants(clampMaxParticipants(room.max_participants));
     }
 
     const rows = Array.isArray(state?.participants) ? state.participants : [];
@@ -631,21 +649,25 @@ export default function FocusRoomPage() {
     return () => clearInterval(poll);
   }, [phase, joinedRoom, roomId, userId, displayName]);
 
-  // debounce-save the room name and goal while the leader types
+  // debounce-save the room settings while the leader edits
   useEffect(() => {
     if (phase !== "lobby" || joinedRoom || !roomId) return;
     const name = roomName.trim();
     const goal = studyGoal.trim();
-    if (!name && !goal) return;
+    if (!name && !goal && maxParticipants === savedMaxRef.current) return;
     const t = setTimeout(() => {
       fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, goal }),
-      }).catch(() => undefined);
+        body: JSON.stringify({ name, goal, max_participants: partySize }),
+      })
+        .then((res) => {
+          if (res.ok) savedMaxRef.current = partySize;
+        })
+        .catch(() => undefined);
     }, 800);
     return () => clearTimeout(t);
-  }, [phase, joinedRoom, roomId, roomName, studyGoal]);
+  }, [phase, joinedRoom, roomId, roomName, studyGoal, maxParticipants, partySize]);
 
   // save the session, then show the summary with rewards
   const finishSession = (completed: boolean) => {
@@ -825,6 +847,7 @@ export default function FocusRoomPage() {
           goal: studyGoal.trim() || undefined,
           linked_task_id: linkedTask || undefined,
           duration_minutes: selectedMinutes,
+          max_participants: partySize,
         }),
       })
         .then(async (res) => {
@@ -899,6 +922,7 @@ export default function FocusRoomPage() {
     setStudyGoal("");
     setDurationPreset(30);
     setCustomMinutes(45);
+    setMaxParticipants(DEFAULT_MAX_PARTICIPANTS);
     setRemaining(30 * 60);
     setRunning(false);
     notifications.show({
@@ -906,7 +930,12 @@ export default function FocusRoomPage() {
       message: "You left the room and got a fresh lobby.",
       color: "blue",
     });
-    createRoom({ duration: 30, name: "", goal: "" });
+    createRoom({
+      duration: 30,
+      name: "",
+      goal: "",
+      maxParticipants: DEFAULT_MAX_PARTICIPANTS,
+    });
   };
 
   // invite a friend from the friends list
@@ -919,10 +948,10 @@ export default function FocusRoomPage() {
       });
       return;
     }
-    if (participants.length >= MAX_PARTICIPANTS - 1) {
+    if (participants.length >= partySize - 1) {
       notifications.show({
         title: "Lobby is full",
-        message: `The lobby is limited to ${MAX_PARTICIPANTS} members.`,
+        message: `The lobby is limited to ${partySize} members.`,
         color: "red",
       });
       return;
@@ -1306,7 +1335,7 @@ export default function FocusRoomPage() {
                     </Title>
                   </Group>
                   <Badge variant="light" color="blue" radius="xl">
-                    {lobbyParticipants.length}/{MAX_PARTICIPANTS}
+                    {lobbyParticipants.length}/{partySize}
                   </Badge>
                 </Group>
                 <Stack gap="xs">
@@ -1675,13 +1704,13 @@ export default function FocusRoomPage() {
                     Participants in the Lobby
                   </Title>
                 </Group>
-                <Badge variant="light" color="blue" radius="xl">
-                  {lobbyParticipants.length}/{MAX_PARTICIPANTS}
+                <Badge variant="light" color="blue" radius="xl" mb="md">
+                  {lobbyParticipants.length}/{partySize}
                 </Badge>
               </Group>
-              <Text c="dimmed" fz="xs" mb="md">
-                Invite up to {MAX_PARTICIPANTS - 1} friends to join the room
-              </Text>
+              {/* <Text c="dimmed" fz="xs" mb="md">
+                Invite up to {partySize - 1} friends to join the room
+              </Text> */}
 
               <Stack gap="xs">
                 {lobbyParticipants.map((p) => (
@@ -1728,7 +1757,16 @@ export default function FocusRoomPage() {
                     )}
                   </Group>
                 ))}
-                {lobbyParticipants.length < MAX_PARTICIPANTS && (
+                <NumberInput
+                  label="Max Members"
+                  description={`Includes you · up to ${PARTY_SIZE_MAX}`}
+                  value={maxParticipants}
+                  onChange={(v) => setMaxParticipants(Number(v) || DEFAULT_MAX_PARTICIPANTS)}
+                  min={PARTY_SIZE_MIN}
+                  max={PARTY_SIZE_MAX}
+                  disabled={!isLeader}
+                />
+                {lobbyParticipants.length < partySize && (
                   <Text c="dimmed" fz="xs" ta="center">
                     Invite friends to fill the room
                   </Text>

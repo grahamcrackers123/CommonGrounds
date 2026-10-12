@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { clampMaxParticipants } from "@/lib/rooms";
 import { NextResponse } from "next/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
       typeof body.linked_task_id === "string" && UUID_RE.test(body.linked_task_id)
         ? body.linked_task_id
         : null,
-    _max_participants: body.max_participants ?? 7,
+    _max_participants: clampMaxParticipants(body.max_participants),
   });
 
   if (error) {
