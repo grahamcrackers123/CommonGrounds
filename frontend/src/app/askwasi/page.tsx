@@ -5,6 +5,7 @@ import {
     Badge,
     Button,
     Card,
+    Drawer,
     Group,
     Paper,
     ScrollArea,
@@ -89,8 +90,49 @@ export default function AskWasiPage() {
     const [searchChat, setSearchChat] = useState("");
     const [materials, setMaterials] = useState<Material[]>([]);
     const [loadingMaterials, setLoadingMaterials] = useState(false);
+    const [selectedMaterial, setSelectedMaterial] = useState<{
+    id: string;
+    filename: string;
+    content: string;
+} | null>(null);
+
+const [loadingPreview, setLoadingPreview] = useState(false);
+const [previewError, setPreviewError] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [uploadingMaterial, setUploadingMaterial] = useState(false);
+    const handleOpenMaterial = async (material: Material) => {
+    setSelectedMaterial(null);
+    setPreviewError("");
+    setLoadingPreview(true);
+
+    try {
+        const response = await fetch(
+            `/api/materials/${encodeURIComponent(material.id)}/preview`
+        );
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            throw new Error(
+                data?.error || "Could not open this material."
+            );
+        }
+
+        setSelectedMaterial({
+            id: data.id,
+            filename: data.filename,
+            content: data.content,
+        });
+    } catch (error) {
+        setPreviewError(
+            error instanceof Error
+                ? error.message
+                : "Could not open this material."
+        );
+    } finally {
+        setLoadingPreview(false);
+    }
+};
 
    const handleNewChat = () => { if (loading) { return; } 
    const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => {
@@ -738,16 +780,22 @@ return (
 ) : materials.length > 0 ? (
     <Stack gap={4} pl={10} mt={4}>
         {materials.map((material) => (
-            <Text
-                key={material.id}
-                size="xs"
-                c="dimmed"
-                lineClamp={1}
-                title={material.filename}
-            >
-                {material.filename}
-            </Text>
-        ))}
+    <Text
+        key={material.id}
+        size="xs"
+        c="dimmed"
+        lineClamp={1}
+        title={`Open ${material.filename}`}
+        onClick={() => handleOpenMaterial(material)}
+        style={{
+            cursor: "pointer",
+            borderRadius: 6,
+            padding: "4px 6px",
+        }}
+    >
+        {material.filename}
+    </Text>
+))}
     </Stack>
 ) : (
     <Text size="xs" c="dimmed" pl={10} mt={4}>
@@ -1238,8 +1286,48 @@ return (
             >
                 Enter to send · Shift + Enter for a new line
             </Text>
-               </Stack>
+                             </Stack>
     </Group>
+
+    <Drawer
+        opened={
+            selectedMaterial !== null ||
+            loadingPreview ||
+            previewError !== ""
+        }
+        onClose={() => {
+            setSelectedMaterial(null);
+            setLoadingPreview(false);
+            setPreviewError("");
+        }}
+        position="right"
+        size="lg"
+        title={selectedMaterial?.filename ?? "Material Preview"}
+    >
+        {loadingPreview ? (
+            <Text c="dimmed" size="sm">
+                Loading material...
+            </Text>
+        ) : previewError ? (
+            <Text c="red" size="sm">
+                {previewError}
+            </Text>
+        ) : selectedMaterial ? (
+            <ScrollArea h="calc(100vh - 140px)" offsetScrollbars>
+                <Text
+                    size="sm"
+                    style={{
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                        lineHeight: 1.7,
+                    }}
+                >
+                    {selectedMaterial.content || "This file contains no extractable text."}
+                </Text>
+            </ScrollArea>
+        ) : null}
+    </Drawer>
+
 </Stack>
     );
 }
