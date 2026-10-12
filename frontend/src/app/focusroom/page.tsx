@@ -580,7 +580,8 @@ export default function FocusRoomPage() {
   // while live: poll the room so members stay in sync and the leader can end it for everyone
   useEffect(() => {
     if (phase !== "live" || !roomId) return;
-    const poll = setInterval(async () => {
+
+    const refresh = async () => {
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
@@ -599,14 +600,28 @@ export default function FocusRoomPage() {
       } catch {
         return;
       }
-    }, 5000);
-    return () => clearInterval(poll);
+    }
+
+    const channel = supabase
+      .channel(`room-live-${roomId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+        refresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
+        refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh(); // initial load + resync after reconnect
+      });
+
+    return () => { supabase.removeChannel(channel); }; // no duplicate channels
   }, [phase, roomId, userId, displayName]);
 
   // while in the lobby: poll the room so members follow when the leader starts
   useEffect(() => {
     if (phase !== "lobby" || !roomId) return;
-    const poll = setInterval(async () => {
+
+    const refresh = async () => {
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
@@ -645,8 +660,21 @@ export default function FocusRoomPage() {
       } catch {
         return;
       }
-    }, 5000);
-    return () => clearInterval(poll);
+    };
+
+    const channel = supabase
+      .channel(`room-lobby-${roomId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+        refresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
+        refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
+
+    return () => { supabase.removeChannel(channel); };
   }, [phase, joinedRoom, roomId, userId, displayName]);
 
   // debounce-save the room settings while the leader edits
