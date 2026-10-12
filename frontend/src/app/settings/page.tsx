@@ -68,7 +68,6 @@ type FormValues = {
     level: string;
     school: string;
     enrollment_status: string;
-    study_time: string;
     focus_length: string;
     subjects: string[];
     weekly_availability: AvailabilitySlot[];
@@ -110,7 +109,6 @@ export default function SettingsPage() {
             level: '',
             school: '',
             enrollment_status: '',
-            study_time: '',
             focus_length: '',
             subjects: [],
             weekly_availability: [],
@@ -136,7 +134,7 @@ export default function SettingsPage() {
             if (user) {
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, study_time, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
+                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
                     .eq('id', user.id)
                     .single();
                 if (!cancelled && data) {
@@ -148,7 +146,6 @@ export default function SettingsPage() {
                         program: data.program ?? '',
                         level: data.level != null ? String(data.level) : '',
                         enrollment_status: data.enrollment_status ?? '',
-                        study_time: data.study_time ?? '',
                         focus_length: data.focus_length != null ? String(data.focus_length) : '',
                         subjects: data.subjects ?? [],
                         weekly_availability: (data.weekly_availability ?? []).map((slot: { day: string; start: string; end: string }) => ({
@@ -206,7 +203,6 @@ export default function SettingsPage() {
             program: values.program,
             level: values.level,
             enrollment_status: values.enrollment_status,
-            study_time: values.study_time,
             subjects: values.subjects,
             weekly_availability: values.weekly_availability,
             coursework_priorities: values.coursework_priorities,
