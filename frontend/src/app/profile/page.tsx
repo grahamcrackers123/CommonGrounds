@@ -3,7 +3,7 @@ import { getPetGrowth, xp_per_level } from "@/components/petgrowth";
 import { applyEnergyDecay } from "@/lib/pet-energy";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar, Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
-import { BookOpen, CalendarClock, Clock3, GraduationCap, Medal, School, Sparkles, Timer, UserRound } from "lucide-react";
+import { BookOpen, CalendarClock, GraduationCap, Medal, School, Sparkles, Timer, UserRound } from "lucide-react";
 
 function to12Hour(time: string): string {
     const [hours, minutes] = time.split(':').map(Number);
@@ -23,7 +23,7 @@ export default async function ProfilePage() {
     await applyEnergyDecay(supabase, pet);
     const growth = getPetGrowth(pet.level);
 
-    const { data: profile } = await supabase.from("profiles").select("display_name, school, program, user_code, level, enrollment_status, weekly_availability, focus_length, study_time, created_at").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("display_name, school, program, user_code, level, enrollment_status, weekly_availability, focus_length, created_at").eq("id", user.id).single();
     if (!profile) return null;
     type UserBadge = { badges: { id: string; name: string; description: string; image_url: string } };
 
@@ -91,7 +91,6 @@ export default async function ProfilePage() {
                         <Stack gap='sm'>
                             <InfoRow icon={UserRound} tint="light-dark(#DFF8EA, #173128)" label="Enrollment" value={profile.enrollment_status} />
                             <InfoRow icon={CalendarClock} tint='light-dark(#E7F5FF, #1B2A3A)' label='Availability' value={profile?.weekly_availability.map((slot: { day: string; start: string; end: string }) => `${slot.day} ${to12Hour(slot.start)}–${to12Hour(slot.end)}`).join(" • ")} />
-                            <InfoRow icon={Clock3} tint='light-dark(#DFF8EA, #173128)' label='Preferred Study Period' value={profile.study_time} />
                             <InfoRow icon={Timer} tint='light-dark(#E7F5FF, #1B2A3A)' label='Focus Length' value={`${profile.focus_length} minutes per session`} />
                         </Stack>
                     </Paper>

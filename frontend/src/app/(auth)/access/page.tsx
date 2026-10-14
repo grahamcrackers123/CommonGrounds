@@ -15,19 +15,28 @@ import {
     Popover,
     Progress,
     SegmentedControl,
+    Stack,
     Text,
     TextInput,
+    ThemeIcon,
     Title,
 } from "@mantine/core";
+
+// adjust this path to wherever your theme file lives
+import { commonGroundsTheme } from "../../../theme/commonGroundsTheme";
+
 
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
 
 import {
+    BookOpen,
+    CalendarClock,
     Check,
     Lock,
     Mail,
     User,
+    Sprout,
     X,
 } from "lucide-react";
 
@@ -109,15 +118,32 @@ function getStrength(password: string) {
 /* User code generator */
 /* ----------------------------- */
 
-function generateUserCode() {
-    return (
-        "U" +
-        Math.random()
-            .toString(36)
-            .slice(2, 8)
-            .toUpperCase()
-    );
-}
+// function generateUserCode() {
+//     return (
+//         "U" +
+//         Math.random()
+//             .toString(36)
+//             .slice(2, 8)
+//             .toUpperCase()
+//     );
+// }
+
+/* ----------------------------- */
+/* Branding panel content */
+/* ----------------------------- */
+
+const brandPoints = [
+    {
+        icon: CalendarClock,
+        title: "Adaptive study scheduling",
+        text: "Plans that adjust to your context.",
+    },
+    {
+        icon: Sprout,
+        title: "Stay motivated",
+        text: "Earn rewards and grow your pet as you study.",
+    },
+];
 
 /* ----------------------------- */
 /* Access page */
@@ -346,25 +372,18 @@ export default function AccessPage() {
             " " +
             values.lastName;
 
-        const {
-            data: { user },
-            error,
-        } =
-            await supabase.auth.signUp({
-                email: values.email,
-                password: values.password,
-
-                options: {
-                    data: {
-                        display_name:
-                            displayName,
-                    },
-
-                    emailRedirectTo:
-                        window.location.origin +
-                        "/callback",
+        const { error } = await supabase.auth.signUp({
+            email: values.email,
+            password: values.password,
+            options: {
+                data: {
+                    display_name: displayName,
+                    first_name: values.firstName,
+                    last_name: values.lastName,
                 },
-            });
+                emailRedirectTo: window.location.origin + "/callback",
+            },
+        });
 
         setSignupLoading(false);
 
@@ -397,30 +416,26 @@ export default function AccessPage() {
             return;
         }
 
-        /*
-         * Keep the existing profile insert
-         * behavior from the original page.
-         */
 
-        if (user) {
-            const { error: insertError } =
-                await supabase
-                    .from("profiles")
-                    .insert({
-                        id: user.id,
-                        user_code:
-                            generateUserCode(),
-                        display_name:
-                            displayName,
-                    });
+        // if (user) {
+        //     const { error: insertError } =
+        //         await supabase
+        //             .from("profiles")
+        //             .insert({
+        //                 id: user.id,
+        //                 user_code:
+        //                     generateUserCode(),
+        //                 display_name:
+        //                     displayName,
+        //             });
 
-            if (insertError) {
-                console.error(
-                    "profile insert error:",
-                    insertError
-                );
-            }
-        }
+        //     if (insertError) {
+        //         console.error(
+        //             "profile insert error:",
+        //             insertError
+        //         );
+        //     }
+        // }
 
         setSignupError(
             "We will send an automated confirmation email if an account does not already exist with this email."
@@ -472,12 +487,92 @@ export default function AccessPage() {
                 {/* Left side */}
 
                 <Flex
+                    visibleFrom="md"
                     direction="column"
-                    gap="md"
+                    justify="space-between"
                     mih="100vh"
                     w="50%"
-                    p="md"
-                />
+                    p="xl"
+                    style={{
+                        background:
+                            "#edf5fd"
+                    }}
+                >
+                    <Group gap="sm">
+                        <ThemeIcon
+                            size={44}
+                            radius="md"
+                            style={{
+                                background: "#228be6",
+                                color: "white",
+                            }}
+                        >
+                            <BookOpen size={24} />
+                        </ThemeIcon>
+
+                        <Title order={2} c="#36458c">
+                            CommonGrounds
+                        </Title>
+                    </Group>
+
+                    <Stack gap="xl" maw={480}>
+                        <Stack gap="xs">
+                            <Title
+                                order={1}
+                                c="#36458c"
+                                fz={{ md: 34, lg: 42 }}
+                                lh={1.15}
+                            >
+                                {value === "signin"
+                                    ? "Welcome back!"
+                                    : "Your context-aware learning companion."}
+                            </Title>
+
+                            <Text c="#4352a5" fz={{ md: "md", lg: "lg" }}>
+                                {value === "signin"
+                                    ? "Sign in to pick up where you left off."
+                                    : "Study smarter with a plan that fits your day."}
+                            </Text>
+                        </Stack>
+
+                        {value === "signup" && (
+                            <Stack gap="lg">
+                                {brandPoints.map(({ icon: Icon, title, text }) => (
+                                    <Group
+                                        key={title}
+                                        gap="md"
+                                        wrap="nowrap"
+                                        align="flex-start"
+                                    >
+                                        <ThemeIcon
+                                            size={40}
+                                            radius="md"
+                                            style={{
+                                                background: "white",
+                                                color: "#5c6fda",
+                                            }}
+                                        >
+                                            <Icon size={20} />
+                                        </ThemeIcon>
+
+                                        <Box>
+                                            <Text fw={600} c="#36458c">
+                                                {title}
+                                            </Text>
+                                            <Text size="sm" c="#4f60c0">
+                                                {text}
+                                            </Text>
+                                        </Box>
+                                    </Group>
+                                ))}
+                            </Stack>
+                        )}
+                    </Stack>
+
+                    <Text size="xs" c="#4f60c0">
+                        © {new Date().getFullYear()} CommonGrounds
+                    </Text>
+                </Flex>
 
                 {/* Right side */}
 
@@ -485,28 +580,44 @@ export default function AccessPage() {
                     direction="column"
                     gap="md"
                     mih="100vh"
-                    w="50%"
+                    w={{ base: "100%", md: "50%" }}
                     p="md"
                     justify="center"
                     bg="white"
                 >
-                    {/* Logo / title */}
-
-                    <Flex
+                    {/* Logo / title (mobile only)*/}
+                    <Group
+                        hiddenFrom="md"
                         justify="center"
+                        gap="sm"
                         mb="xl"
                     >
-                        <Title
-                            order={1}
-                            fz={{
-                                base: "xl",
-                                md: "2xl",
+                        <ThemeIcon
+                            size={36}
+                            radius="md"
+                            style={{
+                                background: "#5c6fda",
+                                color: "white",
                             }}
-                            fw={700}
                         >
+                            <BookOpen size={20} />
+                        </ThemeIcon>
+
+                        <Title order={2} c="#36458c">
                             CommonGrounds
                         </Title>
-                    </Flex>
+                    </Group>
+
+                    <Text
+                        hiddenFrom="md"
+                        ta="center"
+                        c="dimmed"
+                        mb="md"
+                    >
+                        {value === "signin"
+                            ? "Welcome back! Please enter your details."
+                            : "Create an account to get started!"}
+                    </Text>
 
                     {/* Welcome message */}
 
@@ -515,62 +626,6 @@ export default function AccessPage() {
                         align="center"
                         gap="md"
                     >
-                        {value === "signin" ? (
-                            <Flex
-                                direction="column"
-                                align="center"
-                            >
-                                <Text
-                                    fw="bold"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                >
-                                    Welcome back!
-                                </Text>
-
-                                <Text
-                                    c="dimmed"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                    ta="center"
-                                >
-                                    Please enter your
-                                    details.
-                                </Text>
-                            </Flex>
-                        ) : (
-                            <Flex
-                                direction="column"
-                                align="center"
-                            >
-                                <Text
-                                    fw="bold"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                >
-                                    Welcome!
-                                </Text>
-
-                                <Text
-                                    c="dimmed"
-                                    fz={{
-                                        base: "md",
-                                        md: "xl",
-                                    }}
-                                    ta="center"
-                                >
-                                    Create an account
-                                    to get started!
-                                </Text>
-                            </Flex>
-                        )}
-
                         {/* Sign-in / Sign-up switch */}
 
                         <SegmentedControl
@@ -740,7 +795,7 @@ export default function AccessPage() {
                             )}
                         >
                             <Flex
-                                direction="row"
+                                direction={{ base: "column", sm: "row" }}
                                 gap="md"
                                 w="100%"
                                 justify="space-between"

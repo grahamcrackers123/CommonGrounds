@@ -2,12 +2,14 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { Avatar, Badge, Box, Button, Chip, Divider, FileButton, Flex, Group, Paper, Select, Stack, Switch, TagsInput, Text, TextInput, ThemeIcon, Title, UnstyledButton } from "@mantine/core";
+import { TimePicker } from '@mantine/dates';
 import { useForm, type UseFormReturnType } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { Bell, BookOpen, CalendarClock, FileUp, GraduationCap, KeyRound, LogOut, Moon, Palette, Plus, Save, Trash2, User, X } from 'lucide-react';
+import { Bell, BookOpen, CalendarClock, FileUp, GraduationCap, KeyRound, LogOut, Palette, Plus, Save, Trash2, User, X } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 
 type TabSection = "account" | "academic" | "schedule" | "notifications";
 const tabs: { key: TabSection; label: string; icon: typeof User }[] = [
@@ -22,10 +24,8 @@ const ENROLLMENT_OPTIONS = ["Working Student", "Full time Student", "Part time S
 const COURSEWORK_SUGGESTIONS = ["Worksheet", "Quiz", "Project", "Reading", "Flashcards"];
 const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const TIMES = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 const DEFAULT_START = '09:00';
 const DEFAULT_END = '12:00';
-const STUDY_PERIODS = ["Morning", "Afternoon", "Evening", "Late Night"];
 const FOCUS_LENGTHS = [
     { value: '30', label: '30 mins' },
     { value: '45', label: '45 mins' },
@@ -69,7 +69,6 @@ type FormValues = {
     level: string;
     school: string;
     enrollment_status: string;
-    study_time: string;
     focus_length: string;
     subjects: string[];
     weekly_availability: AvailabilitySlot[];
@@ -96,6 +95,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const hydratedRef = useRef(false);
     const supabase = useMemo(() => createClient(), []);
+    const [availabilityError, setAvailabilityError] = useState(false);
 
     const markUnsavedChanges = () => {
         setUnsavedChanges(true);
@@ -110,7 +110,6 @@ export default function SettingsPage() {
             level: '',
             school: '',
             enrollment_status: '',
-            study_time: '',
             focus_length: '',
             subjects: [],
             weekly_availability: [],
@@ -136,7 +135,7 @@ export default function SettingsPage() {
             if (user) {
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, study_time, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
+                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
                     .eq('id', user.id)
                     .single();
                 if (!cancelled && data) {
@@ -148,7 +147,6 @@ export default function SettingsPage() {
                         program: data.program ?? '',
                         level: data.level != null ? String(data.level) : '',
                         enrollment_status: data.enrollment_status ?? '',
-                        study_time: data.study_time ?? '',
                         focus_length: data.focus_length != null ? String(data.focus_length) : '',
                         subjects: data.subjects ?? [],
                         weekly_availability: (data.weekly_availability ?? []).map((slot: { day: string; start: string; end: string }) => ({
@@ -176,6 +174,21 @@ export default function SettingsPage() {
     }, [supabase, form, hydratedRef]);
 
     const handleSaveProfile = async (values: typeof form.values) => {
+
+        const hasInvalidSlot = values.weekly_availability.some(
+            (s) => !s.start || !s.end || s.end <= s.start
+        );
+
+        if (hasInvalidSlot) {
+            setAvailabilityError(true);
+            notifications.show({
+                title: 'Check your schedule',
+                message: 'End time must be later than start time for every selected day',
+                color: 'red'
+            });
+            return;
+        }
+
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -191,7 +204,6 @@ export default function SettingsPage() {
             program: values.program,
             level: values.level,
             enrollment_status: values.enrollment_status,
-            study_time: values.study_time,
             subjects: values.subjects,
             weekly_availability: values.weekly_availability,
             coursework_priorities: values.coursework_priorities,
@@ -272,7 +284,7 @@ export default function SettingsPage() {
                             <>
                                 {activeTab === 'account' && <AccountTab form={form} markUnsavedChanges={markUnsavedChanges} />}
                                 {activeTab === 'academic' && <AcademicTab form={form} markUnsavedChanges={markUnsavedChanges} />}
-                                {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} availabilityError={availabilityError} setAvailabilityError={setAvailabilityError} />}
                                 {activeTab === 'notifications' && <NotificationsTab form={form} markUnsavedChanges={markUnsavedChanges} />}
                                 {/* {activeTab === 'privacy' && <PrivacyTab form={form} markUnsavedChanges={markUnsavedChanges} />} */}
                             </>
@@ -595,7 +607,12 @@ function AddCoursework({ form }: { form: UseFormReturnType<FormValues> }) {
     );
 }
 
-function ScheduleTab({ form }: TabProps) {
+interface ScheduleTabProps extends TabProps {
+    availabilityError: boolean;
+    setAvailabilityError: (value: boolean) => void;
+}
+
+function ScheduleTab({ form, availabilityError, setAvailabilityError }: ScheduleTabProps) {
     const toggleDay = (day: string) => {
         const current = form.values.weekly_availability;
         const exists = current.some((slot) => slot.day === day);
@@ -632,8 +649,8 @@ function ScheduleTab({ form }: TabProps) {
 
                 {form.values.weekly_availability.length > 0 ? (
                     <Stack gap={8} mt="md">
-                        {form.values.weekly_availability.map((slot) => (
-                            <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA, #151515)', border: '1px solid light-dark(#E9ECEF, #2C2E33)' }}>
+                        {/* {form.values.weekly_availability.map((slot) => (
+                            <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
                                 <Text fz="sm" fw={700} w={56}>
                                     {slot.day}
                                 </Text>
@@ -657,7 +674,53 @@ function ScheduleTab({ form }: TabProps) {
                                     style={{ flex: 1 }}
                                 />
                             </Group>
-                        ))}
+                        ))} */}
+
+                        {form.values.weekly_availability.map((slot) => {
+                            const invalid = !!slot.start && !!slot.end && slot.end <= slot.start;
+
+                            return (
+                                <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
+                                    <Text fz="sm" fw={700} w={56}>{slot.day}</Text>
+
+                                    <TimePicker
+                                        label="Start"
+                                        format="12h"
+                                        withDropdown
+                                        value={slot.start}
+                                        onChange={(v) => {
+                                            updateSlot(slot.day, 'start', v || DEFAULT_START);
+                                            setAvailabilityError(false);
+                                        }}
+                                        error={invalid}
+                                        radius="lg"
+                                        size="xs"
+                                        style={{ flex: 1 }}
+                                        ml={10}
+                                    />
+                                    <TimePicker
+                                        label="End"
+                                        format="12h"
+                                        withDropdown
+                                        value={slot.end}
+                                        onChange={(v) => {
+                                            updateSlot(slot.day, 'end', v || DEFAULT_END);
+                                            setAvailabilityError(false);
+                                        }}
+                                        error={invalid}
+                                        radius="lg"
+                                        size="xs"
+                                        style={{ flex: 1 }}
+                                    />
+                                </Group>
+                            );
+                        })}
+
+                        {availabilityError && (
+                            <Text c="red" fz="xs" mt="xs">
+                                End time must be later than start time for every selected day.
+                            </Text>
+                        )}
                     </Stack>
                 ) : (
                     <Text c="dimmed" fz="sm" mt="md">
@@ -666,30 +729,6 @@ function ScheduleTab({ form }: TabProps) {
                 )}
 
                 <Divider my='lg' />
-
-                <div>
-                    <SectionTitle icon={Moon}>Preferred study period</SectionTitle>
-                    <Group gap={8}>
-                        {STUDY_PERIODS.map((period) => {
-                            const active = form.values.study_time === period;
-                            return (
-                                <Badge
-                                    key={period}
-                                    size='lg'
-                                    radius='xl'
-                                    px={18}
-                                    py={10}
-                                    variant={active ? 'filled' : 'outline'}
-                                    color={active ? 'indigo' : 'gray'}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => form.setFieldValue('study_time', active ? '' : period)}
-                                >
-                                    {period}
-                                </Badge>
-                            );
-                        })}
-                    </Group>
-                </div>
 
                 <div>
                     <Text fz="sm" fw={600} mb={6} mt="lg">
