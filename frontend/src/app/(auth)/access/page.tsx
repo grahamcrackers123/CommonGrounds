@@ -23,7 +23,6 @@ import {
 } from "@mantine/core";
 
 // adjust this path to wherever your theme file lives
-import { commonGroundsTheme } from "../../../theme/commonGroundsTheme";
 
 
 import { useForm } from "@mantine/form";
@@ -35,8 +34,8 @@ import {
     Check,
     Lock,
     Mail,
-    User,
     Sprout,
+    User,
     X,
 } from "lucide-react";
 
@@ -630,7 +629,7 @@ export default function AccessPage() {
 
                         <SegmentedControl
                             color="blue"
-                            bg="white"
+                            bg="blue.1"
                             radius="lg"
                             autoContrast
                             data={[
@@ -720,7 +719,7 @@ export default function AccessPage() {
                                             : "md"
                                     }
                                 />
-                              
+
                                 <Anchor component="button" type="button" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
                                     Forgot Password?
                                 </Anchor>
