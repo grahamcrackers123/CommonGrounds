@@ -662,31 +662,6 @@ function ScheduleTab({ form }: TabProps) {
                 )}
 
                 <Divider my='lg' />
-
-                <div>
-                    <SectionTitle icon={Moon}>Preferred study period</SectionTitle>
-                    <Group gap={8}>
-                        {STUDY_PERIODS.map((period) => {
-                            const active = form.values.study_time === period;
-                            return (
-                                <Badge
-                                    key={period}
-                                    size='lg'
-                                    radius='xl'
-                                    px={18}
-                                    py={10}
-                                    variant={active ? 'filled' : 'outline'}
-                                    color={active ? 'indigo' : 'gray'}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => form.setFieldValue('study_time', active ? '' : period)}
-                                >
-                                    {period}
-                                </Badge>
-                            );
-                        })}
-                    </Group>
-                </div>
-
                 <div>
                     <Text fz="sm" fw={600} mb={6} mt="lg">
                         Preferred focus session length
