@@ -5,7 +5,6 @@ import {
     generateSchedule,
     type AvailabilityWindow,
     type ExistingBlock,
-    type PreferredStudyTime,
     type Quest,
 } from '../scheduler'
 
@@ -39,7 +38,7 @@ export async function POST() {
 
     /*
     =====================================================
-    2. LOAD WEEKLY AVAILABILITY + PREFERRED STUDY TIME
+    2. LOAD WEEKLY AVAILABILITY
     =====================================================
     */
 
@@ -49,7 +48,7 @@ export async function POST() {
     } = await supabase
         .from('profiles')
         .select(
-            'weekly_availability, study_time'
+            'weekly_availability'
         )
         .eq(
             'id',
@@ -86,12 +85,6 @@ export async function POST() {
               )
             : []
 
-    const studyTime =
-        (
-            profile.study_time ??
-            null
-        ) as PreferredStudyTime
-
     if (
         availability.length === 0
     ) {
@@ -109,11 +102,6 @@ export async function POST() {
     console.log(
         'Schedule availability:',
         availability
-    )
-
-    console.log(
-        'Preferred study time:',
-        studyTime
     )
 
     /*
@@ -298,8 +286,7 @@ export async function POST() {
         generateSchedule(
             validQuests,
             availability,
-            manualBlocks,
-            studyTime
+            manualBlocks
         )
 
     console.log(

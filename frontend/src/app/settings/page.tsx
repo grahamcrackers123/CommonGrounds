@@ -729,6 +729,7 @@ function ScheduleTab({ form, availabilityError, setAvailabilityError }: Schedule
                 )}
 
                 <Divider my='lg' />
+
                 <div>
                     <Text fz="sm" fw={600} mb={6} mt="lg">
                         Preferred focus session length
