@@ -27,14 +27,59 @@ export async function POST() {
   )
 
   // Delete child rows first (service role bypasses RLS).
+    // Delete uploaded learning-material files first.
+  const { data: materials, error: materialsFetchError } = await admin
+    .from('materials')
+    .select('storage_path')
+    .eq('user_id', user.id)
+
+  if (materialsFetchError) {
+    return NextResponse.json(
+      { error: `Could not find learning materials: ${materialsFetchError.message}` },
+      { status: 500 }
+    )
+  }
+
+  const storagePaths = (materials ?? [])
+    .map((material) => material.storage_path)
+    .filter(Boolean)
+
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await admin.storage
+      .from('materials')
+      .remove(storagePaths)
+
+    if (storageError) {
+      return NextResponse.json(
+        { error: `Could not delete uploaded materials: ${storageError.message}` },
+        { status: 500 }
+      )
+    }
+  }
+
+  // Delete child rows first (service role bypasses RLS).
+  // Materials are deleted before quests because materials may reference a quest.
   const tables: { table: string; column: string }[] = [
     { table: 'notifications', column: 'user_id' },
     { table: 'user_items', column: 'user_id' },
     { table: 'user_badges', column: 'user_id' },
+    { table: 'chat_messages', column: 'user_id' },
+    { table: 'materials', column: 'user_id' },
     { table: 'quests', column: 'user_id' },
     { table: 'pets', column: 'owner_id' },
     { table: 'profiles', column: 'id' },
   ]
+
+  for (const { table, column } of tables) {
+    const { error } = await admin.from(table).delete().eq(column, user.id)
+
+    if (error) {
+      return NextResponse.json(
+        { error: `Could not delete ${table}: ${error.message}` },
+        { status: 500 }
+      )
+    }
+  }
 
   for (const { table, column } of tables) {
     const { error } = await admin.from(table).delete().eq(column, user.id)

@@ -11,6 +11,14 @@ export type AvailabilityWindow = {
     end: string
 }
 
+export type PreferredStudyTime =
+    | 'Morning'
+    | 'Afternoon'
+    | 'Evening'
+    | 'Late Night'
+    | string
+    | null
+
 export type ExistingBlock = {
     starts_at: string
     ends_at: string
@@ -40,23 +48,12 @@ const DAY_INDEX: Record<string, number> = {
     Saturday: 6,
 }
 
-/*
-=========================================================
-TIMEZONE
-=========================================================
-
-All weekly availability entered by the user is treated as
-Philippine time (Asia/Manila / UTC+8).
-
-Supabase stores timestamps as absolute instants (UTC), so
-every helper below converts between a real UTC instant and
-Philippine calendar fields (year, month, day, day-of-week).
-========================================================
-*/
-
 const PHILIPPINE_OFFSET_HOURS = 8
 const PHILIPPINE_OFFSET_MS =
-    PHILIPPINE_OFFSET_HOURS * 60 * 60 * 1000
+    PHILIPPINE_OFFSET_HOURS *
+    60 *
+    60 *
+    1000
 
 type PhilippineDateParts = {
     year: number
@@ -70,37 +67,97 @@ function getPriorityWeight(
 ): number {
     return (
         PRIORITY_WEIGHT[
-            priority?.toLowerCase() ?? 'medium'
+        priority?.toLowerCase() ?? 'medium'
         ] ?? 2
     )
 }
 
 /*
-Read the Philippine calendar fields of a real UTC instant.
-*/
-function getPhilippineDateParts(
-    date: Date
-): PhilippineDateParts {
-    const shifted = new Date(
-        date.getTime() + PHILIPPINE_OFFSET_MS
-    )
+ * Preferred study-time ranges.
+ *
+ * These are Philippine local times.
+ */
+function getPreferredStudyWindow(
+    studyTime: PreferredStudyTime
+): { start: string; end: string } | null {
+    switch (
+    studyTime?.trim().toLowerCase()
+    ) {
+        case 'morning':
+            return {
+                start: '07:00',
+                end: '11:00',
+            }
 
-    return {
-        year: shifted.getUTCFullYear(),
-        month: shifted.getUTCMonth(),
-        day: shifted.getUTCDate(),
-        dayIndex: shifted.getUTCDay(),
+        case 'afternoon':
+            return {
+                start: '12:00',
+                end: '17:00',
+            }
+
+        case 'evening':
+            return {
+                start: '17:00',
+                end: '22:00',
+            }
+
+        case 'late night':
+            return {
+                start: '22:00',
+                end: '23:59',
+            }
+
+        default:
+            return null
     }
 }
 
 /*
-Convert Philippine calendar fields plus an HH:MM time
-into a real UTC instant.
+ * Get the current Philippine local calendar values.
+ *
+ * We intentionally keep the calendar values separate from
+ * JavaScript Date objects to avoid applying the UTC+8 offset
+ * twice.
+ */
+function getPhilippineCalendarDate(
+    date: Date = new Date()
+): {
+    year: number
+    month: number
+    day: number
+    dayOfWeek: number
+} {
+    const philippineTime =
+        new Date(
+            date.getTime() +
+            PHILIPPINE_OFFSET_MS
+        )
 
-Date.UTC normalizes overflow, so a day value past the end
-of the month rolls into the next month or year correctly.
-*/
-function philippineDateTimeToUtc(
+    return {
+        year:
+            philippineTime.getUTCFullYear(),
+        month:
+            philippineTime.getUTCMonth(),
+        day:
+            philippineTime.getUTCDate(),
+        dayOfWeek:
+            philippineTime.getUTCDay(),
+    }
+}
+
+/*
+ * Convert a Philippine local date + time into the
+ * corresponding UTC Date.
+ *
+ * Example:
+ *
+ * Philippine:
+ * October 7, 2026 07:00
+ *
+ * Stored:
+ * October 6, 2026 23:00 UTC
+ */
+function createPhilippineDateTime(
     year: number,
     month: number,
     day: number,
@@ -118,98 +175,74 @@ function philippineDateTimeToUtc(
             minutes,
             0,
             0
-        ) - PHILIPPINE_OFFSET_MS
+        ) -
+        PHILIPPINE_OFFSET_MS
     )
 }
 
 /*
-Get the next UTC instant matching a weekly availability
-window that starts after fromDate.
-
-Example: fromDate is Wednesday 10:00 Philippine time and
-the window is Thursday 19:00, so the result is Thursday of
-the same week at 19:00 Philippine time.
-*/
-function getNextOccurrence(
-    dayName: string,
-    startTime: string,
-    fromDate: Date
-): Date | null {
-    const targetDay = DAY_INDEX[dayName]
-
-    if (targetDay === undefined) {
-        return null
-    }
-
-    const now = getPhilippineDateParts(fromDate)
-
-    const daysUntilTarget =
-        (targetDay - now.dayIndex + 7) % 7
-
-    const candidate = philippineDateTimeToUtc(
-        now.year,
-        now.month,
-        now.day + daysUntilTarget,
-        startTime
+ * Add days to a Philippine calendar date.
+ */
+function addPhilippineDays(
+    year: number,
+    month: number,
+    day: number,
+    days: number
+): {
+    year: number
+    month: number
+    day: number
+} {
+    const date = new Date(
+        Date.UTC(
+            year,
+            month,
+            day,
+            0,
+            0,
+            0,
+            0
+        )
     )
 
-    if (candidate > fromDate) {
-        return candidate
-    }
-
-    return philippineDateTimeToUtc(
-        now.year,
-        now.month,
-        now.day + daysUntilTarget + 7,
-        startTime
+    date.setUTCDate(
+        date.getUTCDate() + days
     )
+
+    return {
+        year:
+            date.getUTCFullYear(),
+        month:
+            date.getUTCMonth(),
+        day:
+            date.getUTCDate(),
+    }
 }
 
 /*
-Get the UTC instant at which the availability window that
-starts at windowStart ends.
-
-A window whose end time is not after its start time (for
-example 22:00 to 01:00) is treated as an overnight window
-that ends on the following day.
-*/
-function getWindowEnd(
-    windowStart: Date,
-    startTime: string,
-    endTime: string
-): Date {
-    const parts =
-        getPhilippineDateParts(windowStart)
-
-    const start = philippineDateTimeToUtc(
-        parts.year,
-        parts.month,
-        parts.day,
-        startTime
-    )
-
-    const end = philippineDateTimeToUtc(
-        parts.year,
-        parts.month,
-        parts.day,
-        endTime
-    )
-
-    if (end > start) {
-        return end
-    }
-
-    return philippineDateTimeToUtc(
-        parts.year,
-        parts.month,
-        parts.day + 1,
-        endTime
-    )
+ * Get the weekday of a Philippine calendar date.
+ */
+function getPhilippineDayOfWeek(
+    year: number,
+    month: number,
+    day: number
+): number {
+    return new Date(
+        Date.UTC(
+            year,
+            month,
+            day,
+            hours,
+            minutes,
+            0,
+            0
+        )
+    ).getUTCDay()
 }
 
 /*
-Check whether a generated block overlaps an existing block.
-*/
+ * Check whether a candidate overlaps an existing block.
+ */
 function isOverlapping(
     start: Date,
     end: Date,
@@ -235,62 +268,105 @@ function isOverlapping(
     )
 }
 
+/*
+ * MAIN SCHEDULER
+ *
+ * Rules:
+ *
+ * 1. Earlier deadlines first.
+ * 2. Same deadline -> higher priority first.
+ * 3. Entire quest must fit inside availability.
+ * 4. Preferred study time must be respected.
+ * 5. Manual/existing blocks are respected.
+ * 6. Generated quests cannot overlap.
+ * 7. Scheduling uses 15-minute increments.
+ * 8. Quest must finish before its deadline.
+ * 9. If no valid slot exists, do not force schedule it.
+ */
 export function generateSchedule(
     quests: Quest[],
     availability: AvailabilityWindow[],
-    existingBlocks: ExistingBlock[]
+    existingBlocks: ExistingBlock[],
+    studyTime: PreferredStudyTime
 ): ScheduleBlock[] {
+    const SCHEDULE_INCREMENT_MINUTES = 15
+
+    /*
+     * Deadline first.
+     *
+     * This ensures urgent quests get available time first.
+     */
     const sortedQuests =
         [...quests]
             .filter(
                 (quest) =>
                     quest.deadline &&
                     quest.estimated_duration &&
-                    quest.estimated_duration >
-                        0
+                    quest.estimated_duration > 0
             )
-            .sort(
-                (a, b) => {
-                    const priorityDifference =
-                        getPriorityWeight(
-                            b.priority
-                        ) -
-                        getPriorityWeight(
-                            a.priority
-                        )
+            .sort((a, b) => {
+                const deadlineA =
+                    new Date(
+                        a.deadline!
+                    ).getTime()
 
-                    if (
-                        priorityDifference !==
-                        0
-                    ) {
-                        return priorityDifference
-                    }
+                const deadlineB =
+                    new Date(
+                        b.deadline!
+                    ).getTime()
 
-                    return (
-                        new Date(
-                            a.deadline!
-                        ).getTime() -
-                        new Date(
-                            b.deadline!
-                        ).getTime()
-                    )
+                const deadlineDifference =
+                    deadlineA - deadlineB
+
+                if (
+                    deadlineDifference !== 0
+                ) {
+                    return deadlineDifference
                 }
-            )
 
-    const scheduledBlocks:
-        ScheduleBlock[] = []
+                return (
+                    getPriorityWeight(
+                        b.priority
+                    ) -
+                    getPriorityWeight(
+                        a.priority
+                    )
+                )
+            })
+
+    const scheduledBlocks: ScheduleBlock[] = []
 
     /*
-    Existing manual blocks remain occupied.
-
-    Automatically generated blocks are handled separately
-    by the API route and are removed before regeneration.
-    */
-    const occupiedBlocks = [
+     * Manual/existing blocks remain occupied.
+     *
+     * Newly generated blocks are added here as they are
+     * created so later quests cannot overlap them.
+     */
+    const occupiedBlocks: ExistingBlock[] = [
         ...existingBlocks,
     ]
 
     const now = new Date()
+
+    /*
+     * Convert Morning/Afternoon/Evening/Late Night
+     * into a time range.
+     */
+    const preferredWindow =
+        getPreferredStudyWindow(
+            studyTime
+        )
+
+    /*
+     * Get today's Philippine calendar date.
+     *
+     * IMPORTANT:
+     * We never use a Date object as the representation
+     * of a Philippine calendar date. This prevents the
+     * UTC+8 offset from being applied twice.
+     */
+    const today =
+        getPhilippineCalendarDate(now)
 
     for (
         const quest of sortedQuests
@@ -303,135 +379,257 @@ export function generateSchedule(
                 quest.deadline!
             )
 
+        if (
+            Number.isNaN(
+                deadline.getTime()
+            )
+        ) {
+            console.warn(
+                `Could not schedule quest ${quest.id}: invalid deadline`,
+                {
+                    deadline:
+                        quest.deadline,
+                }
+            )
+
+            continue
+        }
+
         let placed = false
 
         /*
-        Build candidate availability windows.
-
-        Every window is interpreted in Philippine time and
-        lands on the actual day selected by the user.
-        */
-        const candidateWindows =
-            availability
-                .map(
-                    (window) => {
-                        const start =
-                            getNextOccurrence(
-                                window.day,
-                                window.start,
-                                now
-                            )
-
-                        if (!start) {
-                            return null
-                        }
-
-                        return {
-                            window,
-                            start,
-                            windowEnd:
-                                getWindowEnd(
-                                    start,
-                                    window.start,
-                                    window.end
-                                ),
-                        }
-                    }
-                )
-                .filter(
-                    (
-                        candidate
-                    ): candidate is {
-                        window: AvailabilityWindow
-                        start: Date
-                        windowEnd: Date
-                    } =>
-                        candidate !== null
-                )
-                .sort(
-                    (a, b) =>
-                        a.start.getTime() -
-                        b.start.getTime()
-                )
-
+         * Search up to 60 Philippine calendar days.
+         */
         for (
-            const candidate of
-                candidateWindows
+            let dayOffset = 0;
+            dayOffset < 60 &&
+            !placed;
+            dayOffset++
         ) {
-            const windowStart =
-                candidate.start
-
-            const windowEnd =
-                candidate.windowEnd
-
-            const blockEnd =
-                new Date(
-                    windowStart.getTime() +
-                        duration *
-                            60 *
-                            1000
+            const currentDate =
+                addPhilippineDays(
+                    today.year,
+                    today.month,
+                    today.day,
+                    dayOffset
                 )
 
-            /*
-            The quest must fit completely inside
-            the availability window.
-            */
-            if (
-                blockEnd >
-                windowEnd
-            ) {
-                continue
-            }
-
-            /*
-            The entire quest must finish before
-            its deadline.
-            */
-            if (
-                blockEnd >
-                deadline
-            ) {
-                continue
-            }
-
-            /*
-            Do not overlap another existing/manual
-            schedule block.
-            */
-            if (
-                isOverlapping(
-                    windowStart,
-                    blockEnd,
-                    occupiedBlocks
+            const currentDayOfWeek =
+                getPhilippineDayOfWeek(
+                    currentDate.year,
+                    currentDate.month,
+                    currentDate.day
                 )
-            ) {
+
+            const currentDayName =
+                Object.keys(
+                    DAY_INDEX
+                ).find(
+                    (day) =>
+                        DAY_INDEX[day] ===
+                        currentDayOfWeek
+                )
+
+            if (!currentDayName) {
                 continue
             }
 
-            const block:
-                ScheduleBlock = {
-                    quest_id:
-                        quest.id,
-                    starts_at:
-                        windowStart.toISOString(),
-                    ends_at:
-                        blockEnd.toISOString(),
-                    source: 'auto',
+            /*
+             * Only availability for this weekday.
+             */
+            const todaysWindows =
+                availability.filter(
+                    (window) =>
+                        window.day ===
+                        currentDayName
+                )
+
+            for (
+                const window of
+                todaysWindows
+            ) {
+                /*
+                 * Intersect weekly availability with
+                 * preferred study time.
+                 */
+                let effectiveStart =
+                    window.start
+
+                let effectiveEnd =
+                    window.end
+
+                if (
+                    preferredWindow
+                ) {
+                    effectiveStart =
+                        window.start >
+                            preferredWindow.start
+                            ? window.start
+                            : preferredWindow.start
+
+                    effectiveEnd =
+                        window.end <
+                            preferredWindow.end
+                            ? window.end
+                            : preferredWindow.end
                 }
 
-            scheduledBlocks.push(
-                block
-            )
+                /*
+                 * No overlap between availability
+                 * and preferred study time.
+                 */
+                if (
+                    effectiveStart >=
+                    effectiveEnd
+                ) {
+                    continue
+                }
 
-            occupiedBlocks.push({
-                starts_at:
-                    block.starts_at,
-                ends_at:
-                    block.ends_at,
-            })
+                /*
+                 * Convert the Philippine local
+                 * availability window into actual
+                 * UTC instants exactly once.
+                 */
+                const windowStart =
+                    createPhilippineDateTime(
+                        currentDate.year,
+                        currentDate.month,
+                        currentDate.day,
+                        effectiveStart
+                    )
 
-            placed = true
-            break
+                const windowEnd =
+                    createPhilippineDateTime(
+                        currentDate.year,
+                        currentDate.month,
+                        currentDate.day,
+                        effectiveEnd
+                    )
+
+                /*
+                 * Do not schedule in the past.
+                 *
+                 * For future days, start at the beginning
+                 * of the availability window.
+                 */
+                let candidateStart =
+                    windowStart > now
+                        ? windowStart
+                        : new Date(now)
+
+                /*
+                 * Round to the next 15-minute increment.
+                 */
+                const candidateMinutes =
+                    Math.ceil(
+                        candidateStart.getTime() /
+                        (60 * 1000) /
+                        SCHEDULE_INCREMENT_MINUTES
+                    ) *
+                    SCHEDULE_INCREMENT_MINUTES
+
+                candidateStart =
+                    new Date(
+                        candidateMinutes *
+                        60 *
+                        1000
+                    )
+
+                /*
+                 * Search every 15 minutes inside
+                 * the effective window.
+                 */
+                while (
+                    candidateStart <
+                    windowEnd
+                ) {
+                    const candidateEnd =
+                        new Date(
+                            candidateStart.getTime() +
+                            duration *
+                            60 *
+                            1000
+                        )
+
+                    /*
+                     * Entire quest must fit inside
+                     * availability/preferred window.
+                     */
+                    if (
+                        candidateEnd >
+                        windowEnd
+                    ) {
+                        break
+                    }
+
+                    /*
+                     * Entire quest must finish before
+                     * its deadline.
+                     */
+                    if (
+                        candidateEnd >
+                        deadline
+                    ) {
+                        break
+                    }
+
+                    /*
+                     * Do not overlap manual or generated
+                     * schedule blocks.
+                     */
+                    if (
+                        !isOverlapping(
+                            candidateStart,
+                            candidateEnd,
+                            occupiedBlocks
+                        )
+                    ) {
+                        const block: ScheduleBlock =
+                        {
+                            quest_id:
+                                quest.id,
+                            starts_at:
+                                candidateStart.toISOString(),
+                            ends_at:
+                                candidateEnd.toISOString(),
+                            source: 'auto',
+                        }
+
+                        scheduledBlocks.push(
+                            block
+                        )
+
+                        occupiedBlocks.push(
+                            {
+                                starts_at:
+                                    block.starts_at,
+                                ends_at:
+                                    block.ends_at,
+                                source: 'auto',
+                            }
+                        )
+
+                        placed = true
+
+                        break
+                    }
+
+                    /*
+                     * Try the next 15-minute slot.
+                     */
+                    candidateStart =
+                        new Date(
+                            candidateStart.getTime() +
+                            SCHEDULE_INCREMENT_MINUTES *
+                            60 *
+                            1000
+                        )
+                }
+
+                if (placed) {
+                    break
+                }
+            }
         }
 
         if (!placed) {
@@ -442,6 +640,9 @@ export function generateSchedule(
                         quest.deadline,
                     estimated_duration:
                         quest.estimated_duration,
+                    priority:
+                        quest.priority,
+                    studyTime,
                 }
             )
         }

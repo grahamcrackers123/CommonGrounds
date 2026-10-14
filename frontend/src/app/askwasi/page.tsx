@@ -3,7 +3,9 @@
 import {
     ActionIcon,
     Badge,
+    Button,
     Card,
+    Drawer,
     Group,
     Paper,
     ScrollArea,
@@ -24,9 +26,10 @@ import {
     IconSparkles,
     IconFolder,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Upload } from "lucide-react";
 
 type Message = {
     role: "user" | "assistant";
@@ -87,9 +90,279 @@ export default function AskWasiPage() {
     const [searchChat, setSearchChat] = useState("");
     const [materials, setMaterials] = useState<Material[]>([]);
     const [loadingMaterials, setLoadingMaterials] = useState(false);
+    const [selectedMaterial, setSelectedMaterial] = useState<{
+    id: string;
+    filename: string;
+    content: string;
+} | null>(null);
 
-   const handleNewChat = () => { if (loading) { return; } const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => { const loadConversations = async () => { try { const response = await fetch("/api/askwasi"); if (!response.ok) { throw new Error("Could not load chat history."); } const data = await response.json(); setConversations(data.conversations ?? []); } catch (err) { console.error("Failed to load conversations:", err); } }; loadConversations(); }, []); const handleOpenConversation = (conversation: Conversation) => { if (loading) { return; } setActiveConversationId(conversation.id); setMessages(conversation.messages); setInput(""); setError(""); }; const sendMessage = async () => { const message = input.trim(); if (!message || loading) { return; } const conversationId = activeConversationId ?? crypto.randomUUID(); if (!activeConversationId) { setActiveConversationId(conversationId); } setError(""); setInput(""); setMessages((prev) => [ ...prev, { role: "user", content: message, }, { role: "assistant", content: "", }, ]); setLoading(true); try { const response = await fetch("/api/askwasi", { method: "POST", headers: { "Content-Type": "application/json", }, body: JSON.stringify({ message, conversationId, }), }); if (!response.ok) { const data = await response.json().catch(() => null); throw new Error( data?.error || `Request failed (${response.status})` ); } if (!response.body) { throw new Error("No response stream received."); } const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; while (true) { const { value, done } = await reader.read(); if (done) { break; } buffer += decoder.decode(value, { stream: true, }); const events = buffer.split("\n\n"); buffer = events.pop() ?? ""; for (const event of events) { if (!event.startsWith("data: ")) { continue; } const json = event.slice(6); let data: { token?: string; error?: string; done?: boolean; }; try { data = JSON.parse(json); } catch (parseError) { console.error( "Failed to parse SSE event:", parseError ); continue; } if (data.token) { setMessages((prev) => { const updated = [...prev]; const lastIndex = updated.length - 1; if ( updated[lastIndex]?.role === "assistant" ) { updated[lastIndex] = { ...updated[lastIndex], content: updated[lastIndex].content + data.token, }; } return updated; }); } if (data.error) { throw new Error(data.error); } if (data.done) { console.log("Ask Wasi stream completed."); } } } } catch (err) { console.error("Ask Wasi error:", err); setError( err instanceof Error ? err.message : "Something went wrong." ); setMessages((prev) => { const last = prev[prev.length - 1]; if ( last?.role === "assistant" && last.content === "" ) { return prev.slice(0, -1); } return prev; }); } finally { setLoading(false); try { const response = await fetch("/api/askwasi"); if (response.ok) { const data = await response.json(); setConversations(data.conversations ?? []); } } catch (err) { console.error( "Failed to refresh conversations:", err ); } } };
-   useEffect(() => {
+const [loadingPreview, setLoadingPreview] = useState(false);
+const [previewError, setPreviewError] = useState("");
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [uploadingMaterial, setUploadingMaterial] = useState(false);
+    const handleOpenMaterial = async (material: Material) => {
+    setSelectedMaterial(null);
+    setPreviewError("");
+    setLoadingPreview(true);
+
+    try {
+        const response = await fetch(
+            `/api/materials/${encodeURIComponent(material.id)}/preview`
+        );
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            throw new Error(
+                data?.error || "Could not open this material."
+            );
+        }
+
+        setSelectedMaterial({
+            id: data.id,
+            filename: data.filename,
+            content: data.content,
+        });
+    } catch (error) {
+        setPreviewError(
+            error instanceof Error
+                ? error.message
+                : "Could not open this material."
+        );
+    } finally {
+        setLoadingPreview(false);
+    }
+};
+
+   const handleNewChat = () => { if (loading) { return; } 
+   const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => {
+   const loadConversations = async () => { try { 
+   const response = await fetch("/api/askwasi"); if (!response.ok) { throw new Error("Could not load chat history."); } 
+   const data = await response.json(); setConversations(data.conversations ?? []); } catch (err) { console.error("Failed to load conversations:", err); } }; loadConversations(); }, []); 
+   const handleOpenConversation = (conversation: Conversation) => { if (loading) { return; } setActiveConversationId(conversation.id); setMessages(conversation.messages); setInput(""); setError(""); };
+   const sendMessage = async () => {
+    const message = input.trim();
+
+    if (!message || loading) {
+        return;
+    }
+
+    const conversationId =
+        activeConversationId ?? crypto.randomUUID();
+
+    if (!activeConversationId) {
+        setActiveConversationId(conversationId);
+    }
+
+    setError("");
+    setInput("");
+
+    setMessages((prev) => [
+        ...prev,
+        {
+            role: "user",
+            content: message,
+        },
+        {
+            role: "assistant",
+            content: "",
+        },
+    ]);
+
+    setLoading(true);
+
+    try {
+        const response = await fetch("/api/askwasi", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                message,
+                conversationId,
+            }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+
+            throw new Error(
+                data?.error || `Request failed (${response.status})`
+            );
+        }
+
+        const contentType =
+            response.headers.get("content-type") ?? "";
+
+        /*
+         * No relevant material:
+         * the backend returns a normal JSON response.
+         */
+        if (contentType.includes("application/json")) {
+            const data = await response.json();
+
+            if (!data?.message) {
+                throw new Error(
+                    "Wasi returned an empty response."
+                );
+            }
+
+            setMessages((prev) => {
+                const updated = [...prev];
+                const lastIndex = updated.length - 1;
+
+                if (
+                    updated[lastIndex]?.role === "assistant"
+                ) {
+                    updated[lastIndex] = {
+                        ...updated[lastIndex],
+                        content: data.message,
+                    };
+                }
+
+                return updated;
+            });
+
+            return;
+        }
+
+        /*
+         * Relevant material:
+         * the backend returns an SSE stream.
+         */
+        if (!response.body) {
+            throw new Error(
+                "No response stream received."
+            );
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        let buffer = "";
+
+        while (true) {
+            const { value, done } =
+                await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            buffer += decoder.decode(value, {
+                stream: true,
+            });
+
+            const events = buffer.split("\n\n");
+
+            buffer = events.pop() ?? "";
+
+            for (const event of events) {
+                if (!event.startsWith("data: ")) {
+                    continue;
+                }
+
+                const json = event.slice(6);
+
+                let data: {
+                    token?: string;
+                    error?: string;
+                    done?: boolean;
+                };
+
+                try {
+                    data = JSON.parse(json);
+                } catch (parseError) {
+                    console.error(
+                        "Failed to parse SSE event:",
+                        parseError
+                    );
+                    continue;
+                }
+
+                if (data.token) {
+                    setMessages((prev) => {
+                        const updated = [...prev];
+                        const lastIndex =
+                            updated.length - 1;
+
+                        if (
+                            updated[lastIndex]?.role ===
+                            "assistant"
+                        ) {
+                            updated[lastIndex] = {
+                                ...updated[lastIndex],
+                                content:
+                                    updated[lastIndex].content +
+                                    data.token,
+                            };
+                        }
+
+                        return updated;
+                    });
+                }
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (data.done) {
+                    console.log(
+                        "Ask Wasi stream completed."
+                    );
+                }
+            }
+        }
+    } catch (err) {
+        console.error(
+            "Ask Wasi error:",
+            err
+        );
+
+        setError(
+            err instanceof Error
+                ? err.message
+                : "Something went wrong."
+        );
+
+        setMessages((prev) => {
+            const last =
+                prev[prev.length - 1];
+
+            if (
+                last?.role === "assistant" &&
+                last.content === ""
+            ) {
+                return prev.slice(0, -1);
+            }
+
+            return prev;
+        });
+    } finally {
+        setLoading(false);
+
+        try {
+            const response =
+                await fetch("/api/askwasi");
+
+            if (response.ok) {
+                const data =
+                    await response.json();
+
+                setConversations(
+                    data.conversations ?? []
+                );
+            }
+        } catch (err) {
+            console.error(
+                "Failed to refresh conversations:",
+                err
+            );
+        }
+    }
+};
+
+useEffect(() => {
     const loadMaterials = async () => {
         try {
             setLoadingMaterials(true);
@@ -115,15 +388,109 @@ export default function AskWasiPage() {
 
     loadMaterials();
 }, []);
-   const handleQuickPrompt = (prompt: string) => {
-        if (loading) {
-            return;
+
+const handleUploadMaterial = () => {
+    fileInputRef.current?.click();
+};
+
+const handleMaterialSelected = async (
+    event: React.ChangeEvent<HTMLInputElement>
+) => {
+    const file = event.target.files?.[0];
+
+    // Allow selecting the same file again later.
+    event.target.value = "";
+
+    if (!file) {
+        return;
+    }
+
+    const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "text/markdown",
+    ];
+
+    const allowedExtensions = [
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".md",
+    ];
+
+    const lowerName = file.name.toLowerCase();
+
+    const validType = allowedTypes.includes(file.type);
+
+    const validExtension = allowedExtensions.some(
+        (extension) => lowerName.endsWith(extension)
+    );
+
+    if (!validType && !validExtension) {
+        alert(
+            "Please select a PDF, DOCX, TXT, or MD file."
+        );
+        return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        alert(
+            "The maximum file size is 10 MB."
+        );
+        return;
+    }
+
+    try {
+        setUploadingMaterial(true);
+
+        const formData = new FormData();
+
+        formData.append("file", file);
+
+        const response = await fetch("/api/materials", {
+            method: "POST",
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || "Failed to upload material."
+            );
         }
 
-        setInput(prompt);
-    };
+        if (data.material) {
+            setMaterials((current) => [
+                data.material,
+                ...current,
+            ]);
+        }
 
-    return (
+        alert("Material uploaded successfully.");
+    } catch (error) {
+        console.error("Upload material error:", error);
+
+        alert(
+            error instanceof Error
+                ? error.message
+                : "Failed to upload material."
+        );
+    } finally {
+        setUploadingMaterial(false);
+    }
+};
+
+const handleQuickPrompt = (prompt: string) => {
+    if (loading) {
+        return;
+    }
+
+    setInput(prompt);
+};
+
+return (
     <Stack
         p={{ base: "md", sm: "xl" }}
         gap="md"
@@ -357,49 +724,78 @@ export default function AskWasiPage() {
                 size="sm"
             />
 
-            {/* Materials */}
-            <button
-                type="button"
-                style={{
-                    width: "100%",
-                    border: "none",
-                    background: "transparent",
-                    color: "light-dark(var(--mantine-color-text), #FFFFFF)",
-                    borderRadius: 8,
-                    padding: "9px 10px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    textAlign: "left",
-                    cursor: "pointer",
-                }}
-            >
-                <IconFileText size={17} />
-Materials
-{materials.length > 0 && (
-    <Badge size="xs" variant="light" ml="auto">
-        {materials.length}
-    </Badge>
-)}
-            </button>
+           {/* Materials */}
 
-            {loadingMaterials ? (
+<div
+    style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    }}
+>
+    <div
+        style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minWidth: 0,
+        }}
+    >
+        <IconFileText size={17} />
+
+        <Text size="sm" fw={600}>
+            Materials
+        </Text>
+
+        {materials.length > 0 && (
+            <Badge size="xs" variant="light">
+                {materials.length}
+            </Badge>
+        )}
+    </div>
+
+    <Button
+        size="xs"
+        leftSection={<Upload size={14} />}
+        loading={uploadingMaterial}
+        onClick={handleUploadMaterial}
+    >
+        Upload
+    </Button>
+</div>
+
+<input
+    ref={fileInputRef}
+    type="file"
+    accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+    onChange={handleMaterialSelected}
+    style={{ display: "none" }}
+/>
+
+{loadingMaterials ? (
     <Text size="xs" c="dimmed" pl={10}>
         Loading materials...
     </Text>
 ) : materials.length > 0 ? (
     <Stack gap={4} pl={10} mt={4}>
         {materials.map((material) => (
-            <Text
-                key={material.id}
-                size="xs"
-                c="dimmed"
-                lineClamp={1}
-                title={material.filename}
-            >
-                {material.filename}
-            </Text>
-        ))}
+    <Text
+        key={material.id}
+        size="xs"
+        c="dimmed"
+        lineClamp={1}
+        title={`Open ${material.filename}`}
+        onClick={() => handleOpenMaterial(material)}
+        style={{
+            cursor: "pointer",
+            borderRadius: 6,
+            padding: "4px 6px",
+        }}
+    >
+        {material.filename}
+    </Text>
+))}
     </Stack>
 ) : (
     <Text size="xs" c="dimmed" pl={10} mt={4}>
@@ -890,8 +1286,48 @@ Materials
             >
                 Enter to send · Shift + Enter for a new line
             </Text>
-               </Stack>
+                             </Stack>
     </Group>
+
+    <Drawer
+        opened={
+            selectedMaterial !== null ||
+            loadingPreview ||
+            previewError !== ""
+        }
+        onClose={() => {
+            setSelectedMaterial(null);
+            setLoadingPreview(false);
+            setPreviewError("");
+        }}
+        position="right"
+        size="lg"
+        title={selectedMaterial?.filename ?? "Material Preview"}
+    >
+        {loadingPreview ? (
+            <Text c="dimmed" size="sm">
+                Loading material...
+            </Text>
+        ) : previewError ? (
+            <Text c="red" size="sm">
+                {previewError}
+            </Text>
+        ) : selectedMaterial ? (
+            <ScrollArea h="calc(100vh - 140px)" offsetScrollbars>
+                <Text
+                    size="sm"
+                    style={{
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                        lineHeight: 1.7,
+                    }}
+                >
+                    {selectedMaterial.content || "This file contains no extractable text."}
+                </Text>
+            </ScrollArea>
+        ) : null}
+    </Drawer>
+
 </Stack>
     );
 }

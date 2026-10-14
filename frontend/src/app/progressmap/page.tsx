@@ -1,6 +1,7 @@
 import { getPetGrowth, getXpProgress, max_level, xp_per_level } from "@/components/petgrowth";
 import StreakBadge from "@/components/streak-badge";
 import { recordDailyStreak } from "@/lib/streak";
+import ProgressCalendar from "@/components/progressmap/ProgressCalendar";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { BookOpen, CalendarClock, Check, Clock, Coins, Flame, Medal, Sparkles, Sun, Target, TrendingUp, Zap } from "lucide-react";
@@ -210,6 +211,21 @@ export default async function ProgressMapPage() {
     const weekStart = startOfWeek(now);
 
     const completedQuests = questRows.filter((quest) => quest.status === "completed");
+    const focusEntries = sessionRows.map((session) => ({
+        date: `${session.at.getFullYear()}-${String(session.at.getMonth() + 1).padStart(2, "0")}-${String(session.at.getDate()).padStart(2, "0")}`,
+        minutes: session.minutes,
+    }));
+
+    const questEntries = completedQuests
+        .filter((quest) => quest.completed_at)
+        .map((quest) => {
+            const date = new Date(quest.completed_at as string);
+
+            return {
+                date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+            };
+        });
+
     const completionRate = questRows.length > 0 ? Math.round((completedQuests.length / questRows.length) * 100) : 0;
     const totalMinutes = sessionRows.reduce((sum, session) => sum + session.minutes, 0);
     const focusXp = sessionRows.reduce((sum, session) => sum + session.xp, 0);
@@ -681,6 +697,13 @@ export default async function ProgressMapPage() {
                         />
                     </Paper>
                 </SimpleGrid>
+
+                <ProgressCalendar
+                    focusEntries={focusEntries}
+                    questEntries={questEntries}
+                    totalMinutes={totalMinutes}
+                    totalCompletedQuests={completedQuests.length}
+                />
 
                 {/* subject breakdown & study habits */}
                 <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">

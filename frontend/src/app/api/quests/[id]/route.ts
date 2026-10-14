@@ -17,33 +17,70 @@ export async function PATCH(
   const body = await request.json()
 
   // Only pass through fields were provided
+
   const updates: Record<string, unknown> = {}
+
+
   const allowedFields = [
-    'title', 'subject', 'description', 'deadline',
-    'priority', 'estimated_duration', 'checklist', 'status',
-    'reward_coins',
+    'title',
+    'subject',
+    'description',
+    'deadline',
+    'priority',
+    'estimated_duration',
+    'checklist',
+    'status',
   ]
+
   for (const field of allowedFields) {
     if (field in body) updates[field] = body[field]
   }
 
-  if ('reward_coins' in updates) {
-    const parsed = Number(updates.reward_coins)
-    updates.reward_coins = Number.isFinite(parsed)
-      ? Math.min(Math.max(Math.round(parsed), 0), 500)
-      : 0
+  if ('priority' in body) {
+    const rewardByPriority = {
+      low: 10,
+      medium: 25,
+      high: 50,
+    } as const
+
+    const priority = body.priority
+
+    if (
+      typeof priority !== 'string' ||
+      !Object.prototype.hasOwnProperty.call(rewardByPriority, priority)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid quest priority' },
+        { status: 400 }
+      )
+    }
+
+    updates.reward_coins =
+      rewardByPriority[priority as keyof typeof rewardByPriority]
   }
 
-  if (updates.status === 'completed') {
-    const { data: existing } = await supabase
-      .from('quests')
-      .select('status')
-      .eq('id', id)
-      .maybeSingle()
+  // Keep the reward synchronized with the quest's priority.
+  if ('priority' in body) {
+    const rewardByPriority = {
+      low: 10,
+      medium: 25,
+      high: 50,
+    } as const
 
-    if (existing && existing.status !== 'completed') {
-      updates.completed_at = new Date().toISOString()
+    const priority = body.priority
+
+    if (
+      typeof priority !== 'string' ||
+      !(priority in rewardByPriority)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid quest priority' },
+        { status: 400 }
+      )
     }
+
+    updates.reward_coins =
+      rewardByPriority[priority as keyof typeof rewardByPriority]
   }
 
   const { data, error } = await supabase

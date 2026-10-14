@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Box, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -11,7 +11,7 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// user code generator, may change 
+// user code generator, may change
 function generateUserCode() {
     return `U${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
@@ -144,10 +144,10 @@ export default function SetupPage() {
         !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
 
     const getCourseworkMessage = () =>
-    courseworkTypes.length === 0
-        ? 'Add at least one coursework type.'
-        : 'Set a priority for every coursework type.';
-    
+        courseworkTypes.length === 0
+            ? 'Add at least one coursework type.'
+            : 'Set a priority for every coursework type.';
+
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
         const hasErrors = fieldsToValidate
@@ -342,7 +342,7 @@ export default function SetupPage() {
                         <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
                         <Text fw={700} size='xl'>CommonGrounds Setup</Text>
                     </Group>
-                    
+
                     {isMobile && (
                         <Box w='100%'>
                             <Text fw={600} size='sm'>
@@ -459,14 +459,14 @@ export default function SetupPage() {
                                     >
                                         {slots.map((slot) => (
                                             <Box key={slot.day} style={{ display: isMobile ? 'block' : 'contents' }}>
-                                                <Chip 
-                                                    checked={slot.enabled} 
-                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} 
-                                                    variant='light' 
+                                                <Chip
+                                                    checked={slot.enabled}
+                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })}
+                                                    variant='light'
                                                     size='sm'
-                                                    styles={{ 
-                                                        root: { display: 'block', width: '100%' }, 
-                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 } 
+                                                    styles={{
+                                                        root: { display: 'block', width: '100%' },
+                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 }
                                                     }}
                                                 >
                                                     {slot.day}
@@ -512,8 +512,8 @@ export default function SetupPage() {
                                     )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group 
-                                            value={setUpForm.values.focusLength} 
+                                        <Chip.Group
+                                            value={setUpForm.values.focusLength}
                                             onChange={(value) => {
                                                 setUpForm.setFieldValue('focusLength', value);
                                                 setCustomFocusError(false);
