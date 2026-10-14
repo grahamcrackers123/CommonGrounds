@@ -153,6 +153,27 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
             });
     }, [pathname]);
 
+    
+useEffect(() => {
+    const refreshCoins = async () => {
+        try {
+            const res = await fetch("/api/rewards/balance");
+            if (!res.ok) return;
+
+            const data = await res.json();
+            setCoins(data.coins ?? 0);
+        } catch {
+            // Keep the current balance if a refresh fails.
+        }
+    };
+
+    window.addEventListener("quest-completed", refreshCoins);
+
+    return () => {
+        window.removeEventListener("quest-completed", refreshCoins);
+    };
+}, []);
+
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;
         async function fetchNotifications() {

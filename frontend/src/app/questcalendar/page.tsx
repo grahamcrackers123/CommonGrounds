@@ -316,6 +316,9 @@ export default function QuestCalendarPage() {
 
   const [quests, setQuests] =
     useState<Quest[]>([]);
+  
+  const [profileSubjects, setProfileSubjects] = 
+    useState<string[]>([]);
 
   const [selectedQuest, setSelectedQuest] =
     useState<Quest | null>(null);
@@ -466,6 +469,30 @@ export default function QuestCalendarPage() {
   useEffect(() => {
     loadQuests();
   }, [loadQuests]);
+
+  useEffect(() => {
+  const loadProfileSubjects = async () => {
+    try {
+      const response = await fetch("/api/profile/subjects", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load profile subjects.");
+      }
+
+      const data = await response.json();
+
+      setProfileSubjects(
+        Array.isArray(data.subjects) ? data.subjects : []
+      );
+    } catch (error) {
+      console.error("Failed to load profile subjects:", error);
+    }
+  };
+
+  loadProfileSubjects();
+}, []);
 
   /* =======================================================
      LOAD MATERIALS
@@ -719,19 +746,14 @@ export default function QuestCalendarPage() {
      SUBJECT OPTIONS
   ======================================================= */
 
-  const subjects =
-    Array.from(
-      new Set(
-        quests
-          .map(
-            (quest) =>
-              quest.subject
-          )
-          .filter(
-            Boolean
-          ) as string[]
-      )
-    );
+  const subjects = Array.from(
+  new Set([
+    ...profileSubjects,
+    ...quests
+      .map((quest) => quest.subject)
+      .filter((subject): subject is string => Boolean(subject)),
+  ])
+);
 
   /* =======================================================
      SEARCH + FILTER
@@ -1280,21 +1302,14 @@ if (
         /*
          * Use the existing PATCH endpoint.
          */
-        const response =
-          await fetch(
-            `/api/quests/${quest.id}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                status:
-                  "completed",
-              }),
-            }
-          );
+        
+const response = await fetch(
+  `/api/quests/${quest.id}`,
+  {
+    method: "POST",
+  }
+);
+
 
         const data =
           await response.json();
@@ -1305,6 +1320,8 @@ if (
               "Failed to complete quest."
           );
         }
+
+        window.dispatchEvent(new Event("quest-completed"));
 
         /*
          * Refresh from backend so the
@@ -2404,7 +2421,11 @@ useEffect(() => {
             >
               🪙{" "}
               <b>
-                +{selectedQuest.reward ?? 20}
++{selectedQuest.priority === "high"
+  ? 50
+  : selectedQuest.priority === "medium"
+    ? 25
+    : 10}
               </b>{" "}
               Student Coins
             </Text>
