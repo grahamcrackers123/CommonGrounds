@@ -1,7 +1,6 @@
 import { getPetGrowth, getXpProgress, max_level, xp_per_level } from "@/components/petgrowth";
 import StreakBadge from "@/components/streak-badge";
 import { recordDailyStreak } from "@/lib/streak";
-import ProgressCalendar from "@/components/progressmap/ProgressCalendar";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { BookOpen, CalendarClock, Check, Clock, Coins, Flame, Medal, Sparkles, Sun, Target, TrendingUp, Zap } from "lucide-react";
@@ -211,21 +210,6 @@ export default async function ProgressMapPage() {
     const weekStart = startOfWeek(now);
 
     const completedQuests = questRows.filter((quest) => quest.status === "completed");
-    const focusEntries = sessionRows.map((session) => ({
-        date: `${session.at.getFullYear()}-${String(session.at.getMonth() + 1).padStart(2, "0")}-${String(session.at.getDate()).padStart(2, "0")}`,
-        minutes: session.minutes,
-    }));
-
-    const questEntries = completedQuests
-        .filter((quest) => quest.completed_at)
-        .map((quest) => {
-            const date = new Date(quest.completed_at as string);
-
-            return {
-                date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
-            };
-        });
-
     const completionRate = questRows.length > 0 ? Math.round((completedQuests.length / questRows.length) * 100) : 0;
     const totalMinutes = sessionRows.reduce((sum, session) => sum + session.minutes, 0);
     const focusXp = sessionRows.reduce((sum, session) => sum + session.xp, 0);
@@ -240,14 +224,20 @@ export default async function ProgressMapPage() {
     const minutesLast30 = sessionsLast30.reduce((sum, session) => sum + session.minutes, 0);
     const activeDays = new Set(sessionsLast30.map((session) => startOfDay(session.at).getTime())).size;
 
-    const completedWithDeadline = completedQuests.filter((quest) => quest.completed_at && quest.deadline);
+    const completedWithDeadline = completedQuests.filter((quest) => quest.deadline);
     const onTimeCount = completedWithDeadline.filter(
-        (quest) => new Date(quest.completed_at as string).getTime() <= new Date(quest.deadline as string).getTime()
+        (quest) => quest.completed_at && new Date(quest.completed_at).getTime() <= new Date(quest.deadline as string).getTime()
     ).length;
-    const onTimeValue =
-        completedWithDeadline.length > 0
-            ? `${onTimeCount} of ${completedWithDeadline.length} (${Math.round((onTimeCount / completedWithDeadline.length) * 100)}%)`
-            : "No deadlines yet";
+    const timedCompletions = completedWithDeadline.filter((quest) => quest.completed_at).length;
+    const untimedCompletions = completedWithDeadline.length - timedCompletions;
+    let onTimeValue = "No deadlines yet";
+    if (timedCompletions > 0) {
+        const percent = Math.round((onTimeCount / timedCompletions) * 100);
+        onTimeValue = `${onTimeCount} of ${timedCompletions} (${percent}%)`;
+        if (untimedCompletions > 0) onTimeValue += ` • ${untimedCompletions} completion time not recorded`;
+    } else if (untimedCompletions > 0) {
+        onTimeValue = `${untimedCompletions} completed • completion time not recorded`;
+    }
 
     const weekdayMinutes = [0, 0, 0, 0, 0, 0, 0];
     const windowMinutes = [0, 0, 0, 0];
@@ -344,32 +334,32 @@ export default async function ProgressMapPage() {
         {
             label: "Quests Completed",
             icon: Target,
-            tint: "#EBFBEE",
-            color: "#2F9E44",
+            tint: "light-dark(#EBFBEE, #173128)",
+            color: "light-dark(#2F9E44, #51CF66)",
             value: `${completedQuests.length}`,
             sub: questRows.length > 0 ? `${completionRate}% completion rate` : "No quests yet",
         },
         {
             label: "Focus Time",
             icon: Clock,
-            tint: "#E7F5FF",
-            color: "#1C7ED6",
+            tint: "light-dark(#E7F5FF, #1B2A3A)",
+            color: "light-dark(#1C7ED6, #4DABF7)",
             value: fmtMinutes(totalMinutes),
             sub: `${fmtMinutes(minutesLast30)} in the last 30 days`,
         },
         {
             label: "Current Streak",
             icon: Flame,
-            tint: "#FFF0F6",
-            color: "#E64980",
+            tint: "light-dark(#FFF0F6, #331B26)",
+            color: "light-dark(#E64980, #F783AC)",
             value: `${streak?.current_streak ?? 0} days`,
             sub: `Best: ${streak?.longest_streak ?? 0} days`,
         },
         {
             label: "Focus XP",
             icon: Zap,
-            tint: "#FFF4E6",
-            color: "#E8590C",
+            tint: "light-dark(#FFF4E6, #342417)",
+            color: "light-dark(#E8590C, #FFA94D)",
             value: `${focusXp} XP`,
             sub: `${coinsEarned.toLocaleString()} coins earned`,
         },
@@ -691,13 +681,6 @@ export default async function ProgressMapPage() {
                         />
                     </Paper>
                 </SimpleGrid>
-
-                <ProgressCalendar
-                    focusEntries={focusEntries}
-                    questEntries={questEntries}
-                    totalMinutes={totalMinutes}
-                    totalCompletedQuests={completedQuests.length}
-                />
 
                 {/* subject breakdown & study habits */}
                 <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">

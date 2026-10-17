@@ -33,7 +33,7 @@ export default async function PetGardenPage() {
     const petImageUrl = outfitImageUrl ?? accessoryImageUrl ?? `/assets/starter-pets/${pet.species}.png`;
 
     return (
-        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+        <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
             <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
@@ -198,7 +198,7 @@ export default async function PetGardenPage() {
                                     h={80}
                                     style={{
                                         borderRadius: 24,
-                                        background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                        background: "linear-gradient(135deg, light-dark(#D3F9D8, #173128), light-dark(#EBFBEE, #10241C))",
                                         display: "grid",
                                         placeItems: "center",
                                         position: "relative",
@@ -248,7 +248,7 @@ export default async function PetGardenPage() {
                             </Group>
                             <Stack gap="xs">
                                 <Text size="sm" c="dimmed">
-                                    • Energy slowly decays while you&apos;re away, study sessions restore it.
+                                    • Energy slowly decays while you&apos;re away; focus sessions and completed quests restore it.
                                 </Text>
                                 <Text size="sm" c="dimmed">
                                     • Sprout evolves to a new stage every 5 levels.

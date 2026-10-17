@@ -102,12 +102,20 @@ export async function getPetActivity(
     );
 
     const questXp = new Map<string, number>();
+    const questEnergy = new Map<string, number>();
     for (const event of events) {
         if (event.type !== "pet_quest") continue;
         const questId = event.metadata?.quest_id;
+        if (typeof questId !== "string") continue;
+
         const xpGained = event.metadata?.xp_gained;
-        if (typeof questId === "string" && typeof xpGained === "number" && xpGained > 0) {
+        if (typeof xpGained === "number" && xpGained > 0) {
             questXp.set(questId, xpGained);
+        }
+
+        const energyGained = event.metadata?.energy_gained;
+        if (typeof energyGained === "number" && energyGained > 0) {
+            questEnergy.set(questId, energyGained);
         }
     }
 
@@ -148,10 +156,14 @@ export async function getPetActivity(
 
     for (const quest of quests) {
         if (!quest.completed_at) continue;
-        const xpGained = questXp.get(quest.id) ?? 0;
+        // Quest XP is granted 1:1 with reward_coins, so it is a safe fallback
+        // for completions that predate the pet_quest event metadata.
+        const xpGained = questXp.get(quest.id) ?? quest.reward_coins ?? 0;
+        const energyGained = questEnergy.get(quest.id) ?? 0;
         const rewards: string[] = [];
         if ((quest.reward_coins ?? 0) > 0) rewards.push(`+${quest.reward_coins} coins`);
         if (xpGained > 0) rewards.push(`+${xpGained} XP for your companion`);
+        if (energyGained > 0) rewards.push(`+${energyGained} energy`);
         items.push({
             id: `quest-${quest.id}`,
             kind: "quest",

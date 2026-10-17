@@ -3,14 +3,14 @@
 import { createClient } from '@/lib/supabase/client';
 import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import { Bell, Circle, Moon, Sun } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 
 interface NotificationRow {
-    id: number;
-    unread: boolean;
+    id: string;
+    read: boolean | null;
     [key: string]: unknown;
 }
 
@@ -80,8 +80,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [opened, { toggle }] = useDisclosure(false);
     const router = useRouter();
-    const [coins, setCoins] = useState<number | null>(null);
-    const [notificationList, setNotificationList] = useState<NotificationRow[]>([]);
     const [profile, setProfile] = useState<{ display_name: string } | null>(null);
     const [pet, setPet] = useState<{ level: number } | null>(null);
 
@@ -96,6 +94,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         { label: "Pet Garden", path: "/petgarden" },
         { label: "Reward Shop", path: "/rewardshop" },
         { label: "Progress Map", path: "/progressmap" },
+        { label: "Help & Tutorials", path: "/help" },
         { label: "Settings", path: "/settings" },
     ];
 
@@ -130,12 +129,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        router.push("/access");
-        router.refresh();
-    };
-
     const handleNavigation = (link: {
         label: string;
         path: string;
@@ -143,53 +136,12 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         router.push(link.path);
     };
 
-    useEffect(() => {
-        if (hideNavbar.includes(pathname)) return;
-        fetch('/api/rewards/balance')
-            .then((res) => res.json())
-            .then((data) => setCoins(data.coins ?? 0))
-            .catch(() => {
-                notifications.show({ title: 'Error', message: 'Could not load your coin balance.', color: 'red' });
-            });
-    }, [pathname]);
+    const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-    
-useEffect(() => {
-    const refreshCoins = async () => {
-        try {
-            const res = await fetch("/api/rewards/balance");
-            if (!res.ok) return;
-
-            const data = await res.json();
-            setCoins(data.coins ?? 0);
-        } catch {
-            // Keep the current balance if a refresh fails.
-        }
-    };
-
-    window.addEventListener("quest-completed", refreshCoins);
-
-    return () => {
-        window.removeEventListener("quest-completed", refreshCoins);
-    };
-}, []);
-
-    useEffect(() => {
-        if (hideNavbar.includes(pathname)) return;
-        async function fetchNotifications() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data, error } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', user.id);
-            if (error) console.error('Error fetching notifications:', error);
-            else setNotificationList(data ?? []);
-        }
-        fetchNotifications();
-    }, [supabase, pathname]);
-
-    const unreadCount = notificationList.filter((n) => n.unread).length;
+    const { data: balanceData } = useSWR('/api/rewards/balance', fetcher, { refreshInterval: 0 });
+    const { data: unreadNotificationsData } = useSWR('/api/notifications', fetcher);
+    const coins = balanceData?.coins ?? null;
+    const unreadCount = (unreadNotificationsData?.notifications ?? []).filter((n: NotificationRow) => n.read === false).length;
 
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;
@@ -265,29 +217,19 @@ useEffect(() => {
                         </Text>
                     </Group>
 
-                    <Group gap="sm">
-                        <ActionIcon
-                            variant="default"
-                            size="lg"
-                            radius="md"
-                            onClick={handleThemeToggle}
-                            aria-label="Toggle color scheme"
-                        >
-                            {colorScheme === "dark" ? (
-                                <Sun size={18} />
-                            ) : (
-                                <Moon size={18} />
-                            )}
-                        </ActionIcon>
-
-                        <Burger
-                            opened={opened}
-                            onClick={toggle}
-                            hiddenFrom="sm"
-                            size="sm"
-                            lineSize={2}
-                        />
-                    </Group>
+                    <ActionIcon
+                        variant="default"
+                        size="lg"
+                        radius="md"
+                        onClick={handleThemeToggle}
+                        aria-label="Toggle color scheme"
+                    >
+                        {colorScheme === "dark" ? (
+                            <Sun size={18} />
+                        ) : (
+                            <Moon size={18} />
+                        )}
+                    </ActionIcon>
                     <Group visibleFrom="md" gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }} w='100%'>
                         <Badge
                             size='lg'

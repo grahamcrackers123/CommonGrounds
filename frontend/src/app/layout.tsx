@@ -1,4 +1,5 @@
 import Navbar from '@/components/navbar';
+import RealtimeSync from '@/components/realtime-sync';
 import ThemeProvider from '@/components/theme-provider';
 import {
   Container,
@@ -78,7 +79,7 @@ export default function RootLayout({
           <ThemeProvider>
             <ModalsProvider>
               <Notifications />
-
+              <RealtimeSync />
               <Container fluid p={0}>
                 <Navbar>
                   {children}

@@ -77,9 +77,9 @@ export default function WelcomeRewardModal() {
                             radius="lg"
                             style={{
                                 cursor: "pointer",
-                                borderColor: selectedPet === pet.id ? "#2F80ED" : undefined,
+                                borderColor: selectedPet === pet.id ? "light-dark(#2F80ED, #74C0FC)" : undefined,
                                 borderWidth: selectedPet === pet.id ? 2 : 1,
-                                backgroundColor: selectedPet === pet.id ? "#EAF3FF" : "white",
+                                backgroundColor: selectedPet === pet.id ? "light-dark(#EAF3FF, #1B2A3A)" : "light-dark(#FFFFFF, #151515)",
                             }}
                             onClick={(value) => {
                                 if (pet.id !== selectedPet) setPetName('');

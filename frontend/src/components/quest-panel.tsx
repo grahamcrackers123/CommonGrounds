@@ -24,6 +24,7 @@ type Quest = {
     deadline: string | null;
     status: string;
     completed_at: string | null;
+    reward_coins: number | null;
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -92,9 +93,17 @@ export default function QuestPanel() {
                 });
                 return;
             }
+            const rewards: string[] = [];
+            if ((quest.reward_coins ?? 0) > 0) rewards.push(`+${quest.reward_coins} coins`);
+            if (typeof data?.xp === "number" && data.xp > 0) rewards.push(`+${data.xp} XP`);
+            if (typeof data?.energy === "number" && data.energy > 0) rewards.push(`+${data.energy} energy`);
+
             notifications.show({
                 title: "Quest completed!",
-                message: `"${quest.title}" marked as done.`,
+                message:
+                    rewards.length > 0
+                        ? `${rewards.join(" · ")} · "${quest.title}"`
+                        : `"${quest.title}" marked as done.`,
                 color: "green",
             });
         } catch {
@@ -145,7 +154,7 @@ export default function QuestPanel() {
                                 p='xs'
                                 style={{
                                     borderRadius: 10,
-                                    backgroundColor: q.status === "completed" ? "#F1F3F5" : "#F8F9FA",
+                                    backgroundColor: q.status === "completed" ? "light-dark(#F1F3F5, #222222)" : "light-dark(#F8F9FA, #151515)",
                                 }}
                                 wrap='nowrap'
                             >

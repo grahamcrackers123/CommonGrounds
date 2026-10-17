@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -11,18 +11,22 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// user code generator, may change
+// user code generator, may change 
 function generateUserCode() {
     return `U${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 const STORAGE_KEY = 'setupFormData';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const STEP_LABELS = ['Academic Profile', 'Study Time', 'Subjects', 'Notifications', 'Review Setup'];
+const LEVEL_PRESETS = ['Elementary', 'Junior High School', 'Senior High School', 'College', 'Graduate School'];
+const OTHER_LEVEL = 'Other';
 
 type DaySlot = { day: string; enabled: boolean; start: string; end: string };
 
 type SetupDraft = {
     level?: string;
+    levelOption?: string | null;
     school?: string;
     program?: string;
     enrollmentStatus?: string;
@@ -37,6 +41,7 @@ type SetupDraft = {
     courseworkTypes?: string[];
     priorities?: Record<string, string>;
     active?: number;
+    customFocusMinutes?: number | string;
 };
 
 function defaultSlots(): DaySlot[] {
@@ -73,10 +78,21 @@ export default function SetupPage() {
     const [priorities, setPriorities] = useState<Record<string, string>>(initialDraft.priorities ?? {});
     const [courseworkInput, setCourseworkInput] = useState('');
     const [availabilityError, setAvailabilityError] = useState(false);
-
+    const [levelOption, setLevelOption] = useState<string | null>(
+        initialDraft.levelOption !== undefined
+            ? initialDraft.levelOption
+            : initialDraft.level
+                ? (LEVEL_PRESETS.includes(initialDraft.level) ? initialDraft.level : OTHER_LEVEL)
+                : null
+    );
+    const [customFocusMinutes, setCustomFocusMinutes] = useState<number | string>(initialDraft.customFocusMinutes ?? '');
+    const [customFocusError, setCustomFocusError] = useState(false);
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
     );
+    const [courseworkError, setCourseworkError] = useState<string | null>(null);
+    const courseworkInvalid =
+        courseworkTypes.length === 0 || courseworkTypes.some((type) => !priorities[type]);
 
     const updateSlot = (day: string, patch: Partial<DaySlot>) => {
         setSlots((prev) => prev.map((s) => (s.day === day ? { ...s, ...patch } : s)));
@@ -88,6 +104,7 @@ export default function SetupPage() {
         if (value && !courseworkTypes.includes(value)) {
             setCourseworkTypes((prev) => [...prev, value]);
             setCourseworkInput('');
+            setCourseworkError(null);
         }
     };
 
@@ -120,13 +137,51 @@ export default function SetupPage() {
         }
     });
 
+    const hasNotifications = setUpForm.values.deadlineReminders || setUpForm.values.focusReminders || setUpForm.values.burnoutNudges || setUpForm.values.rewardAlerts || setUpForm.values.friendInvites;
+
+    const customMinutesInvalid =
+        setUpForm.values.focusLength === 'Custom' &&
+        !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
+
+    const getCourseworkMessage = () =>
+    courseworkTypes.length === 0
+        ? 'Add at least one coursework type.'
+        : 'Set a priority for every coursework type.';
+    
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
-        const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
-        if (hasErrors) return;
+        const hasErrors = fieldsToValidate
+            .map((field) => setUpForm.validateField(field).hasError)
+            .some(Boolean);
 
-        if (active === 1 && enabledSlots.length === 0) {
-            setAvailabilityError(true);
+        const slotsMissing = active === 1 && enabledSlots.length === 0;
+        if (slotsMissing) setAvailabilityError(true);
+
+        if (hasErrors || slotsMissing) return;
+
+        if (active === 1 && customMinutesInvalid) {
+            setCustomFocusError(true);
+            return;
+        }
+
+        if (active === 2 && courseworkInvalid) {
+            setCourseworkError(getCourseworkMessage());
+            return;
+        }
+
+        if (active === 3 && !hasNotifications) {
+            modals.openConfirmModal({
+                title: 'No notifications enabled',
+                size: 'sm',
+                centered: true,
+                children: (
+                    <Text size="sm">
+                        You haven't turned on any notifications, so you won't get deadline, focus, wellness, or reward reminders. Continue anyway?
+                    </Text>
+                ),
+                labels: { confirm: 'Continue', cancel: 'Go back' },
+                onConfirm: () => setActive((prev) => prev + 1),
+            });
             return;
         }
 
@@ -136,9 +191,22 @@ export default function SetupPage() {
                 .map(Number)
                 .sort((a, b) => a - b)
                 .find((step) => stepFields[step].some((field) => setUpForm.validateField(field).hasError));
-            if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
-                setActive(firstInvalidStep ?? 1);
-                setAvailabilityError(true);
+
+            // if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+            //     setActive(firstInvalidStep ?? 1);
+            //     setAvailabilityError(true);
+            //     notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
+            //     return;
+            // }
+
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0 || customMinutesInvalid || courseworkInvalid) {
+                setActive(
+                    firstInvalidStep ??
+                    (enabledSlots.length === 0 || customMinutesInvalid ? 1 : 2)
+                );
+                setAvailabilityError(enabledSlots.length === 0);
+                setCustomFocusError(customMinutesInvalid);
+                setCourseworkError(courseworkInvalid ? getCourseworkMessage() : null);
                 notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
                 return;
             }
@@ -159,7 +227,7 @@ export default function SetupPage() {
                 school: setUpForm.values.school,
                 program: setUpForm.values.program,
                 enrollment_status: setUpForm.values.enrollmentStatus,
-                focus_length: setUpForm.values.focusLength === 'Custom' ? 0 : parseInt(setUpForm.values.focusLength, 10), // revisit when a custom-minutes input is added
+                focus_length: setUpForm.values.focusLength === 'Custom' ? Number(customFocusMinutes) : parseInt(setUpForm.values.focusLength, 10),
                 subjects: setUpForm.values.subjects,
                 weekly_availability: slots.filter((s) => s.enabled).map(({ day, start, end }) => ({ day, start, end })), // disabled days are not included
                 coursework_priorities: priorities,
@@ -241,6 +309,31 @@ export default function SetupPage() {
         }
     }, [setUpForm.values, slots, courseworkTypes, priorities, active]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, slots, courseworkTypes, priorities, active]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                customFocusMinutes,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, customFocusMinutes, slots, courseworkTypes, priorities, active]);
+
     return (
         <Container fluid mih='100vh' p={{ base: '20px', sm: '60px' }} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC' }}>
             <Paper w={{ base: '100%', md: '70%' }} radius='xl' p='xl' style={{ border: '2px solid #DDE5F0', boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)' }}>
@@ -249,7 +342,16 @@ export default function SetupPage() {
                         <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
                         <Text fw={700} size='xl'>CommonGrounds Setup</Text>
                     </Group>
-                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'}>
+                    
+                    {isMobile && (
+                        <Box w='100%'>
+                            <Text fw={600} size='sm'>
+                                Step {active + 1} of {totalSteps}: {STEP_LABELS[active]}
+                            </Text>
+                            <Progress value={((active + 1) / totalSteps) * 100} radius='xl' size='sm' mt={6} />
+                        </Box>
+                    )}
+                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'} styles={isMobile ? { steps: { display: 'none' }, content: { paddingTop: 'var(--mantine-spacing-xs)' } } : undefined}>
                         <Stepper.Step label='Step 1' description='Academic Profile'>
                             <Flex direction={{ base: 'column', md: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
                                 <Flex direction='column' w={{ base: '100%', md: '40%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
@@ -266,16 +368,35 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>Tell us about your academic profile.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>This helps the app understand your learning environment and task expectations.</Text>
-                                    <TextInput
+                                    <Select
                                         label="Level of Education"
-                                        placeholder="Enter your level of education"
+                                        placeholder="Select your level of education"
+                                        data={[...LEVEL_PRESETS, OTHER_LEVEL]}
                                         radius="lg"
                                         mb="md"
                                         w='100%'
-                                        key={setUpForm.key('level')}
-                                        {...setUpForm.getInputProps('level')}
+                                        allowDeselect={false}
+                                        maxDropdownHeight={320}
+                                        value={levelOption}
+                                        onChange={(value) => {
+                                            setLevelOption(value);
+                                            setUpForm.setFieldValue('level', value && value !== OTHER_LEVEL ? value : '');
+                                        }}
+                                        error={levelOption !== OTHER_LEVEL ? setUpForm.errors.level : undefined}
                                         size={isMobile ? 'xs' : 'md'}
                                     />
+                                    {levelOption === OTHER_LEVEL && (
+                                        <TextInput
+                                            label="Specify your level of education"
+                                            placeholder="Enter your level of education"
+                                            radius="lg"
+                                            mb="md"
+                                            w='100%'
+                                            key={setUpForm.key('level')}
+                                            {...setUpForm.getInputProps('level')}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
                                     <TextInput
                                         label="School or Institution"
                                         placeholder="Enter your school or institution"
@@ -304,6 +425,7 @@ export default function SetupPage() {
                                             <Chip radius="lg" variant='light' value='Part time Student' size={isMobile ? 'xs' : 'md'}>Part time Student</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.errors.enrollmentStatus && (<Text c="red" size="sm" mb="xs">{setUpForm.errors.enrollmentStatus}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -337,14 +459,14 @@ export default function SetupPage() {
                                     >
                                         {slots.map((slot) => (
                                             <Box key={slot.day} style={{ display: isMobile ? 'block' : 'contents' }}>
-                                                <Chip
-                                                    checked={slot.enabled}
-                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })}
-                                                    variant='light'
+                                                <Chip 
+                                                    checked={slot.enabled} 
+                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} 
+                                                    variant='light' 
                                                     size='sm'
-                                                    styles={{
-                                                        root: { display: 'block', width: '100%' },
-                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 }
+                                                    styles={{ 
+                                                        root: { display: 'block', width: '100%' }, 
+                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 } 
                                                     }}
                                                 >
                                                     {slot.day}
@@ -390,13 +512,41 @@ export default function SetupPage() {
                                     )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
+                                        <Chip.Group 
+                                            value={setUpForm.values.focusLength} 
+                                            onChange={(value) => {
+                                                setUpForm.setFieldValue('focusLength', value);
+                                                setCustomFocusError(false);
+                                            }}
+                                        >
                                             <Chip radius="lg" variant='light' value='30 mins' size={isMobile ? 'xs' : 'md'}>30 mins</Chip>
                                             <Chip radius="lg" variant='light' value='45 mins' size={isMobile ? 'xs' : 'md'}>45 mins</Chip>
                                             <Chip radius="lg" variant='light' value='60 mins' size={isMobile ? 'xs' : 'md'}>60 mins</Chip>
                                             <Chip radius="lg" variant='light' value='Custom' size={isMobile ? 'xs' : 'md'}>Custom</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.values.focusLength === 'Custom' && (
+                                        <NumberInput
+                                            mt='sm'
+                                            label="Custom session length (5 to 240 min.)"
+                                            placeholder="e.g. 50"
+                                            radius="lg"
+                                            w='100%'
+                                            min={5}
+                                            max={240}
+                                            allowDecimal={false}
+                                            allowNegative={false}
+                                            suffix=" mins"
+                                            value={customFocusMinutes}
+                                            onChange={(v) => {
+                                                setCustomFocusMinutes(v);
+                                                setCustomFocusError(false);
+                                            }}
+                                            error={customFocusError ? 'Enter a length between 5 and 240 minutes.' : undefined}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
+                                    {setUpForm.errors.focusLength && (<Text c="red" size="sm" mt="xs">{setUpForm.errors.focusLength}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -450,7 +600,10 @@ export default function SetupPage() {
                                                     <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
-                                                            onChange={(v) => setPriorities((prev) => ({ ...prev, [type]: v }))}
+                                                            onChange={(v) => {
+                                                                setPriorities((prev) => ({ ...prev, [type]: v }));
+                                                                setCourseworkError(null);
+                                                            }}
                                                         >
                                                             <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'sm'}>High</Chip>
                                                             <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
@@ -461,6 +614,7 @@ export default function SetupPage() {
                                             ))
                                         )}
                                     </Flex>
+                                    {courseworkError && (<Text c="red" size="sm" mt="xs">{courseworkError}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -528,7 +682,7 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
+                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength === 'Custom' ? `${customFocusMinutes} mins` : setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Coursework Types and Priorities: {courseworkTypes.map(type => `${type} (${priorities[type] || 'No priority set'})`).join(', ') || 'No coursework types added'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Notification Preferences: {notificationPref.filter((p) => setUpForm.values[p.value as keyof typeof setUpForm.values]).map((p) => p.label).join(', ') || 'All off'}</Text>
