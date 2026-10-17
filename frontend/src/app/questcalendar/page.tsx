@@ -2347,44 +2347,6 @@ useEffect(() => {
             {getStatusLabel(selectedQuest.status)}
           </Text>
 
-         <Text
-  size="xs"
-  c={isDarkMode ? "#f3f4f6" : "#222"}
->
-  <b>Study Time:</b>
-  <br />
-
-  {selectedQuestSchedule ? (
-    <>
-      {new Date(
-        selectedQuestSchedule.starts_at
-      ).toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })}
-      <br />
-
-      {new Date(
-        selectedQuestSchedule.starts_at
-      ).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })}{" "}
-      –{" "}
-      {new Date(
-        selectedQuestSchedule.ends_at
-      ).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })}
-    </>
-  ) : (
-    "Not scheduled yet."
-  )}
-</Text>
-
 <Text
   size="xs"
   c={isDarkMode ? "#f3f4f6" : "#222"}
