@@ -26,8 +26,8 @@ export default function ItemCard({ item, owned, selected, imageWidth = 80, image
             h='180px'
             w='170px'
             style={{
-                backgroundColor: 'white',
-                border: selected ? '2px solid #2F80ED' : '1px solid #ced4da',
+                backgroundColor: 'light-dark(#FFFFFF, #151515)',
+                border: selected ? '2px solid light-dark(#2F80ED, #74C0FC)' : '1px solid light-dark(#CED4DA, #2C2E33)',
                 borderRadius: '16px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -44,7 +44,7 @@ export default function ItemCard({ item, owned, selected, imageWidth = 80, image
     size="sm"
     fw={500}
     mb="5px"
-    c="light-dark(#000000, #080606)"
+    c="light-dark(#000000, #FFFFFF)"
 >
     {item.name}
 </Text>

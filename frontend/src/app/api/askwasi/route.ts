@@ -149,7 +149,6 @@ export async function POST(request: Request) {
             level,
             school,
             enrollment_status,
-            study_time,
             focus_length,
             subjects,
             weekly_availability,
@@ -266,7 +265,6 @@ Student profile:
 - Level: ${profile.level ?? 'Not provided'}
 - School: ${profile.school ?? 'Not provided'}
 - Enrollment status: ${profile.enrollment_status ?? 'Not provided'}
-- Preferred study time: ${profile.study_time ?? 'Not provided'}
 - Focus length: ${profile.focus_length ?? 'Not provided'} minutes
 - Subjects: ${JSON.stringify(profile.subjects ?? [])}
 - Weekly availability: ${JSON.stringify(profile.weekly_availability ?? {})}

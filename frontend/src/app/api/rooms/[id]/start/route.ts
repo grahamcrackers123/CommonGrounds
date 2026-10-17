@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { clampMaxParticipants } from "@/lib/rooms";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -12,7 +13,7 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, goal, linked_task_id, duration_minutes } = await req.json().catch(() => ({}));
+  const { name, goal, linked_task_id, duration_minutes, max_participants } = await req.json().catch(() => ({}));
 
   const updates: Record<string, unknown> = {
     status: "active",
@@ -24,6 +25,8 @@ export async function POST(
     updates.linked_task_id = linked_task_id;
   if (typeof duration_minutes === "number" && duration_minutes > 0)
     updates.duration_minutes = duration_minutes;
+  if (typeof max_participants === "number")
+    updates.max_participants = clampMaxParticipants(max_participants);
 
   const { data, error } = await supabase
     .from("rooms")

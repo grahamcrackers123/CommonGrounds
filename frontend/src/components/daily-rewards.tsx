@@ -183,7 +183,7 @@ export default function DailyRewards() {
                                     </Text>
                                     <Stack gap={1} mt={4} align="center">
                                         {isClaimed ? (
-                                            <Check size={16} color="#2F9E44" />
+                                            <Check size={16} color="light-dark(#2F9E44, #51CF66)" />
                                         ) : (
                                             <>
                                                 <Flex align="center" gap={2}>
@@ -194,7 +194,7 @@ export default function DailyRewards() {
                                                 </Flex>
                                                 {reward.xp > 0 && (
                                                     <Flex align="center" gap={2}>
-                                                        <Zap size={10} color="#E8590C" />
+                                                        <Zap size={10} color="light-dark(#E8590C, #FFA94D)" />
                                                         <Text fz="xs" c="dimmed" fw={600}>
                                                             {reward.xp}
                                                         </Text>
@@ -202,7 +202,7 @@ export default function DailyRewards() {
                                                 )}
                                                 {reward.energy > 0 && (
                                                     <Flex align="center" gap={2}>
-                                                        <BatteryCharging size={10} color="#0CA678" />
+                                                        <BatteryCharging size={10} color="light-dark(#0CA678, #38D9A9)" />
                                                         <Text fz="xs" c="dimmed" fw={600}>
                                                             {reward.energy}
                                                         </Text>

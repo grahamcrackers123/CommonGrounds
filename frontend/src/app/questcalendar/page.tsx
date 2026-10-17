@@ -1226,7 +1226,7 @@ export default function QuestCalendarPage() {
           if (!response.ok) {
             throw new Error(
               data.error ||
-                "Failed to update quest."
+              "Failed to update quest."
             );
           }
         } else {
@@ -1542,8 +1542,8 @@ export default function QuestCalendarPage() {
           message:
             rewards.length > 0
               ? `${rewards.join(
-                  " · "
-                )} · "${quest.title}"`
+                " · "
+              )} · "${quest.title}"`
               : `"${quest.title}" marked as done.`,
           color: "green",
         });
@@ -2074,7 +2074,7 @@ export default function QuestCalendarPage() {
                       borderRadius: 20,
                       overflow: "hidden",
                       background:
-                        "#f3f4f6",
+                        'light-dark(#F7F9FC, #000000)',
                     }}
                   >
                     <Button
@@ -2305,7 +2305,7 @@ export default function QuestCalendarPage() {
                                       </Text>
 
                                       <Group gap={4} wrap="nowrap">
-                                        <Clock size={11} color="#2f9e44" />
+                                        <Clock size={11} color="light-dark(#2f9e44, #51cf66)" />
 
                                         <Text size="xs" c="dimmed">
                                           {formatQuestTime(
@@ -2482,7 +2482,7 @@ export default function QuestCalendarPage() {
                                         </Text>
 
                                         <Group gap={4} wrap="nowrap">
-                                          <Clock size={10} color="#2f9e44" />
+                                          <Clock size={10} color="light-dark(#2f9e44, #51cf66)" />
 
                                           <Text size="xs" c="dimmed">
                                             {formatQuestTime(
@@ -2755,7 +2755,7 @@ export default function QuestCalendarPage() {
                                   >
                                     <Clock
                                       size={12}
-                                      color="#2f9e44"
+                                      color="light-dark(#2f9e44, #51cf66)"
                                     />
 
                                     <Text
@@ -3014,84 +3014,83 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="lg"
                   p="md"
-                  bg="#f8f9fa"
+                  bg="light-dark(#F7F9FC, #000000)"
                 >
-                  <Text
-                    size="xs"
-                    c={isDarkMode ? "#0c0c0c" : "dimmed"}
-                    mt="xs"
-                  >
-                    Quest Queue
-                  </Text>
-
-                  <Text
-                    fw={700}
-                    size="xs"
-                    c={isDarkMode ? "#0c0d0e" : "#222"}
-                  >
-                    {quests.filter(
-                      (quest) =>
-                        quest.status !==
-                        "completed"
-                    ).length}{" "}
-                    active quests
-                    currently queued.
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="lg"
-                  p="md"
-                  bg="#f8f9fa"
-                >
-                  <Text
-                    size="xs"
-                    c={isDarkMode ? "#0d0d0e" : "dimmed"}
-                    mt="xs"
-                  >
-                    Procrastination Nudge
-                  </Text>
-
-                  <Text
-                    size="xs"
-                    c={isDarkMode ? "#0a0a0a" : "dimmed"}
-                    mt="xs"
-                  >
-                    {overdueTasks > 0
-                      ? `You have ${overdueTasks} overdue quest(s).`
-                      : "You're caught up with your quests."}
-                  </Text>
-                </Paper>
-
-                <Paper
-                  withBorder
-                  radius="lg"
-                  p="md"
-                  bg="#f8f9fa"
-                >
-                  <Text
-                    fw={700}
-                    size="xs"
-                    c={isDarkMode ? "#0d0d0e" : "#222"}
-                  >
-                    Weekly Reward Goal
-                  </Text>
-
-                  <Group
-                    justify="space-between"
-                    mt="xs"
-                  >
+                  <Group gap="xs" style={{ flexDirection: "column", alignItems: "flex-start", justifyContent: "center" }}>
                     <Text
                       size="xs"
-                      c={isDarkMode ? "#0f0f0f" : "#222"}
+                      c={isDarkMode ? "white" : "dimmed"}
                     >
-                      {completedTasks} / {totalTasks} completed
+                      Quest Queue
                     </Text>
 
+                    <Text
+                      fw={700}
+                      size="xs"
+                      c={isDarkMode ? "white" : "#222"}
+                    >
+                      {quests.filter(
+                        (quest) =>
+                          quest.status !==
+                          "completed"
+                      ).length}{" "}
+                      active quests
+                      currently queued.
+                    </Text>
+                  </Group>
+                </Paper>
+
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p="md"
+                  bg="light-dark(#F7F9FC, #000000)"
+                >
+                  <Group gap="xs" style={{ flexDirection: "column", alignItems: "flex-start", justifyContent: "center" }}>
+                    <Text
+                      size="xs"
+                      c={isDarkMode ? "white" : "dimmed"}
+                    >
+                      Procrastination Nudge
+                    </Text>
+
+                    <Text
+                      size="xs"
+                      c={isDarkMode ? "white" : "dimmed"}
+                    >
+                      {overdueTasks > 0
+                        ? `You have ${overdueTasks} overdue quest(s).`
+                        : "You're caught up with your quests."}
+                    </Text>
+                  </Group>
+                </Paper>
+
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p="md"
+                  bg="light-dark(#F7F9FC, #000000)"
+                >
+                  <Group style={{ justifyContent: "space-between", alignItems: "center" }}>
+                    <Group gap="xs" style={{ flexDirection: "column", alignItems: "flex-start", justifyContent: "center" }}>
+                      <Text
+                        fw={700}
+                        size="xs"
+                        c={isDarkMode ? "white" : "#222"}
+                      >
+                        Weekly Reward Goal
+                      </Text>
+
+                      <Text
+                        size="xs"
+                        c={isDarkMode ? "white" : "#222"}
+                      >
+                        {completedTasks} / {totalTasks} completed
+                      </Text>
+                    </Group>
                     <Trophy
                       size={16}
-                      color={isDarkMode ? "#06192e" : undefined}
+                      color={isDarkMode ? "white" : undefined}
                     />
                   </Group>
                 </Paper>
@@ -3141,7 +3140,7 @@ export default function QuestCalendarPage() {
                       withBorder
                       radius="lg"
                       p="md"
-                      bg="#f8f9fa"
+                      bg="light-dark(#F7F9FC, #000000)"
                     >
                       <Text
                         size="xs"
@@ -3219,7 +3218,7 @@ export default function QuestCalendarPage() {
                   />
 
                   <Button
-                    size="compact-xs"
+                    size="xs"
                     color="blue"
                     leftSection={
                       <Plus
@@ -3260,7 +3259,7 @@ export default function QuestCalendarPage() {
                   ([value, label]) => (
                     <Button
                       key={value}
-                      size="compact-xs"
+                      size="xs"
                       variant={
                         statusFilter ===
                           value
@@ -3309,7 +3308,7 @@ export default function QuestCalendarPage() {
                         radius="lg"
                         p="sm"
                         mih={400}
-                        bg="#f8f9fa"
+                        bg="light-dark(#F7F9FC, #000000)"
                       >
                         <Group
                           justify="space-between"
@@ -3527,7 +3526,7 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="lg"
                   p="xl"
-                  bg="#f8f9fa"
+                  bg="light-dark(#f8f9fa, #151515)"
                 >
                   <Text
                     size="sm"
@@ -3557,7 +3556,7 @@ export default function QuestCalendarPage() {
                         radius="lg"
                         p="md"
                         h={180}
-                        bg="#ffffff"
+                        bg="light-dark(#ffffff, #151515)"
                         style={{
                           display:
                             "flex",
@@ -3566,7 +3565,7 @@ export default function QuestCalendarPage() {
                           justifyContent:
                             "space-between",
                           borderColor:
-                            "#e5e7eb",
+                            "light-dark(#e5e7eb, #2b2b2b)",
                         }}
                       >
                         <Stack gap="xs">
@@ -3806,36 +3805,36 @@ export default function QuestCalendarPage() {
               onChange={(value) =>
                 setNewQuest({
                   ...newQuest,
-          estimated_duration:
-            typeof value ===
-            "number"
-              ? value
-              : 60,
-        })
-      }
-    />
+                  estimated_duration:
+                    typeof value ===
+                      "number"
+                      ? value
+                      : 60,
+                })
+              }
+            />
 
-    <NumberInput
-      label="Reward (Student Coins)"
-      description="Coins and pet XP granted when this quest is completed."
-      min={0}
-      max={500}
-      step={5}
-      value={newQuest.reward_coins}
-      onChange={(value) =>
-        setNewQuest({
-          ...newQuest,
-          reward_coins:
-            typeof value ===
-            "number"
-              ? value
-              : 20,
-        })
-      }
-    />
+            <NumberInput
+              label="Reward (Student Coins)"
+              description="Coins and pet XP granted when this quest is completed."
+              min={0}
+              max={500}
+              step={5}
+              value={newQuest.reward_coins}
+              onChange={(value) =>
+                setNewQuest({
+                  ...newQuest,
+                  reward_coins:
+                    typeof value ===
+                      "number"
+                      ? value
+                      : 20,
+                })
+              }
+            />
 
-    <Select
-      label="Priority"
+            <Select
+              label="Priority"
               data={[
                 {
                   value: "low",
