@@ -1,3 +1,4 @@
+import InterventionPrompt from '@/components/intervention-prompt';
 import Navbar from '@/components/navbar';
 import RealtimeSync from '@/components/realtime-sync';
 import ThemeProvider from '@/components/theme-provider';
@@ -48,6 +49,7 @@ export default function RootLayout({
             <ModalsProvider>
               <Notifications />
               <RealtimeSync />
+              <InterventionPrompt />
               <Container fluid p={0}>
                 <Navbar>
                   {children}
