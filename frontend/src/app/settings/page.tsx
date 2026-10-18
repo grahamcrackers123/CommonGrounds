@@ -261,12 +261,12 @@ export default function SettingsPage() {
                                             style={{
                                                 borderRadius: 10,
                                                 backgroundColor: isActive ? 'light-dark(#E7F5FF, #1B2A3A)' : 'transparent',
-                                                border: `1px solid ${isActive ? "light-dark(#74C0FC, #3B82F6)" : "transparent"}`,
+                                                border: `1px solid ${isActive ? "light-dark(#ACCCF8, #5999F1)" : "transparent"}`,
                                                 transition: 'background-color 0.15s ease'
                                             }}
                                         >
-                                            <tab.icon size={17} style={{ color: isActive ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#868E96, #ADB5BD)' }} />
-                                            <Text fw={600} size='sm' c={isActive ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#495057, #CED4DA)'}>
+                                            <tab.icon size={17} style={{ color: isActive ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#868E96, #ADB5BD)' }} />
+                                            <Text fw={600} size='sm' c={isActive ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#495057, #CED4DA)'}>
                                                 {tab.label}
                                             </Text>
                                         </Group>
@@ -680,7 +680,7 @@ function ScheduleTab({ form, availabilityError, setAvailabilityError }: Schedule
                             const invalid = !!slot.start && !!slot.end && slot.end <= slot.start;
 
                             return (
-                                <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
+                                <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA)', border: '1px solid #E9ECEF' }}>
                                     <Text fz="sm" fw={700} w={56}>{slot.day}</Text>
 
                                     <TimePicker

@@ -1,6 +1,8 @@
 export function chunkText(
     text: string,
-    chunkSize = 1500,
+    // Kept under the embedding model's token window so the
+    // end of a chunk is not silently truncated.
+    chunkSize = 1000,
     overlap = 200
 ): string[] {
     const normalizedText = text

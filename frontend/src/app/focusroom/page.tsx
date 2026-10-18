@@ -345,7 +345,6 @@ export default function FocusRoomPage() {
           title: q.title,
         }));
         setQuests(list);
-        if (list.length > 0) setLinkedTask((prev) => prev ?? list[0].id);
       })
       .catch(() => undefined);
   }, []);
@@ -749,9 +748,23 @@ export default function FocusRoomPage() {
         });
       }
       if (id) {
-        fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" }).catch(
-          () => undefined
-        );
+        // The owner can end the room at any time. When the timer has
+        // actually finished, any member may close it so an absent
+        // host cannot leave everyone stuck in an active room.
+        const isRoomOwner = !ownerId || ownerId === userId;
+        if (isRoomOwner || completed) {
+          fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" })
+            .then((res) => {
+              if (!res.ok && isRoomOwner) {
+                notifications.show({
+                  title: "Room not closed",
+                  message: "Other participants may still see this room as active.",
+                  color: "yellow",
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
         fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -1217,7 +1230,7 @@ export default function FocusRoomPage() {
                       cy={130}
                       r={118}
                       fill="none"
-                      stroke={running ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#ADB5BD, #6C757D)"}
+                      stroke={running ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#ADB5BD, #6C757D)"}
                       strokeWidth={14}
                       strokeLinecap="round"
                       strokeDasharray={2 * Math.PI * 118}
@@ -1292,7 +1305,7 @@ export default function FocusRoomPage() {
               {/* Ambience section */}
               <Paper p="lg" radius="lg" shadow="sm" withBorder>
                 <Group gap={8} mb="md">
-                  <ThemeIcon radius="lg" variant="light" color="indigo" size={32}>
+                  <ThemeIcon radius="lg" variant="light" color="blue" size={32}>
                     <Music size={18} />
                   </ThemeIcon>
                   <Title order={3} fz="lg" fw={700}>
@@ -1308,7 +1321,7 @@ export default function FocusRoomPage() {
                         p="sm"
                         style={{
                           borderRadius: 12,
-                          border: `1px solid ${active ? "light-dark(#74C0FC, #3B82F6)" : "light-dark(#E9ECEF, #2C2E33)"}`,
+                          border: `1px solid ${active ? "light-dark(#ACCCF8, #5999F1)" : "light-dark(#E9ECEF, #2C2E33)"}`,
                           backgroundColor: active ? "light-dark(#E7F5FF, #1B2A3A)" : "light-dark(#FFFFFF, #151515)",
                           cursor: "pointer",
                           display: "flex",
@@ -1318,8 +1331,8 @@ export default function FocusRoomPage() {
                         }}
                         onClick={() => setSound(s.key)}
                       >
-                        <s.icon size={16} color={active ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#868E96, #ADB5BD)"} />
-                        <Text fz="sm" fw={600} c={active ? "light-dark(#1C7ED6, #4DABF7)" : "light-dark(#495057, #CED4DA)"}>
+                        <s.icon size={16} color={active ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#868E96, #ADB5BD)"} />
+                        <Text fz="sm" fw={600} c={active ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#495057, #CED4DA)"}>
                           {s.label}
                         </Text>
                       </Box>
@@ -1342,7 +1355,7 @@ export default function FocusRoomPage() {
                   onChange={setVolume}
                   disabled={!soundFile}
                   size="sm"
-                  color="indigo"
+                  color="blue"
                   label={(value) => `${value}%`}
                   aria-label="Ambience volume"
                 />
@@ -1817,7 +1830,7 @@ export default function FocusRoomPage() {
             {/* friends online */}
             <Paper p="lg" radius="lg" shadow="sm" withBorder>
               <Group gap={8} mb="md">
-                <ThemeIcon radius="lg" variant="light" color="indigo" size={32}>
+                <ThemeIcon radius="lg" variant="light" color="blue" size={32}>
                   <Users size={18} />
                 </ThemeIcon>
                 <Title order={3} fz="lg" fw={700}>

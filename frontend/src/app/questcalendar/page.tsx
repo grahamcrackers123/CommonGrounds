@@ -410,7 +410,6 @@ export default function QuestCalendarPage() {
       priority:
         "medium" as QuestPriority,
       estimated_duration: 60,
-      reward_coins: 20,
     });
 
   const [courseworkType, setCourseworkType] =
@@ -919,26 +918,14 @@ export default function QuestCalendarPage() {
      SUBJECT OPTIONS
   ======================================================= */
 
-  /*
-   * Subjects come from the user's academic profile.
-   * Existing quest subjects are merged in so filters
-   * and edits still work for quests that reference a
-   * subject that is no longer on the profile.
-   */
-  const subjects =
-    Array.from(
-      new Set([
-        ...profileSubjects,
-        ...(quests
-          .map(
-            (quest) =>
-              quest.subject
-          )
-          .filter(
-            Boolean
-          ) as string[]),
-      ])
-    );
+  const subjects = Array.from(
+    new Set([
+      ...profileSubjects,
+      ...quests
+        .map((quest) => quest.subject)
+        .filter((subject): subject is string => Boolean(subject)),
+    ])
+  );
 
   const courseworkTypes =
     Object.keys(
@@ -1091,10 +1078,11 @@ export default function QuestCalendarPage() {
         `${selectedDateKey}T19:00`,
       priority: "medium",
       estimated_duration: 60,
-      reward_coins: 20,
     });
 
     setCourseworkType("");
+
+    setQuestAttachment(null);
 
     setModalOpened(true);
   };
@@ -1150,12 +1138,11 @@ export default function QuestCalendarPage() {
       estimated_duration:
         quest.estimated_duration ??
         60,
-
-      reward_coins:
-        quest.reward_coins ?? 20,
     });
 
     setCourseworkType("");
+
+    setQuestAttachment(null);
 
     setModalOpened(
       true
@@ -1178,8 +1165,19 @@ export default function QuestCalendarPage() {
         return;
       }
 
+      if (!newQuest.deadline) {
+        alert(
+          "Please set a deadline for this quest."
+        );
+
+        return;
+      }
+
       try {
         setSavingQuest(true);
+
+        let savedQuestId: string | null =
+          editingQuest?.id ?? null;
 
         if (editingQuest) {
           const response =
@@ -1213,9 +1211,6 @@ export default function QuestCalendarPage() {
 
                   estimated_duration:
                     newQuest.estimated_duration,
-
-                  reward_coins:
-                    newQuest.reward_coins,
                 }),
               }
             );
@@ -1266,9 +1261,6 @@ export default function QuestCalendarPage() {
                   estimated_duration:
                     newQuest.estimated_duration,
 
-                  reward_coins:
-                    newQuest.reward_coins,
-
                   checklist: [],
 
                   status:
@@ -1286,7 +1278,78 @@ export default function QuestCalendarPage() {
               "Failed to create quest."
             );
           }
+
+          savedQuestId = data.quest?.id ?? null;
         }
+
+        if (questAttachment && savedQuestId) {
+          try {
+            setUploadingQuestAttachment(true);
+
+            const attachmentData =
+              new FormData();
+
+            attachmentData.append(
+              "file",
+              questAttachment
+            );
+
+            attachmentData.append(
+              "questId",
+              savedQuestId
+            );
+
+            if (newQuest.subject) {
+              attachmentData.append(
+                "subject",
+                newQuest.subject
+              );
+            }
+
+            const attachmentResponse =
+              await fetch(
+                "/api/materials",
+                {
+                  method: "POST",
+                  body: attachmentData,
+                }
+              );
+
+            const attachmentJson =
+              await attachmentResponse
+                .json()
+                .catch(() => ({}));
+
+            if (!attachmentResponse.ok) {
+              throw new Error(
+                attachmentJson.error ||
+                "Failed to upload attachment."
+              );
+            }
+
+            if (attachmentJson.material) {
+              setMaterials((current) => [
+                attachmentJson.material,
+                ...current,
+              ]);
+            }
+          } catch (attachmentError) {
+            notifications.show({
+              title: "Attachment not uploaded",
+              message:
+                attachmentError instanceof Error
+                  ? attachmentError.message
+                  : "The quest was saved but its attachment was not uploaded.",
+              color: "yellow",
+            });
+          } finally {
+            setUploadingQuestAttachment(
+              false
+            );
+          }
+        }
+
+        setQuestAttachment(null);
 
         await loadQuests();
 
@@ -1557,6 +1620,8 @@ export default function QuestCalendarPage() {
           });
         }
 
+        window.dispatchEvent(new Event("quest-completed"));
+
         /*
          * Refresh from backend so the
          * Quest List and Calendar update.
@@ -1609,6 +1674,46 @@ export default function QuestCalendarPage() {
       )}`
     );
   };
+
+  const handleOpenMaterial =
+    async (material: Material) => {
+      try {
+        const response =
+          await fetch(
+            `/api/materials/${encodeURIComponent(
+              material.id
+            )}/url`,
+            {
+              cache: "no-store",
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok || !data.url) {
+          throw new Error(
+            data.error ||
+            "Could not open this material."
+          );
+        }
+
+        window.open(
+          data.url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } catch (error) {
+        notifications.show({
+          title: "Could not open material",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Try again later.",
+          color: "red",
+        });
+      }
+    };
 
   /* =======================================================
      UPLOAD MATERIAL
@@ -1706,6 +1811,13 @@ export default function QuestCalendarPage() {
             "questId",
             selectedQuest.id
           );
+
+          if (selectedQuest.subject) {
+            formData.append(
+              "subject",
+              selectedQuest.subject
+            );
+          }
         }
 
         const response =
@@ -1991,6 +2103,7 @@ export default function QuestCalendarPage() {
               borderBottom:
                 "1px solid #e5e7eb",
             }}
+            justify="space-between"
           >
             <Tabs.Tab value="calendar">
               Calendar View
@@ -2154,7 +2267,7 @@ export default function QuestCalendarPage() {
                   withBorder
                   radius="md"
                   p="md"
-                  bg="#f8f9fa"
+                  bg="light-dark(#f8f9fa, #151515)"
                 >
                   <Text
                     size="sm"
@@ -2851,6 +2964,15 @@ export default function QuestCalendarPage() {
                                     key={material.id}
                                     size="xs"
                                     c={isDarkMode ? "#f3f4f6" : "#222"}
+                                    title={`Open ${material.filename}`}
+                                    onClick={() =>
+                                      handleOpenMaterial(material)
+                                    }
+                                    style={{
+                                      cursor: "pointer",
+                                      textDecoration:
+                                        "underline dotted",
+                                    }}
                                   >
                                     • {material.filename}
                                   </Text>
@@ -3346,7 +3468,7 @@ export default function QuestCalendarPage() {
                                 withBorder
                                 radius="md"
                                 p="sm"
-                                bg="#ffffff"
+                                bg="light-dark(#ffffff, #1a1a1a)"
                                 style={{
                                   cursor:
                                     "pointer",
@@ -3557,6 +3679,12 @@ export default function QuestCalendarPage() {
                         p="md"
                         h={180}
                         bg="light-dark(#ffffff, #151515)"
+                        title={`Open ${material.filename}`}
+                        onClick={() =>
+                          handleOpenMaterial(
+                            material
+                          )
+                        }
                         style={{
                           display:
                             "flex",
@@ -3566,6 +3694,7 @@ export default function QuestCalendarPage() {
                             "space-between",
                           borderColor:
                             "light-dark(#e5e7eb, #2b2b2b)",
+                          cursor: "pointer",
                         }}
                       >
                         <Stack gap="xs">
@@ -3575,7 +3704,7 @@ export default function QuestCalendarPage() {
                           >
                             <BookOpen
                               size={20}
-                              color="#228be6"
+                              color="#2F80ED"
                             />
 
                             <Badge
@@ -3592,6 +3721,10 @@ export default function QuestCalendarPage() {
                             fw={700}
                             size="sm"
                             lineClamp={2}
+                            style={{
+                              textDecoration:
+                                "underline dotted",
+                            }}
                           >
                             {
                               material.filename
@@ -3674,6 +3807,7 @@ export default function QuestCalendarPage() {
               label="Quest Title"
               placeholder="Enter quest title"
               required
+              withAsterisk
               value={
                 newQuest.title
               }
@@ -3692,6 +3826,8 @@ export default function QuestCalendarPage() {
               label="Description"
               placeholder="Describe the quest..."
               minRows={3}
+              required
+              withAsterisk
               value={
                 newQuest.description
               }
@@ -3711,6 +3847,8 @@ export default function QuestCalendarPage() {
               placeholder="Select subject"
               searchable
               clearable
+              required
+              withAsterisk
               data={subjects.map(
                 (subject) => ({
                   value: subject,
@@ -3737,6 +3875,8 @@ export default function QuestCalendarPage() {
                 placeholder="Select coursework type"
                 searchable
                 clearable
+                required
+                withAsterisk
                 data={courseworkTypes.map(
                   (type) => ({
                     value: type,
@@ -3751,11 +3891,13 @@ export default function QuestCalendarPage() {
                     value ?? ""
                   );
 
-                  const rule = (
-                    courseworkPriorities[
-                    value ?? ""
-                    ] ?? ""
-                  ).toLowerCase();
+                  const rule = value
+                    ? (
+                      courseworkPriorities[
+                      value
+                      ] ?? "Medium"
+                    ).toLowerCase()
+                    : "";
 
                   const mappedPriority:
                     | QuestPriority
@@ -3780,6 +3922,8 @@ export default function QuestCalendarPage() {
             <TextInput
               label="Deadline"
               type="datetime-local"
+              required
+              withAsterisk
               value={
                 newQuest.deadline
               }
@@ -3797,6 +3941,8 @@ export default function QuestCalendarPage() {
             <NumberInput
               label="Estimated Duration"
               description="How many minutes this quest should take."
+              required
+              withAsterisk
               min={15}
               step={15}
               value={
@@ -3814,26 +3960,9 @@ export default function QuestCalendarPage() {
               }
             />
 
-            <NumberInput
-              label="Reward (Student Coins)"
-              description="Coins and pet XP granted when this quest is completed."
-              min={0}
-              max={500}
-              step={5}
-              value={newQuest.reward_coins}
-              onChange={(value) =>
-                setNewQuest({
-                  ...newQuest,
-                  reward_coins:
-                    typeof value ===
-                      "number"
-                      ? value
-                      : 20,
-                })
-              }
-            />
-
             <Select
+              required
+              withAsterisk
               label="Priority"
               data={[
                 {
@@ -3864,6 +3993,51 @@ export default function QuestCalendarPage() {
                 })
               }
             />
+
+            <Box>
+              <Button
+                variant="light"
+                size="compact-sm"
+                leftSection={<Upload size={14} />}
+                loading={uploadingQuestAttachment}
+                onClick={() =>
+                  questFileInputRef.current?.click()
+                }
+              >
+                Attach material
+              </Button>
+
+              <input
+                ref={questFileInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                style={{
+                  display: "none",
+                }}
+                onChange={
+                  handleQuestAttachmentSelected
+                }
+              />
+
+              {questAttachment && (
+                <Group gap={6} mt={6}>
+                  <Text size="xs" c="dimmed">
+                    {questAttachment.name}
+                  </Text>
+
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="compact-xs"
+                    onClick={() =>
+                      setQuestAttachment(null)
+                    }
+                  >
+                    <X size={12} />
+                  </Button>
+                </Group>
+              )}
+            </Box>
 
             <Group
               justify="space-between"

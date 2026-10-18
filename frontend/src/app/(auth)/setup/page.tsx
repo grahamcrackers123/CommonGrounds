@@ -1,13 +1,13 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput, Box } from "@mantine/core";
+import { Avatar, Box, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { Plus } from "lucide-react";
+import { Plus, Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -144,10 +144,10 @@ export default function SetupPage() {
         !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
 
     const getCourseworkMessage = () =>
-    courseworkTypes.length === 0
-        ? 'Add at least one coursework type.'
-        : 'Set a priority for every coursework type.';
-    
+        courseworkTypes.length === 0
+            ? 'Add at least one coursework type.'
+            : 'Set a priority for every coursework type.';
+
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
         const hasErrors = fieldsToValidate
@@ -176,7 +176,7 @@ export default function SetupPage() {
                 centered: true,
                 children: (
                     <Text size="sm">
-                        You haven't turned on any notifications, so you won't get deadline, focus, wellness, or reward reminders. Continue anyway?
+                        You haven&apos;t turned on any notifications, so you won&apos;t get deadline, focus, wellness, or reward reminders. Continue anyway?
                     </Text>
                 ),
                 labels: { confirm: 'Continue', cancel: 'Go back' },
@@ -334,6 +334,15 @@ export default function SetupPage() {
         }
     }, [setUpForm.values, levelOption, customFocusMinutes, slots, courseworkTypes, priorities, active]);
 
+    const removeCoursework = (type: string) => {
+        setCourseworkTypes((prev) => prev.filter((t) => t !== type));
+        setPriorities((prev) => {
+            const updated = { ...prev };
+            delete updated[type];
+            return updated;
+        });
+    };
+
     return (
         <Container fluid mih='100vh' p={{ base: '20px', sm: '60px' }} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC' }}>
             <Paper w={{ base: '100%', md: '70%' }} radius='xl' p='xl' style={{ border: '2px solid #DDE5F0', boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)' }}>
@@ -342,7 +351,7 @@ export default function SetupPage() {
                         <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
                         <Text fw={700} size='xl'>CommonGrounds Setup</Text>
                     </Group>
-                    
+
                     {isMobile && (
                         <Box w='100%'>
                             <Text fw={600} size='sm'>
@@ -459,14 +468,14 @@ export default function SetupPage() {
                                     >
                                         {slots.map((slot) => (
                                             <Box key={slot.day} style={{ display: isMobile ? 'block' : 'contents' }}>
-                                                <Chip 
-                                                    checked={slot.enabled} 
-                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} 
-                                                    variant='light' 
+                                                <Chip
+                                                    checked={slot.enabled}
+                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })}
+                                                    variant='light'
                                                     size='sm'
-                                                    styles={{ 
-                                                        root: { display: 'block', width: '100%' }, 
-                                                        label: { display: 'flex', justifyContent: 'center', width: '100%', paddingInline: 8 } 
+                                                    styles={{
+                                                        root: { display: 'block', width: '100%' },
+                                                        label: { justifyContent: 'center', width: '100%', paddingInline: 8 }
                                                     }}
                                                 >
                                                     {slot.day}
@@ -512,8 +521,8 @@ export default function SetupPage() {
                                     )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group 
-                                            value={setUpForm.values.focusLength} 
+                                        <Chip.Group
+                                            value={setUpForm.values.focusLength}
                                             onChange={(value) => {
                                                 setUpForm.setFieldValue('focusLength', value);
                                                 setCustomFocusError(false);
@@ -597,7 +606,7 @@ export default function SetupPage() {
                                             courseworkTypes.map((type) => (
                                                 <Flex key={type} direction={{ base: 'column', sm: 'row' }} w={{ base: '100%', md: '60%' }} gap={{ base: '0', sm: 'md' }} style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
                                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500}>{type}</Text>
-                                                    <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
+                                                    <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
                                                             onChange={(v) => {
@@ -609,6 +618,7 @@ export default function SetupPage() {
                                                             <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
                                                             <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'sm'}>Low</Chip>
                                                         </Chip.Group>
+                                                        <Button size={isMobile ? 'xs' : 'sm'} variant='subtle' color='red' radius='lg' onClick={() => removeCoursework(type)} leftSection={<Trash size={16} />} style={{ flexShrink: 0 }}>Remove</Button>
                                                     </Flex>
                                                 </Flex>
                                             ))

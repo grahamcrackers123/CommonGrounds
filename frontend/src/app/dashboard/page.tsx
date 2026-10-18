@@ -6,6 +6,8 @@ import StreakBadge from "@/components/streak-badge";
 import TutorialModal from "@/components/tutorialmodal";
 import WelcomeRewardModal from "@/components/welcomerewardmodal";
 import WorkloadStatusChip from "@/components/workload-status-chip";
+import { getCoinsEarned } from "@/lib/coin-activity";
+import { startOfLocalDay } from "@/lib/daily";
 import { applyEnergyDecay } from "@/lib/pet-energy";
 import { recordDailyStreak } from "@/lib/streak";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +27,7 @@ type ScheduleBlockWithQuest = {
     quests: { title: string } | null;
 };
 
-type DayBucket = { date: Date; minutes: number; xp: number; coins: number };
+type DayBucket = { date: Date; minutes: number; xp: number };
 
 const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -100,7 +102,7 @@ export default async function DashboardPage() {
     for (let i = 0; i < 7; i++) {
         const d = new Date(startWeek);
         d.setDate(startWeek.getDate() + i);
-        days.push({ date: d, minutes: 0, xp: 0, coins: 0 });
+        days.push({ date: d, minutes: 0, xp: 0 });
     }
     for (const s of (sessions ?? []) as FocusSession[]) {
         if (!s.started_at || !s.duration_min) continue;
@@ -110,8 +112,15 @@ export default async function DashboardPage() {
         if (!bucket) continue;
         bucket.minutes += s.duration_min;
         bucket.xp += s.streak_xp_earned ?? 0;
-        bucket.coins += s.coins_earned ?? 0;
     }
+
+    // Includes focus sessions, completed quests, and daily
+    // login / mission / bonus claims, not just focus coins.
+    const coinsToday = await getCoinsEarned(
+        supabase,
+        user.id,
+        startOfLocalDay(now)
+    );
 
     const today = days[6];
     const yesterday = days[5];
@@ -130,7 +139,7 @@ export default async function DashboardPage() {
             label: "Study Time",
             icon: Clock,
             tint: "light-dark(#E7F5FF, #1B2A3A)",
-            color: "light-dark(#1C7ED6, #4DABF7)",
+            color: "light-dark(#2F80ED, #82B3F4)",
             value: fmtMinutes(today.minutes),
             sub: `${pctDelta(today.minutes, yesterday.minutes)} vs yesterday`,
         },
@@ -148,7 +157,7 @@ export default async function DashboardPage() {
             tint: "light-dark(#FFF4E6, #342417)",
             color: "light-dark(#E8590C, #FFA94D)",
             value: (profile?.student_coins ?? 0).toLocaleString(),
-            sub: `+${today.coins} earned today`,
+            sub: `+${coinsToday.total} earned today`,
         },
         {
             label: "Day Streak",
@@ -226,7 +235,7 @@ export default async function DashboardPage() {
                         <Paper p='lg' radius='lg' shadow='sm' withBorder>
                             <Group justify='space-between' mb='md'>
                                 <Group gap={8}>
-                                    <ThemeIcon radius='lg' variant='light' color='indigo' size={32}>
+                                    <ThemeIcon radius='lg' variant='light' color='blue' size={32}>
                                         <TrendingUp size={18} />
                                     </ThemeIcon>
                                     <Title order={3} fz='lg' fw={700}>
@@ -261,7 +270,7 @@ export default async function DashboardPage() {
                                                             width: "100%",
                                                             height: `${d.minutes > 0 ? pct : 4}%`,
                                                             borderRadius: 8,
-                                                            backgroundColor: d.minutes > 0 ? "#748FFC" : "light-dark(#E9ECEF, #2C2E33)",
+                                                            backgroundColor: d.minutes > 0 ? "#5999F1" : "light-dark(#E9ECEF, #2C2E33)",
                                                         }}
                                                     />
                                                 </Box>

@@ -58,6 +58,19 @@ const PHILIPPINE_OFFSET_HOURS = 8
 const PHILIPPINE_OFFSET_MS =
     PHILIPPINE_OFFSET_HOURS * 60 * 60 * 1000
 
+/*
+Generated blocks are aligned to 15-minute marks inside the
+availability windows.
+*/
+const SLOT_STEP_MS = 15 * 60 * 1000
+
+/*
+How many weeks ahead regeneration may look for free space.
+The bound exists only so a malformed deadline can never
+cause an endless loop.
+*/
+const MAX_WEEKS_AHEAD = 52
+
 type PhilippineDateParts = {
     year: number
     month: number
@@ -123,17 +136,20 @@ function philippineDateTimeToUtc(
 }
 
 /*
-Get the next UTC instant matching a weekly availability
-window that starts after fromDate.
+Get the occurrence of a weekly availability window in the
+Philippine week that contains referenceDate, offset by
+weekOffset weeks.
 
-Example: fromDate is Wednesday 10:00 Philippine time and
-the window is Thursday 19:00, so the result is Thursday of
-the same week at 19:00 Philippine time.
+The occurrence start may lie in the past relative to
+referenceDate (for example, a window that began earlier
+today); callers decide whether the remaining time is still
+usable.
 */
-function getNextOccurrence(
+function getWeekOccurrence(
     dayName: string,
     startTime: string,
-    fromDate: Date
+    referenceDate: Date,
+    weekOffset: number
 ): Date | null {
     const targetDay = DAY_INDEX[dayName]
 
@@ -141,26 +157,16 @@ function getNextOccurrence(
         return null
     }
 
-    const now = getPhilippineDateParts(fromDate)
+    const reference = getPhilippineDateParts(referenceDate)
 
     const daysUntilTarget =
-        (targetDay - now.dayIndex + 7) % 7
-
-    const candidate = philippineDateTimeToUtc(
-        now.year,
-        now.month,
-        now.day + daysUntilTarget,
-        startTime
-    )
-
-    if (candidate > fromDate) {
-        return candidate
-    }
+        (targetDay - reference.dayIndex + 7) % 7 +
+        weekOffset * 7
 
     return philippineDateTimeToUtc(
-        now.year,
-        now.month,
-        now.day + daysUntilTarget + 7,
+        reference.year,
+        reference.month,
+        reference.day + daysUntilTarget,
         startTime
     )
 }
@@ -298,140 +304,191 @@ export function generateSchedule(
         const duration =
             quest.estimated_duration!
 
+        const durationMs =
+            duration * 60 * 1000
+
         const deadline =
             new Date(
                 quest.deadline!
             )
+
+        if (
+            Number.isNaN(
+                deadline.getTime()
+            )
+        ) {
+            continue
+        }
 
         let placed = false
 
         /*
         Build candidate availability windows.
 
-        Every window is interpreted in Philippine time and
-        lands on the actual day selected by the user.
+        Weeks from the current one up to the quest's deadline
+        are considered, so quests roll into later weeks when
+        this week's sessions are already full. A window that
+        has already begun is still included; only its
+        remaining time is used.
         */
-        const candidateWindows =
-            availability
-                .map(
-                    (window) => {
-                        const start =
-                            getNextOccurrence(
-                                window.day,
-                                window.start,
-                                now
-                            )
-
-                        if (!start) {
-                            return null
-                        }
-
-                        return {
-                            window,
-                            start,
-                            windowEnd:
-                                getWindowEnd(
-                                    start,
-                                    window.start,
-                                    window.end
-                                ),
-                        }
-                    }
-                )
-                .filter(
-                    (
-                        candidate
-                    ): candidate is {
-                        window: AvailabilityWindow
-                        start: Date
-                        windowEnd: Date
-                    } =>
-                        candidate !== null
-                )
-                .sort(
-                    (a, b) =>
-                        a.start.getTime() -
-                        b.start.getTime()
-                )
+        const candidates: Array<{
+            start: Date
+            windowEnd: Date
+        }> = []
 
         for (
-            const candidate of
-                candidateWindows
+            const window of availability
         ) {
-            const windowStart =
-                candidate.start
-
-            const windowEnd =
-                candidate.windowEnd
-
-            const blockEnd =
-                new Date(
-                    windowStart.getTime() +
-                        duration *
-                            60 *
-                            1000
-                )
-
-            /*
-            The quest must fit completely inside
-            the availability window.
-            */
-            if (
-                blockEnd >
-                windowEnd
+            for (
+                let week = 0;
+                week < MAX_WEEKS_AHEAD;
+                week++
             ) {
-                continue
-            }
+                const start =
+                    getWeekOccurrence(
+                        window.day,
+                        window.start,
+                        now,
+                        week
+                    )
 
-            /*
-            The entire quest must finish before
-            its deadline.
-            */
-            if (
-                blockEnd >
-                deadline
-            ) {
-                continue
-            }
-
-            /*
-            Do not overlap another existing/manual
-            schedule block.
-            */
-            if (
-                isOverlapping(
-                    windowStart,
-                    blockEnd,
-                    occupiedBlocks
-                )
-            ) {
-                continue
-            }
-
-            const block:
-                ScheduleBlock = {
-                    quest_id:
-                        quest.id,
-                    starts_at:
-                        windowStart.toISOString(),
-                    ends_at:
-                        blockEnd.toISOString(),
-                    source: 'auto',
+                if (!start) {
+                    break
                 }
 
-            scheduledBlocks.push(
-                block
+                /*
+                Later occurrences only start later, so once
+                one cannot finish before the deadline the
+                rest cannot either.
+                */
+                if (
+                    start.getTime() +
+                    durationMs >
+                    deadline.getTime()
+                ) {
+                    break
+                }
+
+                const windowEnd =
+                    getWindowEnd(
+                        start,
+                        window.start,
+                        window.end
+                    )
+
+                if (windowEnd <= now) {
+                    continue
+                }
+
+                candidates.push({
+                    start,
+                    windowEnd,
+                })
+            }
+        }
+
+        candidates.sort(
+            (a, b) =>
+                a.start.getTime() -
+                b.start.getTime()
+        )
+
+        /*
+        Scan each candidate window in 15-minute steps and
+        pack quest blocks back-to-back as long as they fit
+        inside the window and before the deadline.
+        */
+        for (
+            const candidate of candidates
+        ) {
+            let slotStart =
+                new Date(
+                    Math.max(
+                        candidate.start.getTime(),
+                        now.getTime()
+                    )
+                )
+
+            slotStart = new Date(
+                Math.ceil(
+                    slotStart.getTime() /
+                    SLOT_STEP_MS
+                ) * SLOT_STEP_MS
             )
 
-            occupiedBlocks.push({
-                starts_at:
-                    block.starts_at,
-                ends_at:
-                    block.ends_at,
-            })
+            for (;;) {
+                const blockEnd =
+                    new Date(
+                        slotStart.getTime() +
+                        durationMs
+                    )
 
-            placed = true
-            break
+                /*
+                The quest must fit completely inside
+                the availability window.
+                */
+                if (
+                    blockEnd >
+                    candidate.windowEnd
+                ) {
+                    break
+                }
+
+                /*
+                The entire quest must finish before its
+                deadline. Starting later makes this worse,
+                so the whole window can be skipped.
+                */
+                if (blockEnd > deadline) {
+                    break
+                }
+
+                /*
+                Do not overlap another existing/manual
+                schedule block.
+                */
+                if (
+                    !isOverlapping(
+                        slotStart,
+                        blockEnd,
+                        occupiedBlocks
+                    )
+                ) {
+                    const block:
+                        ScheduleBlock = {
+                        quest_id:
+                            quest.id,
+                        starts_at:
+                            slotStart.toISOString(),
+                        ends_at:
+                            blockEnd.toISOString(),
+                        source: 'auto',
+                    }
+
+                    scheduledBlocks.push(
+                        block
+                    )
+
+                    occupiedBlocks.push({
+                        starts_at:
+                            block.starts_at,
+                        ends_at:
+                            block.ends_at,
+                    })
+
+                    placed = true
+                    break
+                }
+
+                slotStart = new Date(
+                    slotStart.getTime() +
+                    SLOT_STEP_MS
+                )
+            }
+
+            if (placed) {
+                break
+            }
         }
 
         if (!placed) {
