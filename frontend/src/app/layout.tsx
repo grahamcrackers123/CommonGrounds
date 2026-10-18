@@ -1,9 +1,9 @@
 import Navbar from '@/components/navbar';
 import RealtimeSync from '@/components/realtime-sync';
 import ThemeProvider from '@/components/theme-provider';
+import { commonGroundsTheme } from '@/theme/commonGroundsTheme';
 import {
   Container,
-  createTheme,
   mantineHtmlProps,
   MantineProvider,
 } from '@mantine/core';
@@ -25,38 +25,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const theme = createTheme({
-  primaryColor: 'brand',
-
-  colors: {
-    brand: [
-      '#F0F2FF',
-      '#E1E5FF',
-      '#C3CAFF',
-      '#A5AFFF',
-      '#8794F5',
-      '#6F80E8',
-      '#5C6FDA',
-      '#4F61C7',
-      '#4052B3',
-      '#33449F',
-    ],
-
-    dark: [
-      '#FFFFFF',
-      '#F8FAFC',
-      '#F1F5F9',
-      '#E2E8F0',
-      '#CBD5E1',
-      '#475569',
-      '#334155',
-      '#1E293B',
-      '#111827',
-      '#000000',
-    ],
-  },
-});
-
 export const metadata: Metadata = {
   title: 'CommonGrounds',
   description: 'CommonGrounds Student Learning Platform',
@@ -73,7 +41,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable}`}
       >
         <MantineProvider
-          theme={theme}
+          theme={commonGroundsTheme}
           defaultColorScheme="light"
         >
           <ThemeProvider>

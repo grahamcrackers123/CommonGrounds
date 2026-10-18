@@ -70,10 +70,27 @@ export async function POST(request: Request) {
             ? subjectValue.trim()
             : null
 
-    const questId =
+    let questId =
         typeof questIdValue === 'string' && questIdValue.trim()
             ? questIdValue.trim()
             : null
+
+    /*
+     * Only link the material to a quest the user actually owns;
+     * anything else is dropped instead of failing the upload.
+     */
+    if (questId) {
+        const { data: ownedQuest } = await supabase
+            .from('quests')
+            .select('id')
+            .eq('id', questId)
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        if (!ownedQuest) {
+            questId = null
+        }
+    }
 
     // 3. Validate file extension
     const extension = getExtension(file.name) as AllowedExtension
@@ -88,10 +105,16 @@ export async function POST(request: Request) {
         )
     }
 
-    // 4. Validate MIME type
+    // 4. Validate MIME type. Browsers sometimes report PDFs and
+    // DOCX files as application/octet-stream, so that generic type
+    // is accepted as long as the extension is allowed.
     const expectedMimeType = ALLOWED_FILE_TYPES[extension]
 
-    if (file.type && file.type !== expectedMimeType) {
+    if (
+        file.type &&
+        file.type !== expectedMimeType &&
+        file.type !== 'application/octet-stream'
+    ) {
         return NextResponse.json(
             {
                 error: 'File type does not match its extension.',

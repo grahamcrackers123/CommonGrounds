@@ -1,4 +1,5 @@
 
+import { isQuestPriority, rewardCoinsForPriority } from '@/lib/quest-rewards'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -44,31 +45,16 @@ export async function PATCH(
 
   // Keep Student Coin rewards synchronized with priority.
   if ('priority' in body) {
-    const rewardByPriority = {
-      low: 10,
-      medium: 25,
-      high: 50,
-    } as const
-
     const priority = body.priority
 
-    if (
-      typeof priority !== 'string' ||
-      !Object.prototype.hasOwnProperty.call(
-        rewardByPriority,
-        priority
-      )
-    ) {
+    if (!isQuestPriority(priority)) {
       return NextResponse.json(
         { error: 'Invalid quest priority' },
         { status: 400 }
       )
     }
 
-    updates.reward_coins =
-      rewardByPriority[
-        priority as keyof typeof rewardByPriority
-      ]
+    updates.reward_coins = rewardCoinsForPriority(priority)
   }
 
   const { data, error } = await supabase

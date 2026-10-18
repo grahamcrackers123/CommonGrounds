@@ -310,9 +310,6 @@ export default function QuestCalendarPage() {
 
   const [quests, setQuests] =
     useState<Quest[]>([]);
-  
-  const [profileSubjects, setProfileSubjects] = 
-    useState<string[]>([]);
 
   const [selectedQuest, setSelectedQuest] =
     useState<Quest | null>(null);
@@ -413,7 +410,6 @@ export default function QuestCalendarPage() {
       priority:
         "medium" as QuestPriority,
       estimated_duration: 60,
-      reward_coins: 20,
     });
 
   const [courseworkType, setCourseworkType] =
@@ -488,30 +484,6 @@ export default function QuestCalendarPage() {
 
     load();
   }, [loadQuests]);
-
-  useEffect(() => {
-  const loadProfileSubjects = async () => {
-    try {
-      const response = await fetch("/api/profile/subjects", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load profile subjects.");
-      }
-
-      const data = await response.json();
-
-      setProfileSubjects(
-        Array.isArray(data.subjects) ? data.subjects : []
-      );
-    } catch (error) {
-      console.error("Failed to load profile subjects:", error);
-    }
-  };
-
-  loadProfileSubjects();
-}, []);
 
   /* =======================================================
      LOAD MATERIALS
@@ -947,13 +919,18 @@ export default function QuestCalendarPage() {
   ======================================================= */
 
   const subjects = Array.from(
-  new Set([
-    ...profileSubjects,
-    ...quests
-      .map((quest) => quest.subject)
-      .filter((subject): subject is string => Boolean(subject)),
-  ])
-);
+    new Set([
+      ...profileSubjects,
+      ...quests
+        .map((quest) => quest.subject)
+        .filter((subject): subject is string => Boolean(subject)),
+    ])
+  );
+
+  const courseworkTypes =
+    Object.keys(
+      courseworkPriorities
+    );
 
   const selectedQuestBlocks =
     selectedQuest
@@ -1101,10 +1078,11 @@ export default function QuestCalendarPage() {
         `${selectedDateKey}T19:00`,
       priority: "medium",
       estimated_duration: 60,
-      reward_coins: 20,
     });
 
     setCourseworkType("");
+
+    setQuestAttachment(null);
 
     setModalOpened(true);
   };
@@ -1160,12 +1138,11 @@ export default function QuestCalendarPage() {
       estimated_duration:
         quest.estimated_duration ??
         60,
-
-      reward_coins:
-        quest.reward_coins ?? 20,
     });
 
     setCourseworkType("");
+
+    setQuestAttachment(null);
 
     setModalOpened(
       true
@@ -1188,8 +1165,19 @@ export default function QuestCalendarPage() {
         return;
       }
 
+      if (!newQuest.deadline) {
+        alert(
+          "Please set a deadline for this quest."
+        );
+
+        return;
+      }
+
       try {
         setSavingQuest(true);
+
+        let savedQuestId: string | null =
+          editingQuest?.id ?? null;
 
         if (editingQuest) {
           const response =
@@ -1223,9 +1211,6 @@ export default function QuestCalendarPage() {
 
                   estimated_duration:
                     newQuest.estimated_duration,
-
-                  reward_coins:
-                    newQuest.reward_coins,
                 }),
               }
             );
@@ -1276,9 +1261,6 @@ export default function QuestCalendarPage() {
                   estimated_duration:
                     newQuest.estimated_duration,
 
-                  reward_coins:
-                    newQuest.reward_coins,
-
                   checklist: [],
 
                   status:
@@ -1296,7 +1278,78 @@ export default function QuestCalendarPage() {
               "Failed to create quest."
             );
           }
+
+          savedQuestId = data.quest?.id ?? null;
         }
+
+        if (questAttachment && savedQuestId) {
+          try {
+            setUploadingQuestAttachment(true);
+
+            const attachmentData =
+              new FormData();
+
+            attachmentData.append(
+              "file",
+              questAttachment
+            );
+
+            attachmentData.append(
+              "questId",
+              savedQuestId
+            );
+
+            if (newQuest.subject) {
+              attachmentData.append(
+                "subject",
+                newQuest.subject
+              );
+            }
+
+            const attachmentResponse =
+              await fetch(
+                "/api/materials",
+                {
+                  method: "POST",
+                  body: attachmentData,
+                }
+              );
+
+            const attachmentJson =
+              await attachmentResponse
+                .json()
+                .catch(() => ({}));
+
+            if (!attachmentResponse.ok) {
+              throw new Error(
+                attachmentJson.error ||
+                "Failed to upload attachment."
+              );
+            }
+
+            if (attachmentJson.material) {
+              setMaterials((current) => [
+                attachmentJson.material,
+                ...current,
+              ]);
+            }
+          } catch (attachmentError) {
+            notifications.show({
+              title: "Attachment not uploaded",
+              message:
+                attachmentError instanceof Error
+                  ? attachmentError.message
+                  : "The quest was saved but its attachment was not uploaded.",
+              color: "yellow",
+            });
+          } finally {
+            setUploadingQuestAttachment(
+              false
+            );
+          }
+        }
+
+        setQuestAttachment(null);
 
         await loadQuests();
 
@@ -1505,14 +1558,13 @@ export default function QuestCalendarPage() {
          * complete_quest RPC runs: it awards coins and
          * pet XP, stamps completed_at, and logs the event.
          */
-        
-const response = await fetch(
-  `/api/quests/${quest.id}`,
-  {
-    method: "POST",
-  }
-);
-
+        const response =
+          await fetch(
+            `/api/quests/${quest.id}/complete`,
+            {
+              method: "PATCH",
+            }
+          );
 
         const data =
           await response.json();
@@ -1546,6 +1598,26 @@ const response = await fetch(
           rewards.push(
             `+${data.energy} energy`
           );
+        }
+
+        notifications.show({
+          title: "Quest completed!",
+          message:
+            rewards.length > 0
+              ? `${rewards.join(
+                " · "
+              )} · "${quest.title}"`
+              : `"${quest.title}" marked as done.`,
+          color: "green",
+        });
+
+        if (data.pet?.leveledUp) {
+          notifications.show({
+            title: "Level up!",
+            message:
+              "Your pet leveled up from this quest.",
+            color: "teal",
+          });
         }
 
         window.dispatchEvent(new Event("quest-completed"));
@@ -1602,6 +1674,46 @@ const response = await fetch(
       )}`
     );
   };
+
+  const handleOpenMaterial =
+    async (material: Material) => {
+      try {
+        const response =
+          await fetch(
+            `/api/materials/${encodeURIComponent(
+              material.id
+            )}/url`,
+            {
+              cache: "no-store",
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok || !data.url) {
+          throw new Error(
+            data.error ||
+            "Could not open this material."
+          );
+        }
+
+        window.open(
+          data.url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } catch (error) {
+        notifications.show({
+          title: "Could not open material",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Try again later.",
+          color: "red",
+        });
+      }
+    };
 
   /* =======================================================
      UPLOAD MATERIAL
@@ -1699,6 +1811,13 @@ const response = await fetch(
             "questId",
             selectedQuest.id
           );
+
+          if (selectedQuest.subject) {
+            formData.append(
+              "subject",
+              selectedQuest.subject
+            );
+          }
         }
 
         const response =
@@ -1984,6 +2103,7 @@ const response = await fetch(
               borderBottom:
                 "1px solid #e5e7eb",
             }}
+            justify="space-between"
           >
             <Tabs.Tab value="calendar">
               Calendar View
@@ -2147,7 +2267,7 @@ const response = await fetch(
                   withBorder
                   radius="md"
                   p="md"
-                  bg="#f8f9fa"
+                  bg="light-dark(#f8f9fa, #151515)"
                 >
                   <Text
                     size="sm"
@@ -2595,58 +2715,30 @@ const response = await fetch(
                           {selectedQuest.title}
                         </Text>
 
-          <Text
-            size="xs"
-            c={isDarkMode ? "#f3f4f6" : "#222"}
-          >
-            <b>Status:</b>{" "}
-            {getStatusLabel(selectedQuest.status)}
-          </Text>
+                        <Text
+                          size="xs"
+                          c={isDarkMode ? "#d1d5db" : "dimmed"}
+                          mt={3}
+                        >
+                          {selectedQuest.description ||
+                            "No description provided."}
+                        </Text>
+                      </Box>
 
-<Text
-  size="xs"
-  c={isDarkMode ? "#f3f4f6" : "#222"}
->
-  <b>Deadline:</b>
-  <br />
-  {formatQuestDate(selectedQuest.deadline)}
-  <br />
-  {formatQuestTime(selectedQuest.deadline)}
-</Text>
-        </Stack>
-      </Paper>
-
-      {/* REWARD */}
-      <Box>
-        <Text
-          size="xs"
-          fw={700}
-          mb={4}
-          c={isDarkMode ? "#f3f4f6" : "#222"}
-        >
-          Reward
-        </Text>
-
-        <Paper
-          radius="md"
-          p="sm"
-          bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
-        >
-          <Group gap="md">
-            <Text
-              size="xs"
-              c={isDarkMode ? "#f3f4f6" : "#222"}
-            >
-              🪙{" "}
-              <b>
-+{selectedQuest.priority === "high"
-  ? 50
-  : selectedQuest.priority === "medium"
-    ? 25
-    : 10}
-              </b>{" "}
-              Student Coins
-            </Text>
+                      {/* BASIC DETAILS */}
+                      <Paper
+                        radius="md"
+                        p="sm"
+                        bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+                      >
+                        <Stack gap={5}>
+                          <Text
+                            size="xs"
+                            c={isDarkMode ? "#f3f4f6" : "#222"}
+                          >
+                            <b>Subject:</b>{" "}
+                            {selectedQuest.subject || "General"}
+                          </Text>
 
                           <Text
                             size="xs"
@@ -2872,6 +2964,15 @@ const response = await fetch(
                                     key={material.id}
                                     size="xs"
                                     c={isDarkMode ? "#f3f4f6" : "#222"}
+                                    title={`Open ${material.filename}`}
+                                    onClick={() =>
+                                      handleOpenMaterial(material)
+                                    }
+                                    style={{
+                                      cursor: "pointer",
+                                      textDecoration:
+                                        "underline dotted",
+                                    }}
                                   >
                                     • {material.filename}
                                   </Text>
@@ -3367,7 +3468,7 @@ const response = await fetch(
                                 withBorder
                                 radius="md"
                                 p="sm"
-                                bg="#ffffff"
+                                bg="light-dark(#ffffff, #1a1a1a)"
                                 style={{
                                   cursor:
                                     "pointer",
@@ -3578,6 +3679,12 @@ const response = await fetch(
                         p="md"
                         h={180}
                         bg="light-dark(#ffffff, #151515)"
+                        title={`Open ${material.filename}`}
+                        onClick={() =>
+                          handleOpenMaterial(
+                            material
+                          )
+                        }
                         style={{
                           display:
                             "flex",
@@ -3587,6 +3694,7 @@ const response = await fetch(
                             "space-between",
                           borderColor:
                             "light-dark(#e5e7eb, #2b2b2b)",
+                          cursor: "pointer",
                         }}
                       >
                         <Stack gap="xs">
@@ -3596,7 +3704,7 @@ const response = await fetch(
                           >
                             <BookOpen
                               size={20}
-                              color="#228be6"
+                              color="#2F80ED"
                             />
 
                             <Badge
@@ -3613,6 +3721,10 @@ const response = await fetch(
                             fw={700}
                             size="sm"
                             lineClamp={2}
+                            style={{
+                              textDecoration:
+                                "underline dotted",
+                            }}
                           >
                             {
                               material.filename
@@ -3695,6 +3807,7 @@ const response = await fetch(
               label="Quest Title"
               placeholder="Enter quest title"
               required
+              withAsterisk
               value={
                 newQuest.title
               }
@@ -3713,6 +3826,8 @@ const response = await fetch(
               label="Description"
               placeholder="Describe the quest..."
               minRows={3}
+              required
+              withAsterisk
               value={
                 newQuest.description
               }
@@ -3732,6 +3847,8 @@ const response = await fetch(
               placeholder="Select subject"
               searchable
               clearable
+              required
+              withAsterisk
               data={subjects.map(
                 (subject) => ({
                   value: subject,
@@ -3758,6 +3875,8 @@ const response = await fetch(
                 placeholder="Select coursework type"
                 searchable
                 clearable
+                required
+                withAsterisk
                 data={courseworkTypes.map(
                   (type) => ({
                     value: type,
@@ -3772,11 +3891,13 @@ const response = await fetch(
                     value ?? ""
                   );
 
-                  const rule = (
-                    courseworkPriorities[
-                    value ?? ""
-                    ] ?? ""
-                  ).toLowerCase();
+                  const rule = value
+                    ? (
+                      courseworkPriorities[
+                      value
+                      ] ?? "Medium"
+                    ).toLowerCase()
+                    : "";
 
                   const mappedPriority:
                     | QuestPriority
@@ -3801,6 +3922,8 @@ const response = await fetch(
             <TextInput
               label="Deadline"
               type="datetime-local"
+              required
+              withAsterisk
               value={
                 newQuest.deadline
               }
@@ -3818,6 +3941,8 @@ const response = await fetch(
             <NumberInput
               label="Estimated Duration"
               description="How many minutes this quest should take."
+              required
+              withAsterisk
               min={15}
               step={15}
               value={
@@ -3835,26 +3960,9 @@ const response = await fetch(
               }
             />
 
-            <NumberInput
-              label="Reward (Student Coins)"
-              description="Coins and pet XP granted when this quest is completed."
-              min={0}
-              max={500}
-              step={5}
-              value={newQuest.reward_coins}
-              onChange={(value) =>
-                setNewQuest({
-                  ...newQuest,
-                  reward_coins:
-                    typeof value ===
-                      "number"
-                      ? value
-                      : 20,
-                })
-              }
-            />
-
             <Select
+              required
+              withAsterisk
               label="Priority"
               data={[
                 {
@@ -3885,6 +3993,51 @@ const response = await fetch(
                 })
               }
             />
+
+            <Box>
+              <Button
+                variant="light"
+                size="compact-sm"
+                leftSection={<Upload size={14} />}
+                loading={uploadingQuestAttachment}
+                onClick={() =>
+                  questFileInputRef.current?.click()
+                }
+              >
+                Attach material
+              </Button>
+
+              <input
+                ref={questFileInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                style={{
+                  display: "none",
+                }}
+                onChange={
+                  handleQuestAttachmentSelected
+                }
+              />
+
+              {questAttachment && (
+                <Group gap={6} mt={6}>
+                  <Text size="xs" c="dimmed">
+                    {questAttachment.name}
+                  </Text>
+
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="compact-xs"
+                    onClick={() =>
+                      setQuestAttachment(null)
+                    }
+                  >
+                    <X size={12} />
+                  </Button>
+                </Group>
+              )}
+            </Box>
 
             <Group
               justify="space-between"

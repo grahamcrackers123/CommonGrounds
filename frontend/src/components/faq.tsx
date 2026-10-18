@@ -162,7 +162,7 @@ const faqGroups: FaqGroup[] = [
             {
                 question: "How do I delete my data?",
                 answer:
-                    "Use Settings, then Privacy & Data. Deleting your account removes your profile, pet, quests, rewards, badges, and notifications permanently.",
+                    "Use Settings, then Account. Deleting your account from the danger zone removes your profile, pet, quests, rewards, badges, uploads, and notifications permanently.",
                 action: { label: "Open Settings", path: "/settings" },
             },
         ],

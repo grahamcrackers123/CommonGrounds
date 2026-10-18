@@ -1,5 +1,7 @@
 import { getPetGrowth, getXpProgress, max_level, xp_per_level } from "@/components/petgrowth";
+import ProgressRangeControl from "@/components/progress-range-control";
 import StreakBadge from "@/components/streak-badge";
+import { getCoinsEarned } from "@/lib/coin-activity";
 import { recordDailyStreak } from "@/lib/streak";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
@@ -45,9 +47,8 @@ type Bar = {
 
 const DAY_MS = 86_400_000;
 const HEAT_WEEKS = 12;
-const CHART_WEEKS = 8;
 const LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const SUBJECT_COLORS = ["#4C6EF5", "#12B886", "#F59F00", "#E64980", "#7950F2", "#15AABF", "#FA5252", "#82C91E"];
+const SUBJECT_COLORS = ["#2F80ED", "#12B886", "#F59F00", "#E64980", "#7950F2", "#15AABF", "#FA5252", "#82C91E"];
 const STUDY_WINDOWS = [
     { name: "Morning", range: "5 AM – 12 PM" },
     { name: "Afternoon", range: "12 – 5 PM" },
@@ -115,39 +116,67 @@ function SectionHead({ icon: Icon, color, children }: { icon: typeof Clock; colo
 
 function WeeklyBars({ bars, color, format }: { bars: Bar[]; color: string; format: (value: number) => string }) {
     const max = Math.max(...bars.map((bar) => bar.value), 1);
+
+    /*
+     * Each bar keeps a readable minimum width. When a range
+     * produces more bars than fit, the chart scrolls sideways
+     * instead of stretching the page.
+     */
+    const barMinWidth = 44;
+
     return (
-        <Flex align="flex-end" gap="xs" h={160}>
-            {bars.map((bar, index) => {
-                const current = index === bars.length - 1;
-                const height = Math.max(4, Math.round((bar.value / max) * 100));
-                return (
-                    <Tooltip key={bar.label} label={format(bar.value)} withArrow>
-                        <Box style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
-                            <Box style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
-                                <Box
-                                    style={{
-                                        width: "100%",
-                                        height: `${bar.value > 0 ? height : 4}%`,
-                                        borderRadius: 8,
-                                        backgroundColor: bar.value > 0 ? color : "light-dark(#E9ECEF, #2C2E33)",
-                                        opacity: current || bar.value === 0 ? 1 : 0.65,
-                                    }}
-                                />
-                            </Box>
-                            <Text
-                                fz="xs"
-                                c={current ? undefined : "dimmed"}
-                                fw={current ? 700 : 600}
-                                ta="center"
-                                style={{ whiteSpace: "nowrap" }}
+        <Box style={{ overflowX: "auto", paddingBottom: 4 }}>
+            <Flex
+                align="flex-end"
+                gap="xs"
+                h={160}
+                style={{ minWidth: bars.length * barMinWidth }}
+            >
+                {bars.map((bar, index) => {
+                    const current = index === bars.length - 1;
+                    const height = Math.max(4, Math.round((bar.value / max) * 100));
+                    return (
+                        <Tooltip key={bar.label} label={format(bar.value)} withArrow>
+                            <Box
+                                style={{
+                                    flex: 1,
+                                    minWidth: barMinWidth,
+                                    height: "100%",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 4,
+                                }}
                             >
-                                {bar.label}
-                            </Text>
-                        </Box>
-                    </Tooltip>
-                );
-            })}
-        </Flex>
+                                <Box style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
+                                    <Box
+                                        style={{
+                                            width: "100%",
+                                            height: `${bar.value > 0 ? height : 4}%`,
+                                            borderRadius: 8,
+                                            backgroundColor: bar.value > 0 ? color : "light-dark(#E9ECEF, #2C2E33)",
+                                            opacity: current || bar.value === 0 ? 1 : 0.65,
+                                        }}
+                                    />
+                                </Box>
+                                <Text
+                                    fz="xs"
+                                    c={current ? undefined : "dimmed"}
+                                    fw={current ? 700 : 600}
+                                    ta="center"
+                                    style={{
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {bar.label}
+                                </Text>
+                            </Box>
+                        </Tooltip>
+                    );
+                })}
+            </Flex>
+        </Box>
     );
 }
 
@@ -169,7 +198,12 @@ function HabitRow({ icon: Icon, tint, label, value }: { icon: typeof Clock; tint
     );
 }
 
-export default async function ProgressMapPage() {
+export default async function ProgressMapPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+    const params = await searchParams;
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
@@ -177,7 +211,7 @@ export default async function ProgressMapPage() {
     const [profileRes, petRes, streakRes, questsRes, sessionsRes] = await Promise.all([
         supabase
             .from("profiles")
-            .select("display_name, created_at, subjects, study_time")
+            .select("display_name, created_at, subjects")
             .eq("id", user.id)
             .maybeSingle(),
         supabase.from("pets").select("species, name, level, xp").eq("owner_id", user.id).maybeSingle(),
@@ -209,20 +243,72 @@ export default async function ProgressMapPage() {
     const today = startOfDay(now);
     const weekStart = startOfWeek(now);
 
+    /*
+     * Selected range for the stat cards, habit insights, and
+     * activity charts. The heatmap always stays at 12 weeks.
+     */
+    const rangeKey = ["week", "month", "custom"].includes(params.range ?? "")
+        ? (params.range as string)
+        : "12w";
+
+    let rangeStart = rangeKey === "week"
+        ? addDays(today, -6)
+        : rangeKey === "month"
+            ? addDays(today, -29)
+            : addDays(today, -83);
+
+    let rangeEnd = today;
+
+    if (rangeKey === "custom") {
+        const fromDate = params.from ? new Date(`${params.from}T00:00:00`) : null;
+        const toDate = params.to ? new Date(`${params.to}T00:00:00`) : null;
+
+        if (fromDate && !Number.isNaN(fromDate.getTime())) rangeStart = startOfDay(fromDate);
+        if (toDate && !Number.isNaN(toDate.getTime())) rangeEnd = startOfDay(toDate);
+
+        if (rangeEnd < rangeStart) rangeEnd = rangeStart;
+
+        // Cap the window at one year so charts stay readable.
+        const earliest = addDays(rangeEnd, -365);
+        if (rangeStart < earliest) rangeStart = earliest;
+    }
+
+    const rangeDays = Math.max(
+        1,
+        Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS) + 1
+    );
+    const rangeEndExclusive = addDays(rangeEnd, 1);
+    const rangeLabel = rangeKey === "week"
+        ? "the last 7 days"
+        : rangeKey === "month"
+            ? "the last 30 days"
+            : rangeKey === "custom"
+                ? `${rangeStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${rangeEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                : "the last 12 weeks";
+
     const completedQuests = questRows.filter((quest) => quest.status === "completed");
     const completionRate = questRows.length > 0 ? Math.round((completedQuests.length / questRows.length) * 100) : 0;
     const totalMinutes = sessionRows.reduce((sum, session) => sum + session.minutes, 0);
     const focusXp = sessionRows.reduce((sum, session) => sum + session.xp, 0);
-    const focusCoins = sessionRows.reduce((sum, session) => sum + session.coins, 0);
-    const questCoins = completedQuests.reduce((sum, quest) => sum + (quest.reward_coins ?? 0), 0);
-    const coinsEarned = focusCoins + questCoins;
+
+    // All coin sources: focus sessions, quest rewards, and daily
+    // login / mission / bonus claims.
+    const coinActivity = await getCoinsEarned(supabase, user.id);
+    const coinsEarned = coinActivity.total;
     const averageSession = sessionRows.length > 0 ? totalMinutes / sessionRows.length : 0;
     const longestSession = sessionRows.reduce((max, session) => Math.max(max, session.minutes), 0);
 
-    const last30Start = addDays(today, -29);
-    const sessionsLast30 = sessionRows.filter((session) => session.at >= last30Start);
-    const minutesLast30 = sessionsLast30.reduce((sum, session) => sum + session.minutes, 0);
-    const activeDays = new Set(sessionsLast30.map((session) => startOfDay(session.at).getTime())).size;
+    const sessionsInRange = sessionRows.filter(
+        (session) => session.at >= rangeStart && session.at < rangeEndExclusive
+    );
+    const rangeMinutes = sessionsInRange.reduce((sum, session) => sum + session.minutes, 0);
+    const activeDays = new Set(sessionsInRange.map((session) => startOfDay(session.at).getTime())).size;
+    const completedInRange = completedQuests.filter(
+        (quest) =>
+            quest.completed_at &&
+            new Date(quest.completed_at) >= rangeStart &&
+            new Date(quest.completed_at) < rangeEndExclusive
+    );
 
     const completedWithDeadline = completedQuests.filter((quest) => quest.deadline);
     const onTimeCount = completedWithDeadline.filter(
@@ -275,27 +361,73 @@ export default async function ProgressMapPage() {
     const heatTotal = heatDays.reduce((sum, day) => sum + day.minutes, 0);
     const heatColumns = Array.from({ length: HEAT_WEEKS }, (_, week) => heatDays.slice(week * 7, week * 7 + 7));
 
-    const chartStart = addDays(weekStart, -(CHART_WEEKS - 1) * 7);
-    const focusByWeek = new Array<number>(CHART_WEEKS).fill(0);
-    const questsByWeek = new Array<number>(CHART_WEEKS).fill(0);
-    for (const session of sessionRows) {
-        const index = weekIndex(session.at, chartStart);
-        if (index >= 0 && index < CHART_WEEKS) focusByWeek[index] += session.minutes;
+    /*
+     * Bucket focus and quest activity by day, week, or month
+     * depending on how wide the selected range is.
+     */
+    const granularity: "day" | "week" | "month" =
+        rangeDays <= 14 ? "day" : rangeDays <= 120 ? "week" : "month";
+
+    const bucketStarts: Date[] = [];
+    if (granularity === "day") {
+        for (let date = rangeStart; date <= rangeEnd; date = addDays(date, 1)) {
+            bucketStarts.push(date);
+        }
+    } else if (granularity === "week") {
+        for (let date = startOfWeek(rangeStart); date <= rangeEnd; date = addDays(date, 7)) {
+            bucketStarts.push(date);
+        }
+    } else {
+        for (
+            let date = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+            date <= rangeEnd;
+            date = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+        ) {
+            bucketStarts.push(date);
+        }
     }
-    for (const quest of completedQuests) {
-        if (!quest.completed_at) continue;
-        const index = weekIndex(new Date(quest.completed_at), chartStart);
-        if (index >= 0 && index < CHART_WEEKS) questsByWeek[index] += 1;
+
+    const bucketCount = bucketStarts.length;
+    const bucketIndexOf = (date: Date): number => {
+        if (granularity === "day") {
+            return Math.round((startOfDay(date).getTime() - rangeStart.getTime()) / DAY_MS);
+        }
+        if (granularity === "week") {
+            return weekIndex(date, bucketStarts[0]);
+        }
+        return (
+            (date.getFullYear() - bucketStarts[0].getFullYear()) * 12 +
+            (date.getMonth() - bucketStarts[0].getMonth())
+        );
+    };
+
+    const focusByBucket = new Array<number>(bucketCount).fill(0);
+    const questsByBucket = new Array<number>(bucketCount).fill(0);
+    for (const session of sessionsInRange) {
+        const index = bucketIndexOf(session.at);
+        if (index >= 0 && index < bucketCount) focusByBucket[index] += session.minutes;
     }
-    const chartWeeks = Array.from({ length: CHART_WEEKS }, (_, index) => addDays(chartStart, index * 7));
-    const focusBars: Bar[] = chartWeeks.map((week, index) => ({
-        label: week.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-        value: focusByWeek[index],
+    for (const quest of completedInRange) {
+        const index = bucketIndexOf(new Date(quest.completed_at as string));
+        if (index >= 0 && index < bucketCount) questsByBucket[index] += 1;
+    }
+
+    const bucketLabels = bucketStarts.map((date) =>
+        granularity === "month"
+            ? date.toLocaleDateString(undefined, { month: "short" })
+            : rangeDays <= 7
+                ? date.toLocaleDateString(undefined, { weekday: "short" })
+                : date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    );
+    const focusBars: Bar[] = bucketLabels.map((label, index) => ({
+        label,
+        value: focusByBucket[index],
     }));
-    const questBars: Bar[] = chartWeeks.map((week, index) => ({
-        label: week.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-        value: questsByWeek[index],
+    const questBars: Bar[] = bucketLabels.map((label, index) => ({
+        label,
+        value: questsByBucket[index],
     }));
+    const granularityLabel = granularity === "day" ? "Day" : granularity === "week" ? "Week" : "Month";
 
     const subjectMap = new Map<string, SubjectStat>();
     const subjectStat = (name: string) => {
@@ -309,7 +441,6 @@ export default async function ProgressMapPage() {
     for (const subject of profileSubjects) {
         if (typeof subject === "string" && subject.trim()) subjectStat(subject.trim());
     }
-    const preferredStudyPeriod = typeof profile?.study_time === "string" ? profile.study_time : null;
     for (const quest of questRows) {
         const stat = subjectStat(quest.subject?.trim() || "General");
         stat.total += 1;
@@ -343,9 +474,9 @@ export default async function ProgressMapPage() {
             label: "Focus Time",
             icon: Clock,
             tint: "light-dark(#E7F5FF, #1B2A3A)",
-            color: "light-dark(#1C7ED6, #4DABF7)",
+            color: "light-dark(#2F80ED, #82B3F4)",
             value: fmtMinutes(totalMinutes),
-            sub: `${fmtMinutes(minutesLast30)} in the last 30 days`,
+            sub: `${fmtMinutes(rangeMinutes)} in ${rangeLabel}`,
         },
         {
             label: "Current Streak",
@@ -387,8 +518,8 @@ export default async function ProgressMapPage() {
         {
             icon: TrendingUp,
             tint: "light-dark(#F3F0FF, #241F3D)",
-            label: "Active days (last 30)",
-            value: `${activeDays} of 30 days`,
+            label: `Active days (${rangeLabel})`,
+            value: `${activeDays} of ${rangeDays} days`,
         },
         {
             icon: Target,
@@ -407,12 +538,6 @@ export default async function ProgressMapPage() {
             tint: "light-dark(#FFF0F6, #331B26)",
             label: "Longest session",
             value: sessionRows.length > 0 ? fmtMinutes(longestSession) : "No sessions yet",
-        },
-        {
-            icon: Sparkles,
-            tint: "light-dark(#E6FCF5, #15302C)",
-            label: "Preferred study period",
-            value: preferredStudyPeriod ?? "Not set",
         },
     ];
 
@@ -649,29 +774,37 @@ export default async function ProgressMapPage() {
                 </Paper>
 
                 {/* weekly focus & quests */}
+                <Box mb={24}>
+                    <ProgressRangeControl
+                        range={rangeKey}
+                        from={params.from ?? ""}
+                        to={params.to ?? ""}
+                    />
+                </Box>
+
                 <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" mb={28}>
                     <Paper p="lg" radius="lg" shadow="sm" withBorder>
                         <Group justify="space-between" mb="md" wrap="wrap">
-                            <SectionHead icon={Clock} color="indigo">
-                                Focus Time by Week
+                            <SectionHead icon={Clock} color="blue">
+                                Focus Time by {granularityLabel}
                             </SectionHead>
                             <Text fz="sm" fw={600} c="dimmed">
-                                {fmtMinutes(totalMinutes)} total
+                                {fmtMinutes(rangeMinutes)} total
                             </Text>
                         </Group>
                         <WeeklyBars
                             bars={focusBars}
-                            color="#748FFC"
+                            color="#5999F1"
                             format={(value) => (value > 0 ? `${fmtMinutes(value)} focused` : "No sessions")}
                         />
                     </Paper>
                     <Paper p="lg" radius="lg" shadow="sm" withBorder>
                         <Group justify="space-between" mb="md" wrap="wrap">
                             <SectionHead icon={Target} color="green">
-                                Quests Completed by Week
+                                Quests Completed by {granularityLabel}
                             </SectionHead>
                             <Text fz="sm" fw={600} c="dimmed">
-                                {completedQuests.length} total
+                                {completedInRange.length} total
                             </Text>
                         </Group>
                         <WeeklyBars

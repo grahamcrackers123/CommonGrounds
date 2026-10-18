@@ -44,12 +44,12 @@ function SidebarItem({
                 style={{
                     borderRadius: 10,
                     backgroundColor: active ? 'light-dark(#E7F5FF, #1B2A3A)' : 'transparent',
-                    border: `1px solid ${active ? "light-dark(#74C0FC, #3B82F6)" : "transparent"}`,
+                    border: `1px solid ${active ? "light-dark(#ACCCF8, #5999F1)" : "transparent"}`,
                     transition: 'background-color 0.15s ease'
                 }}
             >
-                <Icon size={17} style={{ color: active ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#868E96, #ADB5BD)' }} />
-                <Text fw={600} size='sm' c={active ? 'light-dark(#1C7ED6, #4DABF7)' : 'light-dark(#495057, #CED4DA)'}>
+                <Icon size={17} style={{ color: active ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#868E96, #ADB5BD)' }} />
+                <Text fw={600} size='sm' c={active ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#495057, #CED4DA)'}>
                     {label}
                 </Text>
             </Group>

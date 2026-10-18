@@ -89,6 +89,20 @@ export async function evaluateAndNotifyRisk(
     return;
   }
 
+  // Respect the "Burnout & wellness nudges" setting. A missing
+  // value means the user never turned the nudges off.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("notification_prefs")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const prefs = (profile?.notification_prefs ?? {}) as Record<string, unknown>;
+
+  if (prefs.burnoutNudges === false) {
+    return;
+  }
+
   for (const flag of flags) {
     const { data: existing } = await supabase
       .from("notifications")

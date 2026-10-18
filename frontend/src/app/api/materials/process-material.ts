@@ -68,34 +68,12 @@ export async function processMaterial(
 
     /*
     =====================================================
-    REMOVE EXISTING CHUNKS
-    =====================================================
-    */
-
-    const {
-        error: deleteError,
-    } = await supabase
-        .from('material_chunks')
-        .delete()
-        .eq(
-            'material_id',
-            material.id
-        )
-        .eq(
-            'user_id',
-            userId
-        )
-
-    if (deleteError) {
-        throw new Error(
-            'Could not replace existing material chunks'
-        )
-    }
-
-    /*
-    =====================================================
     GENERATE EMBEDDINGS
     =====================================================
+
+    Embeddings are generated before the old chunks are
+    removed, so a failed embedding call cannot leave the
+    material with no searchable content.
     */
 
    
@@ -121,6 +99,32 @@ export async function processMaterial(
             content,
             embedding,
         })
+    }
+
+    /*
+    =====================================================
+    REMOVE EXISTING CHUNKS
+    =====================================================
+    */
+
+    const {
+        error: deleteError,
+    } = await supabase
+        .from('material_chunks')
+        .delete()
+        .eq(
+            'material_id',
+            material.id
+        )
+        .eq(
+            'user_id',
+            userId
+        )
+
+    if (deleteError) {
+        throw new Error(
+            'Could not replace existing material chunks'
+        )
     }
 
     /*

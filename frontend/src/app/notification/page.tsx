@@ -23,13 +23,13 @@ const types: Record<NotificationType, { icon: typeof Bell; tint: string; color: 
     quest_deadline: { icon: Timer, tint: "light-dark(#FFEAEA, #3A2020)", color: "light-dark(#E03131, #FF8787)", label: "Deadline reminder" },
     quest_completed: { icon: Trophy, tint: "light-dark(#EBFBEE, #173128)", color: "light-dark(#2F9E44, #51CF66)", label: "Quest completed" },
     risk_flag: { icon: Megaphone, tint: "light-dark(#FFF4E6, #342417)", color: "light-dark(#E8590C, #FFA94D)", label: "Workload check-in" },
-    room_invite: { icon: Users, tint: "light-dark(#EDF2FF, #1E2540)", color: "light-dark(#3B5BDB, #748FFC)", label: "Focus room invite" },
+    room_invite: { icon: Users, tint: "light-dark(#EDF2FF, #1E2540)", color: "light-dark(#2F80ED, #82B3F4)", label: "Focus room invite" },
     session_completed: { icon: Sparkles, tint: "light-dark(#EBFBEE, #173128)", color: "light-dark(#2F9E44, #51CF66)", label: "Session reward" },
 };
 
 const fallbackType = { icon: Bell, tint: "light-dark(#F1F3F5, #2C2E33)", color: "light-dark(#495057, #CED4DA)", label: "Update" };
 
-type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social";
+type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social" | "wellness";
 
 export default function NotificationPage() {
     const supabase = createClient();
@@ -88,7 +88,9 @@ export default function NotificationPage() {
             case 'reward':
                 return notifications.filter((n) => n.type === 'session_completed' || n.type === 'quest_completed');
             case 'social':
-                return notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite' || n.type === 'risk_flag');
+                return notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite');
+            case 'wellness':
+                return notifications.filter((n) => n.type === 'risk_flag');
             default:
                 return notifications;
         }
@@ -124,7 +126,7 @@ export default function NotificationPage() {
 
     const stats = [
         { label: "Unread", value: String(unreadCount), icon: Bell, tint: "light-dark(#FFEAEA, #3A2020)", color: "light-dark(#E03131, #FF8787)" },
-        { label: "Received today", value: String(todayCount), icon: BellOff, tint: "light-dark(#E7F5FF, #1B2A3A)", color: "light-dark(#1C7ED6, #4DABF7)" },
+        { label: "Received today", value: String(todayCount), icon: BellOff, tint: "light-dark(#E7F5FF, #1B2A3A)", color: "light-dark(#2F80ED, #82B3F4)" },
         { label: "Deadline reminders", value: String(deadlineCount), icon: Timer, tint: "light-dark(#FFF4E6, #342417)", color: "light-dark(#E8590C, #FFA94D)" },
         { label: "Social & invites", value: String(socialCount), icon: HeartHandshake, tint: "light-dark(#E3FAFC, #15303A)", color: "light-dark(#0C8599, #3BC9DB)" },
     ];
@@ -134,6 +136,7 @@ export default function NotificationPage() {
         { key: "unread", label: `Unread${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
         { key: "deadline", label: "Deadline reminders" },
         { key: "reward", label: "Rewards & streaks" },
+        { key: "wellness", label: "Wellness" },
         { key: "social", label: "Social & updates" },
     ];
 
@@ -315,7 +318,7 @@ export default function NotificationPage() {
                 {/* quiet hours hint */}
                 <Paper p='md' radius='lg' shadow='sm' withBorder mt='md'>
                     <Group gap={10} align='flex-start' wrap='nowrap'>
-                        <ThemeIcon radius='xl' size={30} variant='light' color='indigo' style={{ alignSelf: 'center' }}>
+                        <ThemeIcon radius='xl' size={30} variant='light' color='blue' style={{ alignSelf: 'center' }}>
                             <Megaphone size={16} />
                         </ThemeIcon>
                         <Box>

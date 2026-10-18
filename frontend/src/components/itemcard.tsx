@@ -27,7 +27,7 @@ export default function ItemCard({ item, owned, selected, imageWidth = 80, image
             w='170px'
             style={{
                 backgroundColor: 'light-dark(#FFFFFF, #151515)',
-                border: selected ? '2px solid light-dark(#2F80ED, #74C0FC)' : '1px solid light-dark(#CED4DA, #2C2E33)',
+                border: selected ? '2px solid light-dark(#2F80ED, #82B3F4)' : '1px solid light-dark(#CED4DA, #2C2E33)',
                 borderRadius: '16px',
                 display: 'flex',
                 flexDirection: 'column',
