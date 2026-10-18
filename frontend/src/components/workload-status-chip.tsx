@@ -34,6 +34,7 @@ export default function WorkloadStatusChip() {
                     (await response.json()) as InterventionStatus;
 
                 setStatus(data);
+                window.dispatchEvent(new Event("interventions:updated"));
             } catch (error) {
                 console.error(
                     "Could not load workload status:",
