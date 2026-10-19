@@ -24,30 +24,66 @@ export function getPushSupport(): PushSupport {
   return Notification.permission;
 }
 
-export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
+// export async function enablePush(): Promise<{ ok: boolean; reason?: string }> {
+//   const support = getPushSupport();
+//   if (support === 'unsupported' || support === 'needs-install' || support === 'denied') {
+//     return { ok: false, reason: support };
+//   }
+//   const permission = await Notification.requestPermission(); // must run from click
+//   if (permission !== 'granted') return { ok: false, reason: 'denied' };
+
+//   const reg = await navigator.serviceWorker.register('/sw.js');
+//   await navigator.serviceWorker.ready;
+
+//   let sub = await reg.pushManager.getSubscription();
+//   if (!sub) {
+//     sub = await reg.pushManager.subscribe({
+//       userVisibleOnly: true,
+//       applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+//     });
+//   }
+//   const res = await fetch('/api/push/subscribe', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify(sub.toJSON()),
+//   });
+//   return res.ok ? { ok: true } : { ok: false, reason: 'server' };
+// }
+
+export async function enablePush(): Promise<{ ok: boolean; reason?: string; detail?: string }> {
   const support = getPushSupport();
   if (support === 'unsupported' || support === 'needs-install' || support === 'denied') {
     return { ok: false, reason: support };
   }
-  const permission = await Notification.requestPermission(); // must run from click
+
+  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidKey) return { ok: false, reason: 'missing-vapid-key' };
+
+  const permission = await Notification.requestPermission(); // must run from a click
   if (permission !== 'granted') return { ok: false, reason: 'denied' };
 
-  const reg = await navigator.serviceWorker.register('/sw.js');
-  await navigator.serviceWorker.ready;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
 
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    }
+
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub.toJSON()),
     });
+    if (!res.ok) return { ok: false, reason: 'server', detail: `${res.status} ${await res.text()}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: 'browser', detail: (err as Error).message };
   }
-  const res = await fetch('/api/push/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sub.toJSON()),
-  });
-  return res.ok ? { ok: true } : { ok: false, reason: 'server' };
 }
 
 export async function disablePush() {

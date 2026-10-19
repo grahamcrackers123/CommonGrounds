@@ -20,6 +20,41 @@ export default function EnablePushButton() {
     })();
   }, []);
 
+  // async function toggle() {
+  //   setBusy(true);
+  //   setError(null);
+  //   try {
+  //     if (subscribed) {
+  //       await disablePush();
+  //       setSubscribed(false);
+  //     } else {
+  //       const result = await enablePush();
+  //       setSubscribed(result.ok);
+  //       setSupport(getPushSupport());
+  //       if (!result.ok && result.reason === 'server') {
+  //         setError('Something went wrong saving your device. Please try again.');
+  //       }
+  //     }
+  //   } finally {
+  //     setBusy(false);
+  //   }
+  // }
+
+    function describe(r: { reason?: string; detail?: string }) {
+    switch (r.reason) {
+      case 'missing-vapid-key':
+        return 'Push is not configured on this deployment (missing VAPID public key).';
+      case 'denied':
+        return 'Notification permission was not granted.';
+      case 'server':
+        return `The server could not save your device: ${r.detail}`;
+      case 'browser':
+        return `The browser could not subscribe: ${r.detail}`;
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  }
+
   async function toggle() {
     setBusy(true);
     setError(null);
@@ -31,10 +66,10 @@ export default function EnablePushButton() {
         const result = await enablePush();
         setSubscribed(result.ok);
         setSupport(getPushSupport());
-        if (!result.ok && result.reason === 'server') {
-          setError('Something went wrong saving your device. Please try again.');
-        }
+        if (!result.ok) setError(describe(result));
       }
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }
