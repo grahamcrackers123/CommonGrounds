@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from '@/lib/supabase/client';
-import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, ScrollArea, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, AppShell, Avatar, Badge, Box, Burger, Flex, Group, Image, ScrollArea, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Bell, Circle, Moon, Sun } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -318,28 +318,30 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         gap="5px"
                         direction="column"
                     >
-                        <FillCircle
-                            key="Notifications"
-                            active={pathname === "/notification"}
-                            label="Notifications"
-                            onClick={() =>
-                                handleNavigation({
-                                    label: "Notifications",
-                                    path: "/notification"
-                                })
-                            }
-                        />
-                        <FillCircle
-                            key="Profile"
-                            active={pathname === "/profile"}
-                            label="Profile"
-                            onClick={() =>
-                                handleNavigation({
-                                    label: "Profile",
-                                    path: "/profile"
-                                })
-                            }
-                        />
+                        <Box hiddenFrom="lg">
+                            <FillCircle
+                                key="Notifications"
+                                active={pathname === "/notification"}
+                                label="Notifications"
+                                onClick={() =>
+                                    handleNavigation({
+                                        label: "Notifications",
+                                        path: "/notification"
+                                    })
+                                }
+                            />
+                            <FillCircle
+                                key="Profile"
+                                active={pathname === "/profile"}
+                                label="Profile"
+                                onClick={() =>
+                                    handleNavigation({
+                                        label: "Profile",
+                                        path: "/profile"
+                                    })
+                                }
+                            />
+                        </Box>
                         {navlinks.map((link) => (
                             <FillCircle
                                 key={link.label}
