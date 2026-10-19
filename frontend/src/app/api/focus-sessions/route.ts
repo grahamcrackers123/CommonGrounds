@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { applyEnergyDecay } from "@/lib/pet-energy";
 import { recordBehavioralEvent } from "@/lib/interventions/events";
 import { NextResponse } from "next/server";
+import { pushToUser } from "@/lib/push/send";
 
 // POST /api/focus-sessions, record a completed focus session and apply rewards (coins, pet energy, pet XP) via the complete_focus_session RPC.
 export async function POST(req: Request) {
@@ -54,14 +55,20 @@ export async function POST(req: Request) {
   if ((result.earned_streak_xp ?? 0) > 0) sessionRewards.push(`${result.earned_streak_xp} XP`);
   if ((result.earned_pet_energy ?? 0) > 0) sessionRewards.push(`${result.earned_pet_energy} energy`);
 
+  const sessionBody =
+    sessionRewards.length > 0
+      ? `You earned ${sessionRewards.join(", ")}`
+      : "Nice work finishing a focus session!";
+
   await supabase.rpc("create_notification", {
     _user_id: user.id,
     _type: "session_completed",
     _title: "Focus session complete!",
-    _body:
-      sessionRewards.length > 0
-        ? `You earned ${sessionRewards.join(", ")}`
-        : "Nice work finishing a focus session!",
+    _body: sessionBody,
+  });
+  await pushToUser(user.id, "session_completed", {
+    title: "Focus session complete!",
+    body: sessionBody,
   });
 
   return NextResponse.json(

@@ -4,6 +4,7 @@ import { applyEnergyDecay, ENERGY_MAX } from '@/lib/pet-energy'
 import { QUEST_ENERGY_REWARD } from '@/lib/quest-rewards'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { pushToUser } from "@/lib/push/send"
 
 export async function PATCH(
   request: Request,
@@ -87,6 +88,11 @@ export async function PATCH(
     if (xpGained > 0) rewards.push(`${xpGained} XP`)
     if (energyGained > 0) rewards.push(`${energyGained} energy`)
 
+    const questBody =
+      rewards.length > 0
+        ? `You earned ${rewards.join(', ')} for "${questInfo.title}"`
+        : `You completed "${questInfo.title}"`
+
     await supabase.rpc('create_notification', {
       _user_id: user.id,
       // The notifications.type check constraint does not allow
@@ -94,10 +100,11 @@ export async function PATCH(
       // notifications page relabels them from the title.
       _type: 'session_completed',
       _title: 'Quest completed!',
-      _body:
-        rewards.length > 0
-          ? `You earned ${rewards.join(', ')} for "${questInfo.title}"`
-          : `You completed "${questInfo.title}"`,
+      _body: questBody,
+    })
+    await pushToUser(user.id, 'session_completed', {
+      title: 'Quest completed!',
+      body: questBody,
     })
   }
 

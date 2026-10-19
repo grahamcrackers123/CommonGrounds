@@ -3,11 +3,11 @@
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { notifications as notify } from "@mantine/notifications";
-import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
+import { Clock, Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-type NotificationType = "friend_request" | "quest_deadline" | "quest_completed" | "risk_flag" | "room_invite" | "session_completed"
+type NotificationType = "friend_request" | "quest_deadline" | "quest_completed" | "risk_flag" | "room_invite" | "session_completed" | "focus_reminder"
 
 interface NotificationItem {
     id: string;
@@ -19,12 +19,14 @@ interface NotificationItem {
 }
 
 const types: Record<NotificationType, { icon: typeof Bell; tint: string; color: string; label: string }> = {
-    friend_request: { icon: UserPlus, tint: "light-dark(#E3FAFC, #15303A)", color: "light-dark(#0C8599, #3BC9DB)", label: "Friend request" },
-    quest_deadline: { icon: Timer, tint: "light-dark(#FFEAEA, #3A2020)", color: "light-dark(#E03131, #FF8787)", label: "Deadline reminder" },
-    quest_completed: { icon: Trophy, tint: "light-dark(#EBFBEE, #173128)", color: "light-dark(#2F9E44, #51CF66)", label: "Quest completed" },
-    risk_flag: { icon: Megaphone, tint: "light-dark(#FFF4E6, #342417)", color: "light-dark(#E8590C, #FFA94D)", label: "Workload check-in" },
-    room_invite: { icon: Users, tint: "light-dark(#EDF2FF, #1E2540)", color: "light-dark(#2F80ED, #82B3F4)", label: "Focus room invite" },
-    session_completed: { icon: Sparkles, tint: "light-dark(#EBFBEE, #173128)", color: "light-dark(#2F9E44, #51CF66)", label: "Session reward" },
+    friend_request: { icon: UserPlus, tint: "#E3FAFC", color: "#0C8599", label: "Friend request" },
+    quest_deadline: { icon: Timer, tint: "#FFEAEA", color: "#E03131", label: "Deadline reminder" },
+    quest_completed: { icon: Trophy, tint: "#EBFBEE", color: "#2F9E44", label: "Quest completed" },
+    risk_flag: { icon: Megaphone, tint: "#FFF4E6", color: "#E8590C", label: "Workload check-in" },
+    room_invite: { icon: Users, tint: "#EDF2FF", color: "#3B5BDB", label: "Focus room invite" },
+    session_completed: { icon: Sparkles, tint: "#EBFBEE", color: "#2F9E44", label: "Session reward" },
+    focus_reminder: { icon: Clock, tint: "#F3F0FF", color: "#7048E8", label: "Focus reminder" },
+    // reward_alert: { icon: Gift, tint: "#FFF9DB", color: "#F08C00", label: "Reward" },
 };
 
 const fallbackType = { icon: Bell, tint: "light-dark(#F1F3F5, #2C2E33)", color: "light-dark(#495057, #CED4DA)", label: "Update" };

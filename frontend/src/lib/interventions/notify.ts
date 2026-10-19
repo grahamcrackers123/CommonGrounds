@@ -10,8 +10,9 @@ import {
   type RiskFlag,
 } from "@/lib/interventions/risk";
 import { createPrompt, type PromptType } from "@/lib/interventions/prompts";
+import { pushToUser } from "@/lib/push/send";
 
-const FLAG_TITLES: Record<string, string> = {
+export const FLAG_TITLES: Record<string, string> = {
   missed_sessions: "Missed sessions check-in",
   inactivity: "Inactivity check-in",
   overdue_quests: "Overdue coursework check-in",
@@ -55,7 +56,8 @@ export async function computeRiskFlags(
     supabase
       .from("schedule_blocks")
       .select("starts_at, ends_at")
-      .eq("user_id", userId),
+      .eq("user_id", userId)
+      .gte("starts_at", new Date().toISOString()), // limit block query to future blocks
   ]);
 
   if (eventsResult.error) return { flags: [], error: eventsResult.error.message };
@@ -104,13 +106,15 @@ export async function evaluateAndNotifyRisk(
   }
 
   for (const flag of flags) {
+    const title = FLAG_TITLES[flag.type] ?? "Workload check-in";
+
     const { data: existing } = await supabase
       .from("notifications")
       .select("id")
       .eq("user_id", userId)
       .eq("type", "risk_flag")
       .eq("read", false)
-      .eq("title", FLAG_TITLES[flag.type] ?? "Workload check-in")
+      .eq("title", title)
       .limit(1);
 
     if (existing && existing.length > 0) continue;
@@ -118,9 +122,10 @@ export async function evaluateAndNotifyRisk(
     await supabase.rpc("create_notification", {
       _user_id: userId,
       _type: "risk_flag",
-      _title: FLAG_TITLES[flag.type] ?? "Workload check-in",
+      _title: title,
       _body: flag.message,
     });
+    await pushToUser(userId, "risk_flag", { title, body: flag.message });
   }
 
   // one prompt at a time
