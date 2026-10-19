@@ -16,7 +16,8 @@ export type BehavioralEventType =
 export async function recordBehavioralEvent(
     userId: string,
     type: BehavioralEventType,
-    metadata: Record<string, unknown> = {}
+    metadata: Record<string, unknown> = {},
+    occurredAt?: string
 ) {
     const supabase = await createClient();
 
@@ -25,7 +26,7 @@ export async function recordBehavioralEvent(
         .insert({
             user_id: userId,
             type,
-            occurred_at: new Date().toISOString(),
+            occurred_at: occurredAt ?? new Date().toISOString(),
             metadata,
         })
         .select()

@@ -12,12 +12,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* --background: #0a0a0a; */
-    --background: white;
-    /* --foreground: #ededed; */
-  }
+html[data-mantine-color-scheme="dark"] body {
+  background: #000000;
+  color: #f1f3f5;
 }
 
 body {

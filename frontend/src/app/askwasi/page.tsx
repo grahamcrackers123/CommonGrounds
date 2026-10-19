@@ -3,6 +3,7 @@
 import {
     ActionIcon,
     Badge,
+    Button,
     Card,
     Group,
     Paper,
@@ -23,8 +24,10 @@ import {
     IconSearch,
     IconSparkles,
     IconFolder,
+    IconUpload,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { notifications } from "@mantine/notifications";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -87,8 +90,10 @@ export default function AskWasiPage() {
     const [searchChat, setSearchChat] = useState("");
     const [materials, setMaterials] = useState<Material[]>([]);
     const [loadingMaterials, setLoadingMaterials] = useState(false);
+    const [uploadingMaterial, setUploadingMaterial] = useState(false);
+    const materialFileRef = useRef<HTMLInputElement | null>(null);
 
-   const handleNewChat = () => { if (loading) { return; } const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => { const loadConversations = async () => { try { const response = await fetch("/api/askwasi"); if (!response.ok) { throw new Error("Could not load chat history."); } const data = await response.json(); setConversations(data.conversations ?? []); } catch (err) { console.error("Failed to load conversations:", err); } }; loadConversations(); }, []); const handleOpenConversation = (conversation: Conversation) => { if (loading) { return; } setActiveConversationId(conversation.id); setMessages(conversation.messages); setInput(""); setError(""); }; const sendMessage = async () => { const message = input.trim(); if (!message || loading) { return; } const conversationId = activeConversationId ?? crypto.randomUUID(); if (!activeConversationId) { setActiveConversationId(conversationId); } setError(""); setInput(""); setMessages((prev) => [ ...prev, { role: "user", content: message, }, { role: "assistant", content: "", }, ]); setLoading(true); try { const response = await fetch("/api/askwasi", { method: "POST", headers: { "Content-Type": "application/json", }, body: JSON.stringify({ message, conversationId, }), }); if (!response.ok) { const data = await response.json().catch(() => null); throw new Error( data?.error || `Request failed (${response.status})` ); } if (!response.body) { throw new Error("No response stream received."); } const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; while (true) { const { value, done } = await reader.read(); if (done) { break; } buffer += decoder.decode(value, { stream: true, }); const events = buffer.split("\n\n"); buffer = events.pop() ?? ""; for (const event of events) { if (!event.startsWith("data: ")) { continue; } const json = event.slice(6); let data: { token?: string; error?: string; done?: boolean; }; try { data = JSON.parse(json); } catch (parseError) { console.error( "Failed to parse SSE event:", parseError ); continue; } if (data.token) { setMessages((prev) => { const updated = [...prev]; const lastIndex = updated.length - 1; if ( updated[lastIndex]?.role === "assistant" ) { updated[lastIndex] = { ...updated[lastIndex], content: updated[lastIndex].content + data.token, }; } return updated; }); } if (data.error) { throw new Error(data.error); } if (data.done) { console.log("Ask Wasi stream completed."); } } } } catch (err) { console.error("Ask Wasi error:", err); setError( err instanceof Error ? err.message : "Something went wrong." ); setMessages((prev) => { const last = prev[prev.length - 1]; if ( last?.role === "assistant" && last.content === "" ) { return prev.slice(0, -1); } return prev; }); } finally { setLoading(false); try { const response = await fetch("/api/askwasi"); if (response.ok) { const data = await response.json(); setConversations(data.conversations ?? []); } } catch (err) { console.error( "Failed to refresh conversations:", err ); } } };
+   const handleNewChat = () => { if (loading) { return; } const newConversationId = crypto.randomUUID(); setActiveConversationId(newConversationId); setMessages([]); setInput(""); setError(""); }; useEffect(() => { const loadConversations = async () => { try { const response = await fetch("/api/askwasi"); if (!response.ok) { throw new Error("Could not load chat history."); } const data = await response.json(); setConversations(data.conversations ?? []); } catch (err) { console.error("Failed to load conversations:", err); } }; loadConversations(); }, []); const handleOpenConversation = (conversation: Conversation) => { if (loading) { return; } setActiveConversationId(conversation.id); setMessages(conversation.messages); setInput(""); setError(""); }; const sendMessage = async () => { const message = input.trim(); if (!message || loading) { return; } const conversationId = activeConversationId ?? crypto.randomUUID(); if (!activeConversationId) { setActiveConversationId(conversationId); } setError(""); setInput(""); setMessages((prev) => [ ...prev, { role: "user", content: message, }, { role: "assistant", content: "", }, ]); setLoading(true); try { const response = await fetch("/api/askwasi", { method: "POST", headers: { "Content-Type": "application/json", }, body: JSON.stringify({ message, conversationId, questId: new URLSearchParams(window.location.search).get("questId"), }), }); if (!response.ok) { const data = await response.json().catch(() => null); throw new Error( data?.error || `Request failed (${response.status})` ); } if (!response.body) { throw new Error("No response stream received."); } const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; while (true) { const { value, done } = await reader.read(); if (done) { break; } buffer += decoder.decode(value, { stream: true, }); const events = buffer.split("\n\n"); buffer = events.pop() ?? ""; for (const event of events) { if (!event.startsWith("data: ")) { continue; } const json = event.slice(6); let data: { token?: string; error?: string; done?: boolean; }; try { data = JSON.parse(json); } catch (parseError) { console.error( "Failed to parse SSE event:", parseError ); continue; } if (data.token) { setMessages((prev) => { const updated = [...prev]; const lastIndex = updated.length - 1; if ( updated[lastIndex]?.role === "assistant" ) { updated[lastIndex] = { ...updated[lastIndex], content: updated[lastIndex].content + data.token, }; } return updated; }); } if (data.error) { throw new Error(data.error); } if (data.done) { console.log("Ask Wasi stream completed."); } } } } catch (err) { console.error("Ask Wasi error:", err); setError( err instanceof Error ? err.message : "Something went wrong." ); setMessages((prev) => { const last = prev[prev.length - 1]; if ( last?.role === "assistant" && last.content === "" ) { return prev.slice(0, -1); } return prev; }); } finally { setLoading(false); try { const response = await fetch("/api/askwasi"); if (response.ok) { const data = await response.json(); setConversations(data.conversations ?? []); } } catch (err) { console.error( "Failed to refresh conversations:", err ); } } };
    useEffect(() => {
     const loadMaterials = async () => {
         try {
@@ -115,6 +120,119 @@ export default function AskWasiPage() {
 
     loadMaterials();
 }, []);
+
+    const openMaterial = async (material: Material) => {
+        try {
+            const response = await fetch(
+                `/api/materials/${encodeURIComponent(material.id)}/url`,
+                { cache: "no-store" }
+            );
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.url) {
+                throw new Error(data.error || "Could not open this material.");
+            }
+
+            window.open(data.url, "_blank", "noopener,noreferrer");
+        } catch (err) {
+            notifications.show({
+                title: "Could not open material",
+                message: err instanceof Error ? err.message : "Try again later.",
+                color: "red",
+            });
+        }
+    };
+
+    const handleMaterialUpload = () => {
+        if (uploadingMaterial) {
+            return;
+        }
+
+        materialFileRef.current?.click();
+    };
+
+    const handleMaterialFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        event.target.value = "";
+
+        if (!file) {
+            return;
+        }
+
+        const allowedExtensions = [".pdf", ".docx", ".txt", ".md"];
+        const lowerName = file.name.toLowerCase();
+        const validExtension = allowedExtensions.some((extension) =>
+            lowerName.endsWith(extension)
+        );
+
+        if (!validExtension) {
+            notifications.show({
+                title: "Unsupported file",
+                message: "Only PDF, DOCX, TXT, and MD files are allowed.",
+                color: "red",
+            });
+            return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+            notifications.show({
+                title: "File too large",
+                message: "The maximum file size is 10 MB.",
+                color: "red",
+            });
+            return;
+        }
+
+        try {
+            setUploadingMaterial(true);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            /*
+             * Ask Wasi is opened from the Quest Calendar with a
+             * ?questId=... parameter, so uploads here stay linked
+             * to that quest.
+             */
+            const questId = new URLSearchParams(window.location.search).get("questId");
+
+            if (questId) {
+                formData.append("questId", questId);
+            }
+
+            const response = await fetch("/api/materials", {
+                method: "POST",
+                body: formData,
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to upload material.");
+            }
+
+            if (data.material) {
+                setMaterials((current) => [data.material, ...current]);
+            }
+
+            notifications.show({
+                title: "Material uploaded",
+                message: `"${file.name}" is ready for Ask Wasi.`,
+                color: "green",
+            });
+        } catch (err) {
+            notifications.show({
+                title: "Upload failed",
+                message: err instanceof Error ? err.message : "Try again later.",
+                color: "red",
+            });
+        } finally {
+            setUploadingMaterial(false);
+        }
+    };
+
    const handleQuickPrompt = (prompt: string) => {
         if (loading) {
             return;
@@ -383,6 +501,25 @@ Materials
 )}
             </button>
 
+            <Button
+                variant="light"
+                size="xs"
+                radius="md"
+                leftSection={<IconUpload size={14} />}
+                loading={uploadingMaterial}
+                onClick={handleMaterialUpload}
+            >
+                Upload material
+            </Button>
+
+            <input
+                ref={materialFileRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                style={{ display: "none" }}
+                onChange={handleMaterialFileSelected}
+            />
+
             {loadingMaterials ? (
     <Text size="xs" c="dimmed" pl={10}>
         Loading materials...
@@ -395,7 +532,12 @@ Materials
                 size="xs"
                 c="dimmed"
                 lineClamp={1}
-                title={material.filename}
+                title={`Open ${material.filename}`}
+                onClick={() => openMaterial(material)}
+                style={{
+                    cursor: "pointer",
+                    textDecoration: "underline dotted",
+                }}
             >
                 {material.filename}
             </Text>

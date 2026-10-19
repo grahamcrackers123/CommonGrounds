@@ -44,7 +44,12 @@ const user = data
   : null
   const path = request.nextUrl.pathname
 
-  if (!user && path !== '/access' && path !== '/callback') {
+  if (
+  !user &&
+  path !== '/access' &&
+  path !== '/callback' &&
+  path !== '/reset-password'
+) {
     return NextResponse.redirect(
       new URL('/access', request.url)
     )

@@ -3,8 +3,11 @@ import DailyRewards from "@/components/daily-rewards";
 import { getPetGrowth } from "@/components/petgrowth";
 import QuestPanel from "@/components/quest-panel";
 import StreakBadge from "@/components/streak-badge";
+import TutorialModal from "@/components/tutorialmodal";
 import WelcomeRewardModal from "@/components/welcomerewardmodal";
 import WorkloadStatusChip from "@/components/workload-status-chip";
+import { getCoinsEarned } from "@/lib/coin-activity";
+import { startOfLocalDay } from "@/lib/daily";
 import { applyEnergyDecay } from "@/lib/pet-energy";
 import { recordDailyStreak } from "@/lib/streak";
 import { createClient } from "@/lib/supabase/server";
@@ -24,7 +27,7 @@ type ScheduleBlockWithQuest = {
     quests: { title: string } | null;
 };
 
-type DayBucket = { date: Date; minutes: number; xp: number; coins: number };
+type DayBucket = { date: Date; minutes: number; xp: number };
 
 const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -67,7 +70,7 @@ export default async function DashboardPage() {
     ] = await Promise.all([
         supabase
             .from("profiles")
-            .select("new_user_reward_claimed, display_name, student_coins")
+            .select("new_user_reward_claimed, display_name, student_coins, tutorial_completed")
             .eq("id", user.id)
             .single(),
         supabase.from("pets").select("*").eq("owner_id", user.id).maybeSingle(),
@@ -99,7 +102,7 @@ export default async function DashboardPage() {
     for (let i = 0; i < 7; i++) {
         const d = new Date(startWeek);
         d.setDate(startWeek.getDate() + i);
-        days.push({ date: d, minutes: 0, xp: 0, coins: 0 });
+        days.push({ date: d, minutes: 0, xp: 0 });
     }
     for (const s of (sessions ?? []) as FocusSession[]) {
         if (!s.started_at || !s.duration_min) continue;
@@ -109,8 +112,15 @@ export default async function DashboardPage() {
         if (!bucket) continue;
         bucket.minutes += s.duration_min;
         bucket.xp += s.streak_xp_earned ?? 0;
-        bucket.coins += s.coins_earned ?? 0;
     }
+
+    // Includes focus sessions, completed quests, and daily
+    // login / mission / bonus claims, not just focus coins.
+    const coinsToday = await getCoinsEarned(
+        supabase,
+        user.id,
+        startOfLocalDay(now)
+    );
 
     const today = days[6];
     const yesterday = days[5];
@@ -120,6 +130,7 @@ export default async function DashboardPage() {
     const petEnergy = pet ? await applyEnergyDecay(supabase, pet) : 0;
 
     const showReward = !profile?.new_user_reward_claimed;
+    const showTutorial = profile?.new_user_reward_claimed && !profile?.tutorial_completed;
     const hour = now.getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -127,32 +138,32 @@ export default async function DashboardPage() {
         {
             label: "Study Time",
             icon: Clock,
-            tint: "#E7F5FF",
-            color: "#1C7ED6",
+            tint: "light-dark(#E7F5FF, #1B2A3A)",
+            color: "light-dark(#2F80ED, #82B3F4)",
             value: fmtMinutes(today.minutes),
             sub: `${pctDelta(today.minutes, yesterday.minutes)} vs yesterday`,
         },
         {
             label: "XP Earned",
             icon: Zap,
-            tint: "#EBFBEE",
-            color: "#2F9E44",
+            tint: "light-dark(#EBFBEE, #173128)",
+            color: "light-dark(#2F9E44, #51CF66)",
             value: `${today.xp} XP`,
             sub: `${pctDelta(today.xp, yesterday.xp)} vs yesterday`,
         },
         {
             label: "Coins",
             icon: Coins,
-            tint: "#FFF4E6",
-            color: "#E8590C",
+            tint: "light-dark(#FFF4E6, #342417)",
+            color: "light-dark(#E8590C, #FFA94D)",
             value: (profile?.student_coins ?? 0).toLocaleString(),
-            sub: `+${today.coins} earned today`,
+            sub: `+${coinsToday.total} earned today`,
         },
         {
             label: "Day Streak",
             icon: Flame,
-            tint: "#FFF0F6",
-            color: "#E64980",
+            tint: "light-dark(#FFF0F6, #331B26)",
+            color: "light-dark(#E64980, #F783AC)",
             value: `${streakData?.current_streak ?? 0}`,
             sub: `Best: ${streakData?.longest_streak ?? 0} days`,
         },
@@ -162,10 +173,13 @@ export default async function DashboardPage() {
     const upNextTitle = upNextBlock?.quests?.title ?? nextQuest?.title ?? null;
 
     return (
-        <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+        <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 {/* modal for welcome reward */}
                 {showReward && <WelcomeRewardModal />}
+
+                {/* modal for tutorial */}
+                {showTutorial && <TutorialModal />}
 
                 {/* Header */}
                 <Group justify="space-between" align="flex-end" mb={28} wrap="wrap">
@@ -221,7 +235,7 @@ export default async function DashboardPage() {
                         <Paper p='lg' radius='lg' shadow='sm' withBorder>
                             <Group justify='space-between' mb='md'>
                                 <Group gap={8}>
-                                    <ThemeIcon radius='lg' variant='light' color='indigo' size={32}>
+                                    <ThemeIcon radius='lg' variant='light' color='blue' size={32}>
                                         <TrendingUp size={18} />
                                     </ThemeIcon>
                                     <Title order={3} fz='lg' fw={700}>
@@ -256,7 +270,7 @@ export default async function DashboardPage() {
                                                             width: "100%",
                                                             height: `${d.minutes > 0 ? pct : 4}%`,
                                                             borderRadius: 8,
-                                                            backgroundColor: d.minutes > 0 ? "#748FFC" : "#E9ECEF",
+                                                            backgroundColor: d.minutes > 0 ? "#5999F1" : "light-dark(#E9ECEF, #2C2E33)",
                                                         }}
                                                     />
                                                 </Box>
@@ -292,7 +306,7 @@ export default async function DashboardPage() {
                                     h={100}
                                     style={{
                                         borderRadius: 24,
-                                        background: "linear-gradient(135deg, #D3F9D8, #EBFBEE)",
+                                        background: "linear-gradient(135deg, light-dark(#D3F9D8, #173128), light-dark(#EBFBEE, #10241C))",
                                         display: 'grid',
                                         placeItems: 'center',
                                     }}

@@ -1,13 +1,13 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Avatar, Button, Chip, Container, Flex, Group, List, Paper, Stepper, Switch, TagsInput, Text, TextInput } from "@mantine/core";
+import { Avatar, Box, Button, Chip, Container, Flex, Group, List, NumberInput, Paper, Progress, Select, Stepper, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { TimePicker } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { Plus } from "lucide-react";
+import { Plus, Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -18,15 +18,18 @@ function generateUserCode() {
 
 const STORAGE_KEY = 'setupFormData';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const STEP_LABELS = ['Academic Profile', 'Study Time', 'Subjects', 'Notifications', 'Review Setup'];
+const LEVEL_PRESETS = ['Elementary', 'Junior High School', 'Senior High School', 'College', 'Graduate School'];
+const OTHER_LEVEL = 'Other';
 
 type DaySlot = { day: string; enabled: boolean; start: string; end: string };
 
 type SetupDraft = {
     level?: string;
+    levelOption?: string | null;
     school?: string;
     program?: string;
     enrollmentStatus?: string;
-    studyTime?: string;
     focusLength?: string;
     subjects?: string[];
     deadlineReminders?: boolean;
@@ -38,6 +41,7 @@ type SetupDraft = {
     courseworkTypes?: string[];
     priorities?: Record<string, string>;
     active?: number;
+    customFocusMinutes?: number | string;
 };
 
 function defaultSlots(): DaySlot[] {
@@ -74,10 +78,21 @@ export default function SetupPage() {
     const [priorities, setPriorities] = useState<Record<string, string>>(initialDraft.priorities ?? {});
     const [courseworkInput, setCourseworkInput] = useState('');
     const [availabilityError, setAvailabilityError] = useState(false);
-
+    const [levelOption, setLevelOption] = useState<string | null>(
+        initialDraft.levelOption !== undefined
+            ? initialDraft.levelOption
+            : initialDraft.level
+                ? (LEVEL_PRESETS.includes(initialDraft.level) ? initialDraft.level : OTHER_LEVEL)
+                : null
+    );
+    const [customFocusMinutes, setCustomFocusMinutes] = useState<number | string>(initialDraft.customFocusMinutes ?? '');
+    const [customFocusError, setCustomFocusError] = useState(false);
     const [slots, setSlots] = useState<DaySlot[]>(
         initialDraft.slots && initialDraft.slots.length === DAYS.length ? initialDraft.slots : defaultSlots()
     );
+    const [courseworkError, setCourseworkError] = useState<string | null>(null);
+    const courseworkInvalid =
+        courseworkTypes.length === 0 || courseworkTypes.some((type) => !priorities[type]);
 
     const updateSlot = (day: string, patch: Partial<DaySlot>) => {
         setSlots((prev) => prev.map((s) => (s.day === day ? { ...s, ...patch } : s)));
@@ -89,6 +104,7 @@ export default function SetupPage() {
         if (value && !courseworkTypes.includes(value)) {
             setCourseworkTypes((prev) => [...prev, value]);
             setCourseworkInput('');
+            setCourseworkError(null);
         }
     };
 
@@ -102,7 +118,6 @@ export default function SetupPage() {
             school: initialDraft.school ?? '',
             program: initialDraft.program ?? '',
             enrollmentStatus: initialDraft.enrollmentStatus ?? '',
-            studyTime: initialDraft.studyTime ?? '',
             focusLength: initialDraft.focusLength ?? '',
             subjects: initialDraft.subjects ?? [],
             deadlineReminders: initialDraft.deadlineReminders ?? false,
@@ -117,19 +132,56 @@ export default function SetupPage() {
             school: (value) => (value.length > 0 ? null : 'School is required'),
             program: (value) => (value.length > 0 ? null : 'Program/Track/Strand is required'),
             enrollmentStatus: (value) => (value.length > 0 ? null : 'Enrollment status is required'),
-            studyTime: (value) => (value.length > 0 ? null : 'Preferred study time is required'),
             focusLength: (value) => (value.length > 0 ? null : 'Preferred focus session length is required'),
             subjects: (value) => (value.length > 0 ? null : 'Subjects are required'),
         }
     });
 
+    const hasNotifications = setUpForm.values.deadlineReminders || setUpForm.values.focusReminders || setUpForm.values.burnoutNudges || setUpForm.values.rewardAlerts || setUpForm.values.friendInvites;
+
+    const customMinutesInvalid =
+        setUpForm.values.focusLength === 'Custom' &&
+        !(typeof customFocusMinutes === 'number' && customFocusMinutes >= 5 && customFocusMinutes <= 240);
+
+    const getCourseworkMessage = () =>
+        courseworkTypes.length === 0
+            ? 'Add at least one coursework type.'
+            : 'Set a priority for every coursework type.';
+
     const handleNextStep = async () => {
         const fieldsToValidate = stepFields[active] ?? [];
-        const hasErrors = fieldsToValidate.some((field) => setUpForm.validateField(field).hasError);
-        if (hasErrors) return;
+        const hasErrors = fieldsToValidate
+            .map((field) => setUpForm.validateField(field).hasError)
+            .some(Boolean);
 
-        if (active === 1 && enabledSlots.length === 0) {
-            setAvailabilityError(true);
+        const slotsMissing = active === 1 && enabledSlots.length === 0;
+        if (slotsMissing) setAvailabilityError(true);
+
+        if (hasErrors || slotsMissing) return;
+
+        if (active === 1 && customMinutesInvalid) {
+            setCustomFocusError(true);
+            return;
+        }
+
+        if (active === 2 && courseworkInvalid) {
+            setCourseworkError(getCourseworkMessage());
+            return;
+        }
+
+        if (active === 3 && !hasNotifications) {
+            modals.openConfirmModal({
+                title: 'No notifications enabled',
+                size: 'sm',
+                centered: true,
+                children: (
+                    <Text size="sm">
+                        You haven&apos;t turned on any notifications, so you won&apos;t get deadline, focus, wellness, or reward reminders. Continue anyway?
+                    </Text>
+                ),
+                labels: { confirm: 'Continue', cancel: 'Go back' },
+                onConfirm: () => setActive((prev) => prev + 1),
+            });
             return;
         }
 
@@ -139,9 +191,22 @@ export default function SetupPage() {
                 .map(Number)
                 .sort((a, b) => a - b)
                 .find((step) => stepFields[step].some((field) => setUpForm.validateField(field).hasError));
-            if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
-                setActive(firstInvalidStep ?? 1);
-                setAvailabilityError(true);
+
+            // if (firstInvalidStep !== undefined || enabledSlots.length === 0) {
+            //     setActive(firstInvalidStep ?? 1);
+            //     setAvailabilityError(true);
+            //     notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
+            //     return;
+            // }
+
+            if (firstInvalidStep !== undefined || enabledSlots.length === 0 || customMinutesInvalid || courseworkInvalid) {
+                setActive(
+                    firstInvalidStep ??
+                    (enabledSlots.length === 0 || customMinutesInvalid ? 1 : 2)
+                );
+                setAvailabilityError(enabledSlots.length === 0);
+                setCustomFocusError(customMinutesInvalid);
+                setCourseworkError(courseworkInvalid ? getCourseworkMessage() : null);
                 notifications.show({ title: 'Incomplete setup', message: 'All fields are required. Please complete every step.', color: 'red' });
                 return;
             }
@@ -162,8 +227,7 @@ export default function SetupPage() {
                 school: setUpForm.values.school,
                 program: setUpForm.values.program,
                 enrollment_status: setUpForm.values.enrollmentStatus,
-                study_time: setUpForm.values.studyTime,
-                focus_length: setUpForm.values.focusLength === 'Custom' ? 0 : parseInt(setUpForm.values.focusLength, 10), // revisit when a custom-minutes input is added
+                focus_length: setUpForm.values.focusLength === 'Custom' ? Number(customFocusMinutes) : parseInt(setUpForm.values.focusLength, 10),
                 subjects: setUpForm.values.subjects,
                 weekly_availability: slots.filter((s) => s.enabled).map(({ day, start, end }) => ({ day, start, end })), // disabled days are not included
                 coursework_priorities: priorities,
@@ -230,7 +294,7 @@ export default function SetupPage() {
     // double check the fields that needs to be validated or required
     const stepFields: Record<number, (keyof typeof setUpForm.values)[]> = {
         0: ['level', 'school', 'program', 'enrollmentStatus'],
-        1: ['studyTime', 'focusLength'],
+        1: ['focusLength'],
         2: ['subjects'],
     };
 
@@ -245,6 +309,40 @@ export default function SetupPage() {
         }
     }, [setUpForm.values, slots, courseworkTypes, priorities, active]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, slots, courseworkTypes, priorities, active]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...setUpForm.values,
+                levelOption,
+                customFocusMinutes,
+                slots, courseworkTypes, priorities, active,
+            }));
+        } catch (error) {
+            console.error('Failed to persist setup draft', error);
+        }
+    }, [setUpForm.values, levelOption, customFocusMinutes, slots, courseworkTypes, priorities, active]);
+
+    const removeCoursework = (type: string) => {
+        setCourseworkTypes((prev) => prev.filter((t) => t !== type));
+        setPriorities((prev) => {
+            const updated = { ...prev };
+            delete updated[type];
+            return updated;
+        });
+    };
+
     return (
         <Container fluid mih='100vh' p={{ base: '20px', sm: '60px' }} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC' }}>
             <Paper w={{ base: '100%', md: '70%' }} radius='xl' p='xl' style={{ border: '2px solid #DDE5F0', boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)' }}>
@@ -253,7 +351,16 @@ export default function SetupPage() {
                         <Avatar variant='filled' color='#2F80ED' radius='md'>CG</Avatar>
                         <Text fw={700} size='xl'>CommonGrounds Setup</Text>
                     </Group>
-                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'}>
+
+                    {isMobile && (
+                        <Box w='100%'>
+                            <Text fw={600} size='sm'>
+                                Step {active + 1} of {totalSteps}: {STEP_LABELS[active]}
+                            </Text>
+                            <Progress value={((active + 1) / totalSteps) * 100} radius='xl' size='sm' mt={6} />
+                        </Box>
+                    )}
+                    <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false} size={isMobile ? 'xs' : 'md'} styles={isMobile ? { steps: { display: 'none' }, content: { paddingTop: 'var(--mantine-spacing-xs)' } } : undefined}>
                         <Stepper.Step label='Step 1' description='Academic Profile'>
                             <Flex direction={{ base: 'column', md: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
                                 <Flex direction='column' w={{ base: '100%', md: '40%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
@@ -270,16 +377,35 @@ export default function SetupPage() {
                                 <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>Tell us about your academic profile.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>This helps the app understand your learning environment and task expectations.</Text>
-                                    <TextInput
+                                    <Select
                                         label="Level of Education"
-                                        placeholder="Enter your level of education"
+                                        placeholder="Select your level of education"
+                                        data={[...LEVEL_PRESETS, OTHER_LEVEL]}
                                         radius="lg"
                                         mb="md"
                                         w='100%'
-                                        key={setUpForm.key('level')}
-                                        {...setUpForm.getInputProps('level')}
+                                        allowDeselect={false}
+                                        maxDropdownHeight={320}
+                                        value={levelOption}
+                                        onChange={(value) => {
+                                            setLevelOption(value);
+                                            setUpForm.setFieldValue('level', value && value !== OTHER_LEVEL ? value : '');
+                                        }}
+                                        error={levelOption !== OTHER_LEVEL ? setUpForm.errors.level : undefined}
                                         size={isMobile ? 'xs' : 'md'}
                                     />
+                                    {levelOption === OTHER_LEVEL && (
+                                        <TextInput
+                                            label="Specify your level of education"
+                                            placeholder="Enter your level of education"
+                                            radius="lg"
+                                            mb="md"
+                                            w='100%'
+                                            key={setUpForm.key('level')}
+                                            {...setUpForm.getInputProps('level')}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
                                     <TextInput
                                         label="School or Institution"
                                         placeholder="Enter your school or institution"
@@ -308,12 +434,13 @@ export default function SetupPage() {
                                             <Chip radius="lg" variant='light' value='Part time Student' size={isMobile ? 'xs' : 'md'}>Part time Student</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.errors.enrollmentStatus && (<Text c="red" size="sm" mb="xs">{setUpForm.errors.enrollmentStatus}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
                         <Stepper.Step label='Step 2' description='Study Time'>
-                            <Flex direction={{ base: 'column', md: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
-                                <Flex direction='column' w={{ base: '100%', md: '40%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
+                            <Flex direction={{ base: 'column', lg: 'row' }} gap='md' style={{ justifyContent: 'space-between', minWidth: '100%' }}>
+                                <Flex direction='column' w={{ base: '100%', lg: '40%' }} mih={{ base: 'auto', lg: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px', backgroundColor: '#EAF3FF' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>Let’s personalize your learning companion.</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>Your answers help CommonGrounds create realistic schedules, quests, reminders, and wellness nudges.</Text>
                                     <Text fw={700} fz={{ base: 'sm', md: 'md' }}>Why this matters:</Text>
@@ -324,59 +451,111 @@ export default function SetupPage() {
                                         <List.Item>Notifications that fit your routine</List.Item>
                                     </List>
                                 </Flex>
-                                <Flex direction='column' w={{ base: '100%', md: '60%' }} mih={{ base: 'auto', md: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
+                                <Flex direction='column' w={{ base: '100%', lg: '60%' }} mih={{ base: 'auto', lg: 577 }} style={{ padding: '20px', border: '1px solid #DDE5F0', borderRadius: '16px' }}>
                                     <Text fw={700} fz={{ base: 'md', md: 'lg' }}>When are you usually available to study?</Text>
                                     <Text fz={{ base: 'xs', md: 'sm' }} mb='md'>CommonGrounds uses this to generate realistic focus blocks and prevent overloaded schedules.</Text>
-                                    <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Study Period</Text>
-                                    <Flex direction='row' gap='md' wrap='wrap' mb='xs' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group value={setUpForm.values.studyTime} onChange={(value) => setUpForm.setFieldValue('studyTime', value)}>
-                                            <Chip radius="lg" variant='light' value='Morning' size={isMobile ? 'xs' : 'md'}>Morning</Chip>
-                                            <Chip radius="lg" variant='light' value='Afternoon' size={isMobile ? 'xs' : 'md'}>Afternoon</Chip>
-                                            <Chip radius="lg" variant='light' value='Evening' size={isMobile ? 'xs' : 'md'}>Evening</Chip>
-                                            <Chip radius="lg" variant='light' value='Late Night' size={isMobile ? 'xs' : 'md'}>Late Night</Chip>
-                                        </Chip.Group>
-                                    </Flex>
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Availability Study Schedule</Text>
-                                    {slots.map((slot) => (
-                                        <Flex key={slot.day} direction={{ base: 'column', sm: 'row' }} align='center' gap='md' mb='xs' w='100%'>
-                                            <Chip checked={slot.enabled} onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })} variant='light' size={isMobile ? 'xs' : 'md'}>
-                                                {slot.day}
-                                            </Chip>
-                                            <Flex direction='row' gap='xs' wrap='wrap' style={{ alignItems: 'center', justifyContent: 'center' }}>
-                                                <TimePicker
-                                                    format="12h"
-                                                    withDropdown
-                                                    value={slot.start}
-                                                    onChange={(v) => updateSlot(slot.day, { start: v })}
-                                                    disabled={!slot.enabled}
-                                                    radius='lg'
-                                                    size={isMobile ? 'xs' : 'md'}
-                                                />
-                                                <Text fz={{ base: 'xs', md: 'sm' }}>to</Text>
-                                                <TimePicker
-                                                    format="12h"
-                                                    withDropdown
-                                                    value={slot.end}
-                                                    onChange={(v) => updateSlot(slot.day, { end: v })}
-                                                    disabled={!slot.enabled}
-                                                    radius='lg'
-                                                    size={isMobile ? 'xs' : 'md'}
-                                                />
-                                            </Flex>
-                                        </Flex>
-                                    ))}
+                                    <Box
+                                        w='100%'
+                                        mb='md'
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '120px minmax(0, 1fr)',
+                                            columnGap: 'var(--mantine-spacing-xs)',
+                                            rowGap: 'var(--mantine-spacing-xs)',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        {slots.map((slot) => (
+                                            <Box key={slot.day} style={{ display: isMobile ? 'block' : 'contents' }}>
+                                                <Chip
+                                                    checked={slot.enabled}
+                                                    onChange={() => updateSlot(slot.day, { enabled: !slot.enabled })}
+                                                    variant='light'
+                                                    size='sm'
+                                                    styles={{
+                                                        root: { display: 'block', width: '100%' },
+                                                        label: { justifyContent: 'center', width: '100%', paddingInline: 8 }
+                                                    }}
+                                                >
+                                                    {slot.day}
+                                                </Chip>
+                                                <Box
+                                                    mt={isMobile ? 'xs' : 0}
+                                                    mb={isMobile ? 'sm' : 0}
+                                                    style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: 'minmax(105px, 1fr) auto minmax(105px, 1fr)',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--mantine-spacing-xs)',
+                                                        minWidth: 0
+                                                    }}
+                                                >
+                                                    <TimePicker
+                                                        format="12h"
+                                                        withDropdown
+                                                        w='100%'
+                                                        value={slot.start}
+                                                        onChange={(v) => updateSlot(slot.day, { start: v })}
+                                                        disabled={!slot.enabled}
+                                                        radius='lg'
+                                                        size='sm'
+                                                    />
+                                                    <Text fz={{ base: 'xs', md: 'sm' }}>to</Text>
+                                                    <TimePicker
+                                                        format="12h"
+                                                        withDropdown
+                                                        w='100%'
+                                                        value={slot.end}
+                                                        onChange={(v) => updateSlot(slot.day, { end: v })}
+                                                        disabled={!slot.enabled}
+                                                        radius='lg'
+                                                        size='sm'
+                                                    />
+                                                </Box>
+                                            </Box>
+                                        ))}
+                                    </Box>
                                     {availabilityError && (
                                         <Text c="red" size="sm" mb="xs">Select at least one day you&apos;re available to study.</Text>
                                     )}
                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500} mb='5px'>Preferred Focus Session Length</Text>
                                     <Flex direction='row' gap='md' wrap='wrap' style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                                        <Chip.Group value={setUpForm.values.focusLength} onChange={(value) => setUpForm.setFieldValue('focusLength', value)}>
+                                        <Chip.Group
+                                            value={setUpForm.values.focusLength}
+                                            onChange={(value) => {
+                                                setUpForm.setFieldValue('focusLength', value);
+                                                setCustomFocusError(false);
+                                            }}
+                                        >
                                             <Chip radius="lg" variant='light' value='30 mins' size={isMobile ? 'xs' : 'md'}>30 mins</Chip>
                                             <Chip radius="lg" variant='light' value='45 mins' size={isMobile ? 'xs' : 'md'}>45 mins</Chip>
                                             <Chip radius="lg" variant='light' value='60 mins' size={isMobile ? 'xs' : 'md'}>60 mins</Chip>
                                             <Chip radius="lg" variant='light' value='Custom' size={isMobile ? 'xs' : 'md'}>Custom</Chip>
                                         </Chip.Group>
                                     </Flex>
+                                    {setUpForm.values.focusLength === 'Custom' && (
+                                        <NumberInput
+                                            mt='sm'
+                                            label="Custom session length (5 to 240 min.)"
+                                            placeholder="e.g. 50"
+                                            radius="lg"
+                                            w='100%'
+                                            min={5}
+                                            max={240}
+                                            allowDecimal={false}
+                                            allowNegative={false}
+                                            suffix=" mins"
+                                            value={customFocusMinutes}
+                                            onChange={(v) => {
+                                                setCustomFocusMinutes(v);
+                                                setCustomFocusError(false);
+                                            }}
+                                            error={customFocusError ? 'Enter a length between 5 and 240 minutes.' : undefined}
+                                            size={isMobile ? 'xs' : 'md'}
+                                        />
+                                    )}
+                                    {setUpForm.errors.focusLength && (<Text c="red" size="sm" mt="xs">{setUpForm.errors.focusLength}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -427,20 +606,25 @@ export default function SetupPage() {
                                             courseworkTypes.map((type) => (
                                                 <Flex key={type} direction={{ base: 'column', sm: 'row' }} w={{ base: '100%', md: '60%' }} gap={{ base: '0', sm: 'md' }} style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
                                                     <Text fz={{ base: 'xs', md: 'sm' }} fw={500}>{type}</Text>
-                                                    <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between' }}>
+                                                    <Flex direction='row' gap='md' w={{ base: '100%', md: '60%' }} style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <Chip.Group
                                                             value={priorities[type]}
-                                                            onChange={(v) => setPriorities((prev) => ({ ...prev, [type]: v }))}
+                                                            onChange={(v) => {
+                                                                setPriorities((prev) => ({ ...prev, [type]: v }));
+                                                                setCourseworkError(null);
+                                                            }}
                                                         >
                                                             <Chip radius='lg' variant='light' value='High' size={isMobile ? 'xs' : 'sm'}>High</Chip>
                                                             <Chip radius='lg' variant='light' value='Medium' size={isMobile ? 'xs' : 'sm'}>Medium</Chip>
                                                             <Chip radius='lg' variant='light' value='Low' size={isMobile ? 'xs' : 'sm'}>Low</Chip>
                                                         </Chip.Group>
+                                                        <Button size={isMobile ? 'xs' : 'sm'} variant='subtle' color='red' radius='lg' onClick={() => removeCoursework(type)} leftSection={<Trash size={16} />} style={{ flexShrink: 0 }}>Remove</Button>
                                                     </Flex>
                                                 </Flex>
                                             ))
                                         )}
                                     </Flex>
+                                    {courseworkError && (<Text c="red" size="sm" mt="xs">{courseworkError}</Text>)}
                                 </Flex>
                             </Flex>
                         </Stepper.Step>
@@ -507,9 +691,8 @@ export default function SetupPage() {
                                         <Text fz={{ base: 'sm', md: 'md' }}>School or Institution: {setUpForm.values.school}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Program / Track / Strand: {setUpForm.values.program}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Enrollment Status: {setUpForm.values.enrollmentStatus}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Study Time: {setUpForm.values.studyTime}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Availability to Study: {enabledSlots.map(slot => `${slot.day} (${to12Hour(slot.start)} - ${to12Hour(slot.end)})`).join(', ') || 'No days selected'}</Text>
-                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength}</Text>
+                                        <Text fz={{ base: 'sm', md: 'md' }}>Preferred Focus Session Length: {setUpForm.values.focusLength === 'Custom' ? `${customFocusMinutes} mins` : setUpForm.values.focusLength}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Academic Subjects: {setUpForm.values.subjects.join(', ')}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Coursework Types and Priorities: {courseworkTypes.map(type => `${type} (${priorities[type] || 'No priority set'})`).join(', ') || 'No coursework types added'}</Text>
                                         <Text fz={{ base: 'sm', md: 'md' }}>Notification Preferences: {notificationPref.filter((p) => setUpForm.values[p.value as keyof typeof setUpForm.values]).map((p) => p.label).join(', ') || 'All off'}</Text>

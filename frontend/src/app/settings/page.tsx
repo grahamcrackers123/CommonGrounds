@@ -2,30 +2,30 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { Avatar, Badge, Box, Button, Chip, Divider, FileButton, Flex, Group, Paper, Select, Stack, Switch, TagsInput, Text, TextInput, ThemeIcon, Title, UnstyledButton } from "@mantine/core";
+import { TimePicker } from '@mantine/dates';
 import { useForm, type UseFormReturnType } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { Bell, BookOpen, CalendarClock, FileDown, FileUp, GraduationCap, KeyRound, LogOut, Moon, Palette, Plus, Save, ShieldCheck, Trash2, User, X } from 'lucide-react';
+import { Bell, BookOpen, CalendarClock, FileUp, GraduationCap, KeyRound, LogOut, Palette, Plus, Save, Trash2, User, X } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type TabSection = "account" | "academic" | "schedule" | "notifications" | "privacy";
+
+type TabSection = "account" | "academic" | "schedule" | "notifications";
 const tabs: { key: TabSection; label: string; icon: typeof User }[] = [
     { key: "account", label: "Account", icon: User },
     { key: "academic", label: "Academic Profile", icon: GraduationCap },
     { key: "schedule", label: "Study Schedule", icon: CalendarClock },
     { key: "notifications", label: "Notifications", icon: Bell },
-    { key: "privacy", label: "Privacy & Data", icon: ShieldCheck },
+    // { key: "privacy", label: "Privacy & Data", icon: ShieldCheck },
 ];
 
 const ENROLLMENT_OPTIONS = ["Working Student", "Full time Student", "Part time Student"];
 const COURSEWORK_SUGGESTIONS = ["Worksheet", "Quiz", "Project", "Reading", "Flashcards"];
 const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const TIMES = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 const DEFAULT_START = '09:00';
 const DEFAULT_END = '12:00';
-const STUDY_PERIODS = ["Morning", "Afternoon", "Evening", "Late Night"];
 const FOCUS_LENGTHS = [
     { value: '30', label: '30 mins' },
     { value: '45', label: '45 mins' },
@@ -69,7 +69,6 @@ type FormValues = {
     level: string;
     school: string;
     enrollment_status: string;
-    study_time: string;
     focus_length: string;
     subjects: string[];
     weekly_availability: AvailabilitySlot[];
@@ -80,6 +79,12 @@ type FormValues = {
 interface TabProps {
     form: UseFormReturnType<FormValues>;
     markUnsavedChanges: () => void;
+}
+
+interface AccountTabProps extends TabProps {
+    avatarUrl: string | null;
+    avatarUploading: boolean;
+    handleAvatarUpload: (file: File | null) => Promise<void>;
 }
 
 function to24h(time: string): string {
@@ -94,12 +99,103 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<TabSection>('account');
     const [unsavedChanges, setUnsavedChanges] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    const [avatarUploading, setAvatarUploading] = useState(false);
     const hydratedRef = useRef(false);
     const supabase = useMemo(() => createClient(), []);
+    const [availabilityError, setAvailabilityError] = useState(false);
 
     const markUnsavedChanges = () => {
         setUnsavedChanges(true);
     };
+    
+const handleAvatarUpload = async (file: File | null) => {
+    if (!file) return;
+
+    const allowedTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+        notifications.show({
+            title: 'Invalid image',
+            message: 'Please choose a PNG, JPG, or WebP image.',
+            color: 'red',
+        });
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        notifications.show({
+            title: 'Image too large',
+            message: 'Your profile picture must be 5MB or smaller.',
+            color: 'red',
+        });
+        return;
+    }
+
+    setAvatarUploading(true);
+
+    try {
+        const {
+            data: { user },
+            error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error('Please sign in again before uploading an image.');
+        }
+
+        const filePath = `${user.id}/avatar.${file.type === 'image/png'
+            ? 'png'
+            : file.type === 'image/webp'
+                ? 'webp'
+                : 'jpg'}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, file, {
+                upsert: true,
+                contentType: file.type,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+
+        const publicUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', user.id);
+
+        if (profileError) throw profileError;
+
+        setAvatarUrl(publicUrl);
+
+        notifications.show({
+            title: 'Profile picture updated',
+            message: 'Your new profile picture has been saved.',
+            color: 'green',
+        });
+    } catch (error) {
+        notifications.show({
+            title: 'Upload failed',
+            message: error instanceof Error
+                ? error.message
+                : 'Could not upload your profile picture.',
+            color: 'red',
+        });
+    } finally {
+        setAvatarUploading(false);
+    }
+};
+
 
     const form = useForm<FormValues>({
         initialValues: {
@@ -110,7 +206,6 @@ export default function SettingsPage() {
             level: '',
             school: '',
             enrollment_status: '',
-            study_time: '',
             focus_length: '',
             subjects: [],
             weekly_availability: [],
@@ -136,10 +231,11 @@ export default function SettingsPage() {
             if (user) {
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, study_time, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
+                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs,avatar_url')
                     .eq('id', user.id)
                     .single();
                 if (!cancelled && data) {
+                    setAvatarUrl(data.avatar_url ?? null);
                     form.setValues({
                         first_name: data.first_name ?? '',
                         last_name: data.last_name ?? '',
@@ -148,7 +244,6 @@ export default function SettingsPage() {
                         program: data.program ?? '',
                         level: data.level != null ? String(data.level) : '',
                         enrollment_status: data.enrollment_status ?? '',
-                        study_time: data.study_time ?? '',
                         focus_length: data.focus_length != null ? String(data.focus_length) : '',
                         subjects: data.subjects ?? [],
                         weekly_availability: (data.weekly_availability ?? []).map((slot: { day: string; start: string; end: string }) => ({
@@ -176,6 +271,21 @@ export default function SettingsPage() {
     }, [supabase, form, hydratedRef]);
 
     const handleSaveProfile = async (values: typeof form.values) => {
+
+        const hasInvalidSlot = values.weekly_availability.some(
+            (s) => !s.start || !s.end || s.end <= s.start
+        );
+
+        if (hasInvalidSlot) {
+            setAvailabilityError(true);
+            notifications.show({
+                title: 'Check your schedule',
+                message: 'End time must be later than start time for every selected day',
+                color: 'red'
+            });
+            return;
+        }
+
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -191,7 +301,6 @@ export default function SettingsPage() {
             program: values.program,
             level: values.level,
             enrollment_status: values.enrollment_status,
-            study_time: values.study_time,
             subjects: values.subjects,
             weekly_availability: values.weekly_availability,
             coursework_priorities: values.coursework_priorities,
@@ -214,7 +323,7 @@ export default function SettingsPage() {
     };
 
     return (
-        <Box style={{ backgroundColor: '#F7F9FC', minHeight: '100vh' }}>
+        <Box style={{ backgroundColor: 'light-dark(#F7F9FC, #000000)', minHeight: '100vh' }}>
             <Box maw={1100} mx="auto" p={{ base: 20, md: 40 }}>
                 <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
                     <Box>
@@ -248,13 +357,13 @@ export default function SettingsPage() {
                                             p='sm'
                                             style={{
                                                 borderRadius: 10,
-                                                backgroundColor: isActive ? '#E7F5FF' : 'transparent',
-                                                border: `1px solid ${isActive ? "#74C0FC" : "transparent"}`,
+                                                backgroundColor: isActive ? 'light-dark(#E7F5FF, #1B2A3A)' : 'transparent',
+                                                border: `1px solid ${isActive ? "light-dark(#ACCCF8, #5999F1)" : "transparent"}`,
                                                 transition: 'background-color 0.15s ease'
                                             }}
                                         >
-                                            <tab.icon size={17} style={{ color: isActive ? '#1C7ED6' : '#868E96' }} />
-                                            <Text fw={600} size='sm' c={isActive ? '#1C7ED6' : '#495057'}>
+                                            <tab.icon size={17} style={{ color: isActive ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#868E96, #ADB5BD)' }} />
+                                            <Text fw={600} size='sm' c={isActive ? 'light-dark(#2F80ED, #82B3F4)' : 'light-dark(#495057, #CED4DA)'}>
                                                 {tab.label}
                                             </Text>
                                         </Group>
@@ -270,11 +379,19 @@ export default function SettingsPage() {
                             <Text c="dimmed">Loading your profile…</Text>
                         ) : (
                             <>
-                                {activeTab === 'account' && <AccountTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {activeTab === 'account' && (
+    <AccountTab
+        form={form}
+        markUnsavedChanges={markUnsavedChanges}
+        avatarUrl={avatarUrl}
+        avatarUploading={avatarUploading}
+        handleAvatarUpload={handleAvatarUpload}
+    />
+)}
                                 {activeTab === 'academic' && <AcademicTab form={form} markUnsavedChanges={markUnsavedChanges} />}
-                                {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} availabilityError={availabilityError} setAvailabilityError={setAvailabilityError} />}
                                 {activeTab === 'notifications' && <NotificationsTab form={form} markUnsavedChanges={markUnsavedChanges} />}
-                                {activeTab === 'privacy' && <PrivacyTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {/* {activeTab === 'privacy' && <PrivacyTab form={form} markUnsavedChanges={markUnsavedChanges} />} */}
                             </>
                         )}
 
@@ -311,10 +428,17 @@ function SectionTitle({ icon: Icon, children }: { icon: typeof User; children: R
     );
 }
 
-function AccountTab({ form, markUnsavedChanges }: TabProps) {
+function AccountTab({
+    form,
+    markUnsavedChanges,
+    avatarUrl,
+    avatarUploading,
+    handleAvatarUpload,
+}: AccountTabProps) {
     const router = useRouter();
     const supabase = useMemo(() => createClient(), []);
     const [email, setEmail] = useState('');
+    const [emailUpdating, setEmailUpdating] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -324,6 +448,74 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
         })();
         return () => { cancelled = true; };
     }, [supabase]);
+
+    const handleChangeEmail = async () => {
+    const newEmail = email.trim();
+
+    if (!newEmail) {
+        notifications.show({
+            title: 'Email required',
+            message: 'Please enter your new email address.',
+            color: 'red',
+        });
+        return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        notifications.show({
+            title: 'Invalid email',
+            message: 'Please enter a valid email address.',
+            color: 'red',
+        });
+        return;
+    }
+
+    setEmailUpdating(true);
+
+    try {
+        const { data: { user }, error: userError } =
+            await supabase.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error('Please sign in again before changing your email.');
+        }
+
+        if (newEmail.toLowerCase() === user.email?.toLowerCase()) {
+            notifications.show({
+                title: 'No changes',
+                message: 'This is already your current email address.',
+                color: 'blue',
+            });
+            return;
+        }
+
+        const { error } = await supabase.auth.updateUser({
+            email: newEmail,
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        notifications.show({
+            title: 'Email change requested',
+            message:
+                'Check your email for the confirmation instructions from Supabase. Your new address may not take effect until confirmation is complete.',
+            color: 'green',
+        });
+    } catch (error) {
+        notifications.show({
+            title: 'Email change failed',
+            message:
+                error instanceof Error
+                    ? error.message
+                    : 'Something went wrong. Please try again.',
+            color: 'red',
+        });
+    } finally {
+        setEmailUpdating(false);
+    }
+};
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -374,21 +566,37 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
             <div>
                 <SectionTitle icon={User}>Account</SectionTitle>
                 <Group gap='lg' align='center'>
-                    <Avatar size={95} radius={95} color='blue' style={{ border: '3px solid #D3F9D8' }}>
+                   <Avatar
+    src={avatarUrl ?? undefined}
+    size={95}
+    radius={95}
+    color="blue"
+    style={{
+        border: '3px solid light-dark(#D3F9D8, #14311F)',
+    }}
+>
                         <Text fw={800} fz={26}>
                             {initials}
                         </Text>
                     </Avatar>
                     <Box>
-                        <FileButton
-                            onChange={() => notifications.show({ title: 'Draft', message: 'Avatar upload is not wired up yet.', color: 'blue' })}
-                            accept="image/png,image/jpeg,image/webp"
-                        >
-                            {(props) =>
-                                <Button variant='outline' radius='lg' {...props}>
-                                    Change Image
-                                </Button>}
-                        </FileButton>
+
+<FileButton
+    onChange={handleAvatarUpload}
+    accept="image/png,image/jpeg,image/webp"
+>
+    {(props) => (
+        <Button
+            loading={avatarUploading}
+            variant="outline"
+            radius="lg"
+            {...props}
+        >
+            Change Image
+        </Button>
+    )}
+</FileButton>
+
                         <Text c='dimmed' fz='xs' mt={6}>
                             PNG, JPG, or WebP up to 5MB.
                         </Text>
@@ -409,9 +617,18 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
                 <Stack gap='md'>
                     <Flex gap='md' direction='row' align='flex-end'>
                         <TextInput label='Email' value={email} radius='lg' onChange={(e) => setEmail(e.currentTarget.value)} style={{ flex: 1, width: '100%' }} />
-                        <Button variant='outline' radius='lg' onClick={markUnsavedChanges} style={{ width: '100%', maxWidth: 160 }}>
-                            Change Email
-                        </Button>
+                        
+<Button
+    variant="outline"
+    radius="lg"
+    onClick={handleChangeEmail}
+    loading={emailUpdating}
+    disabled={emailUpdating}
+    style={{ width: '100%', maxWidth: 160 }}
+>
+    Change Email
+</Button>
+
                     </Flex>
                     <Flex gap='md' direction='row' align='flex-end'>
                         <TextInput label='Password' type='password' placeholder='Password' radius='lg' onChange={markUnsavedChanges} style={{ flex: 1, width: '100%' }} />
@@ -500,7 +717,7 @@ function AcademicTab({ form }: TabProps) {
                 ) : (
                     <Stack gap={8}>
                         {Object.entries(form.values.coursework_priorities).map(([type, priority]) => (
-                            <Group key={type} gap="sm" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
+                            <Group key={type} gap="sm" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA, #151515)', border: '1px solid light-dark(#E9ECEF, #2C2E33)' }}>
                                 <Text fz="sm" fw={600} style={{ flex: 1 }}>
                                     {type}
                                 </Text>
@@ -595,7 +812,12 @@ function AddCoursework({ form }: { form: UseFormReturnType<FormValues> }) {
     );
 }
 
-function ScheduleTab({ form }: TabProps) {
+interface ScheduleTabProps extends TabProps {
+    availabilityError: boolean;
+    setAvailabilityError: (value: boolean) => void;
+}
+
+function ScheduleTab({ form, availabilityError, setAvailabilityError }: ScheduleTabProps) {
     const toggleDay = (day: string) => {
         const current = form.values.weekly_availability;
         const exists = current.some((slot) => slot.day === day);
@@ -632,7 +854,7 @@ function ScheduleTab({ form }: TabProps) {
 
                 {form.values.weekly_availability.length > 0 ? (
                     <Stack gap={8} mt="md">
-                        {form.values.weekly_availability.map((slot) => (
+                        {/* {form.values.weekly_availability.map((slot) => (
                             <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: '#F8F9FA', border: '1px solid #E9ECEF' }}>
                                 <Text fz="sm" fw={700} w={56}>
                                     {slot.day}
@@ -657,7 +879,53 @@ function ScheduleTab({ form }: TabProps) {
                                     style={{ flex: 1 }}
                                 />
                             </Group>
-                        ))}
+                        ))} */}
+
+                        {form.values.weekly_availability.map((slot) => {
+                            const invalid = !!slot.start && !!slot.end && slot.end <= slot.start;
+
+                            return (
+                                <Group key={slot.day} gap="lg" wrap="nowrap" p="xs" style={{ borderRadius: 10, backgroundColor: 'light-dark(#F8F9FA)', border: '1px solid #E9ECEF' }}>
+                                    <Text fz="sm" fw={700} w={56}>{slot.day}</Text>
+
+                                    <TimePicker
+                                        label="Start"
+                                        format="12h"
+                                        withDropdown
+                                        value={slot.start}
+                                        onChange={(v) => {
+                                            updateSlot(slot.day, 'start', v || DEFAULT_START);
+                                            setAvailabilityError(false);
+                                        }}
+                                        error={invalid}
+                                        radius="lg"
+                                        size="xs"
+                                        style={{ flex: 1 }}
+                                        ml={10}
+                                    />
+                                    <TimePicker
+                                        label="End"
+                                        format="12h"
+                                        withDropdown
+                                        value={slot.end}
+                                        onChange={(v) => {
+                                            updateSlot(slot.day, 'end', v || DEFAULT_END);
+                                            setAvailabilityError(false);
+                                        }}
+                                        error={invalid}
+                                        radius="lg"
+                                        size="xs"
+                                        style={{ flex: 1 }}
+                                    />
+                                </Group>
+                            );
+                        })}
+
+                        {availabilityError && (
+                            <Text c="red" fz="xs" mt="xs">
+                                End time must be later than start time for every selected day.
+                            </Text>
+                        )}
                     </Stack>
                 ) : (
                     <Text c="dimmed" fz="sm" mt="md">
@@ -666,30 +934,6 @@ function ScheduleTab({ form }: TabProps) {
                 )}
 
                 <Divider my='lg' />
-
-                <div>
-                    <SectionTitle icon={Moon}>Preferred study period</SectionTitle>
-                    <Group gap={8}>
-                        {STUDY_PERIODS.map((period) => {
-                            const active = form.values.study_time === period;
-                            return (
-                                <Badge
-                                    key={period}
-                                    size='lg'
-                                    radius='xl'
-                                    px={18}
-                                    py={10}
-                                    variant={active ? 'filled' : 'outline'}
-                                    color={active ? 'indigo' : 'gray'}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => form.setFieldValue('study_time', active ? '' : period)}
-                                >
-                                    {period}
-                                </Badge>
-                            );
-                        })}
-                    </Group>
-                </div>
 
                 <div>
                     <Text fz="sm" fw={600} mb={6} mt="lg">
@@ -745,44 +989,44 @@ function NotificationsTab({ form }: TabProps) {
     );
 }
 
-function PrivacyTab({ markUnsavedChanges }: TabProps) {
-    return (
-        <Stack gap='lg'>
-            <div>
-                <SectionTitle icon={ShieldCheck}>Privacy & Data</SectionTitle>
-                <Paper radius='lg' p='xs' withBorder>
-                    <Stack gap={4}>
-                        <ToggleRow
-                            label="Share study stats with friends"
-                            description='Let friends see your streaks and focus time.'
-                            checked={true}
-                            onChange={() => { }}
-                        />
-                        <ToggleRow
-                            label="Anonymous usage analytics"
-                            description='Help us improve CommonGrounds with anonymized data.'
-                            checked={false}
-                            onChange={() => { }}
-                        />
-                    </Stack>
-                </Paper>
-            </div>
+// function PrivacyTab({ markUnsavedChanges }: TabProps) {
+//     return (
+//         <Stack gap='lg'>
+//             <div>
+//                 <SectionTitle icon={ShieldCheck}>Privacy & Data</SectionTitle>
+//                 <Paper radius='lg' p='xs' withBorder>
+//                     <Stack gap={4}>
+//                         <ToggleRow
+//                             label="Share study stats with friends"
+//                             description='Let friends see your streaks and focus time.'
+//                             checked={true}
+//                             onChange={() => { }}
+//                         />
+//                         <ToggleRow
+//                             label="Anonymous usage analytics"
+//                             description='Help us improve CommonGrounds with anonymized data.'
+//                             checked={false}
+//                             onChange={() => { }}
+//                         />
+//                     </Stack>
+//                 </Paper>
+//             </div>
 
-            <Divider />
+//             <Divider />
 
-            <div>
-                <Text fw={700} mb='xs'>
-                    Your data
-                </Text>
-                <Stack gap='sm'>
-                    <ActionRow icon={FileUp} label='Uploaded learning materials' action='Manage files' onClick={markUnsavedChanges} />
-                    <ActionRow icon={FileDown} label='Export account data' action='Export' onClick={markUnsavedChanges} />
-                    <ActionRow icon={Trash2} label='Delete all data' action='Delete' danger onClick={markUnsavedChanges} />
-                </Stack>
-            </div>
-        </Stack>
-    );
-}
+//             <div>
+//                 <Text fw={700} mb='xs'>
+//                     Your data
+//                 </Text>
+//                 <Stack gap='sm'>
+//                     <ActionRow icon={FileUp} label='Uploaded learning materials' action='Manage files' onClick={markUnsavedChanges} />
+//                     <ActionRow icon={FileDown} label='Export account data' action='Export' onClick={markUnsavedChanges} />
+//                     <ActionRow icon={Trash2} label='Delete all data' action='Delete' danger onClick={markUnsavedChanges} />
+//                 </Stack>
+//             </div>
+//         </Stack>
+//     );
+// }
 
 function ToggleRow({
     label,
@@ -824,7 +1068,7 @@ function ActionRow({
     onClick: () => void;
 }) {
     return (
-        <Group justify="space-between" p="sm" style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }} wrap="nowrap">
+        <Group justify="space-between" p="sm" style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }} wrap="nowrap">
             <Group gap={10} wrap="nowrap">
                 <ThemeIcon radius="xl" size={32} variant="light" color={danger ? "red" : "blue"}>
                     <Icon size={16} />

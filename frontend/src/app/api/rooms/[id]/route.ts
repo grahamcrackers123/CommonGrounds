@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { clampMaxParticipants } from "@/lib/rooms";
 
 export async function GET(
   _req: Request,
@@ -29,6 +30,8 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (typeof body.name === "string") updates.name = body.name.trim() || null;
   if (typeof body.goal === "string") updates.study_goal = body.goal.trim() || null;
+  if (typeof body.max_participants === "number")
+    updates.max_participants = clampMaxParticipants(body.max_participants);
   if (Object.keys(updates).length === 0)
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 
@@ -37,7 +40,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("owner_id", user.id)
-    .select("id, name, study_goal");
+    .select("id, name, study_goal, max_participants");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data?.length)

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  clampMaxParticipants,
+  DEFAULT_MAX_PARTICIPANTS,
+  PARTY_SIZE_MAX,
+  PARTY_SIZE_MIN,
+} from "@/lib/rooms";
 import { createClient } from "@/lib/supabase/client";
 import {
   ActionIcon,
@@ -17,6 +23,7 @@ import {
   Progress,
   Select,
   SimpleGrid,
+  Slider,
   Stack,
   Text,
   TextInput,
@@ -27,6 +34,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import {
   AlarmClock,
+  AudioLinesOff,
   Check,
   CloudRain,
   Coffee,
@@ -34,9 +42,9 @@ import {
   Crown,
   Flame,
   Heart,
+  Lock,
   LogIn,
   LogOut,
-  Lock,
   MoreHorizontal,
   Music,
   Pause,
@@ -101,14 +109,14 @@ interface RewardTier {
   streak_xp: number;
 }
 
-const MAX_PARTICIPANTS = 4;
 const PRESET_MINUTES = [15, 30, 45, 60];
 
+// ambience options, each maps to a looping track in /public/sounds
 const SOUNDS = [
-  { key: "none", label: "Silence", icon: Volume2 },
-  { key: "rain", label: "Rain", icon: CloudRain },
-  { key: "cafe", label: "Cafe", icon: Coffee },
-  { key: "forest", label: "Forest", icon: Trees },
+  { key: "none", label: "Silence", icon: AudioLinesOff, audio: null },
+  { key: "rain", label: "Rain", icon: CloudRain, audio: "/sounds/rain-sound.wav" },
+  { key: "cafe", label: "Cafe", icon: Coffee, audio: "/sounds/cafe-sound.mp3" },
+  { key: "forest", label: "Forest", icon: Trees, audio: "/sounds/forest-sound.wav" },
 ];
 
 const FRIEND_COLORS = ["pink", "blue", "orange", "violet", "teal", "grape", "indigo", "cyan"];
@@ -127,11 +135,12 @@ const colorFor = (name: string) => {
   return FRIEND_COLORS[hash % FRIEND_COLORS.length];
 };
 
+// member status dot colors + labels
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  ready: { label: "Ready", color: "#ADB5BD" },
-  focus: { label: "Focusing", color: "#2F9E44" },
-  break: { label: "On break", color: "#F08C00" },
-  completed: { label: "Finished", color: "#868E96" },
+  ready: { label: "Ready", color: "light-dark(#ADB5BD, #6C757D)" },
+  focus: { label: "Focusing", color: "light-dark(#2F9E44, #51CF66)" },
+  break: { label: "On break", color: "light-dark(#F08C00, #FFA94D)" },
+  completed: { label: "Finished", color: "light-dark(#868E96, #ADB5BD)" },
 };
 
 const statusOf = (status?: string) => STATUS_META[status ?? "ready"] ?? STATUS_META.ready;
@@ -142,6 +151,7 @@ const fmt = (totalSeconds: number) => {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
+// read the focus history saved in localStorage
 const loadHistory = (): HistoryRow[] => {
   if (typeof window === "undefined") return [];
   try {
@@ -156,6 +166,7 @@ const loadHistory = (): HistoryRow[] => {
   return [];
 };
 
+// normalize a friends API row into a Friend
 const mapBackendFriend = (row: Record<string, unknown>): Friend => {
   const name =
     (typeof row.display_name === "string" && row.display_name) ||
@@ -192,6 +203,7 @@ const mapBackendFriend = (row: Record<string, unknown>): Friend => {
   };
 };
 
+// normalize a session row into the history shape
 const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
   id: row.id != null ? String(row.id) : undefined,
   room: typeof row.name === "string" && row.name ? row.name : "Focus Room",
@@ -204,20 +216,27 @@ const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
 
 export default function FocusRoomPage() {
   const supabase = useMemo(() => createClient(), []);
+  // refs that survive re-renders: in-flight room, finish guard, countdown, audio
   const roomPromiseRef = useRef<Promise<string | null> | null>(null);
   const finishingRef = useRef(false);
-  const finishSessionRef = useRef<(completed: boolean) => void>(() => {});
+  const finishSessionRef = useRef<(completed: boolean) => void>(() => { });
   const remainingRef = useRef(30 * 60);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const savedMaxRef = useRef(DEFAULT_MAX_PARTICIPANTS);
+  // which view is showing: lobby -> live -> summary
   const [phase, setPhase] = useState<Phase>("lobby");
 
+  // room setup fields
   const [roomName, setRoomName] = useState("");
   const [studyGoal, setStudyGoal] = useState("");
   const [durationPreset, setDurationPreset] = useState<number | "custom">(30);
   const [customMinutes, setCustomMinutes] = useState(45);
+  const [maxParticipants, setMaxParticipants] = useState(DEFAULT_MAX_PARTICIPANTS);
   const [linkedTask, setLinkedTask] = useState<string | null>(null);
   const [quests, setQuests] = useState<{ id: string; title: string }[]>([]);
   const [rewardTiers, setRewardTiers] = useState<RewardTier[]>([]);
 
+  // people: friends list, room participants, and the signed-in user
   const [friends, setFriends] = useState<Friend[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [displayName, setDisplayName] = useState("You");
@@ -227,6 +246,7 @@ export default function FocusRoomPage() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
+  // local history + invite/join state
   const [history, setHistory] = useState<HistoryRow[]>(loadHistory);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [friendCode, setFriendCode] = useState("");
@@ -235,12 +255,15 @@ export default function FocusRoomPage() {
   const [joining, setJoining] = useState(false);
   const [joinedRoom, setJoinedRoom] = useState(false);
 
+  // focus session state: countdown, play/pause, ambience
   const [remaining, setRemaining] = useState(30 * 60);
   const [running, setRunning] = useState(false);
   const [sound, setSound] = useState("rain");
+  const [volume, setVolume] = useState(60);
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
 
+  // who leads the room + derived timer math
   const isLeader = !joinedRoom;
   const youParticipant: Participant = {
     name: displayName,
@@ -259,9 +282,13 @@ export default function FocusRoomPage() {
   const selectedMinutes = durationPreset === "custom" ? Math.max(1, customMinutes) : durationPreset;
   const total = selectedMinutes * 60;
   const progress = Math.round(((total - remaining) / total) * 100);
+  const partySize = clampMaxParticipants(maxParticipants);
+  // ambience track currently selected
   const activeSound = SOUNDS.find((s) => s.key === sound) ?? SOUNDS[0];
+  const soundFile = activeSound.audio;
   const inviteCode = roomCode ?? "";
 
+  // today's sessions for the header badges
   const todayRows = history.filter(
     (h) => new Date(h.date).toDateString() === new Date().toDateString()
   );
@@ -269,6 +296,7 @@ export default function FocusRoomPage() {
   const todayMinutes = todayRows.reduce((sum, row) => sum + row.minutes, 0);
   const runningTodayMinutes = phase === "live" ? todayMinutes + (total - remaining) / 60 : todayMinutes;
   const todayProgress = Math.min(100, (runningTodayMinutes / 120) * 100);
+  // friend groups: online, incoming requests, outgoing requests
   const onlineFriends = friends.filter((f) => f.online);
   const incomingRequests = friends.filter(
     (f) => f.status === "pending" && f.direction !== "outgoing"
@@ -277,6 +305,7 @@ export default function FocusRoomPage() {
     (f) => f.status === "pending" && f.direction === "outgoing"
   );
 
+  // pick the reward tier that matches the focused minutes
   const tierFor = (minutes: number): RewardTier => {
     let best: RewardTier | null = null;
     for (const tier of rewardTiers) {
@@ -288,6 +317,7 @@ export default function FocusRoomPage() {
     return { duration_min: minutes, coins: 0, pet_energy: 0, streak_xp: 0 };
   };
 
+  // load the signed-in user's id and display name
   useEffect(() => {
     async function loadProfile() {
       const {
@@ -305,6 +335,7 @@ export default function FocusRoomPage() {
     loadProfile();
   }, [supabase]);
 
+  // load pending quests for the "Linked Task" select
   useEffect(() => {
     fetch("/api/quests?status=pending")
       .then((res) => res.json())
@@ -314,11 +345,11 @@ export default function FocusRoomPage() {
           title: q.title,
         }));
         setQuests(list);
-        if (list.length > 0) setLinkedTask((prev) => prev ?? list[0].id);
       })
       .catch(() => undefined);
   }, []);
 
+  // load reward tiers (coins / XP / pet energy) for the summary
   useEffect(() => {
     supabase
       .from("focus_reward_tiers")
@@ -329,6 +360,7 @@ export default function FocusRoomPage() {
       });
   }, [supabase]);
 
+  // fetch the friends list
   const loadFriends = async () => {
     try {
       const res = await fetch("/api/friends");
@@ -343,6 +375,7 @@ export default function FocusRoomPage() {
     }
   };
 
+  // refresh the focus history from the backend
   const refreshHistory = async () => {
     try {
       const res = await fetch("/api/rooms/history");
@@ -357,10 +390,17 @@ export default function FocusRoomPage() {
     }
   };
 
-  const createRoom = (overrides?: { duration?: number; name?: string; goal?: string }) => {
+  // create the room on the backend, remembering the promise so it only happens once
+  const createRoom = (overrides?: {
+    duration?: number;
+    name?: string;
+    goal?: string;
+    maxParticipants?: number;
+  }) => {
     const promise = (async (): Promise<string | null> => {
       setRoomId(null);
       setRoomCode(null);
+      const sentMax = clampMaxParticipants(overrides?.maxParticipants ?? maxParticipants);
       try {
         const res = await fetch("/api/rooms", {
           method: "POST",
@@ -370,6 +410,7 @@ export default function FocusRoomPage() {
             name: (overrides?.name ?? roomName).trim() || undefined,
             goal: (overrides?.goal ?? studyGoal).trim() || undefined,
             linked_task_id: linkedTask || undefined,
+            max_participants: sentMax,
           }),
         });
         if (res.ok) {
@@ -378,6 +419,7 @@ export default function FocusRoomPage() {
             const id = String(data.room.id);
             setRoomId(id);
             if (data.room.code) setRoomCode(String(data.room.code));
+            savedMaxRef.current = sentMax;
             return id;
           }
         }
@@ -390,12 +432,14 @@ export default function FocusRoomPage() {
     return promise;
   };
 
+  // reuse the room we already created, or create it now
   const ensureRoom = async (): Promise<string | null> => {
     if (roomId) return roomId;
     if (roomPromiseRef.current) return roomPromiseRef.current;
     return createRoom();
   };
 
+  // merge room + participant data from the API into local state
   const applyRoomState = (state: {
     room?: Record<string, unknown>;
     participants?: unknown[];
@@ -405,6 +449,8 @@ export default function FocusRoomPage() {
     if (joinedRoom) {
       if (typeof room?.name === "string" && room.name) setRoomName(room.name);
       if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
+      if (typeof room?.max_participants === "number")
+        setMaxParticipants(clampMaxParticipants(room.max_participants));
     }
 
     const rows = Array.isArray(state?.participants) ? state.participants : [];
@@ -449,6 +495,7 @@ export default function FocusRoomPage() {
     );
   };
 
+  // join a room using its invite code
   const joinRoomWithCode = async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase();
     if (!code) {
@@ -512,6 +559,7 @@ export default function FocusRoomPage() {
     }
   };
 
+  // on mount: load friends and history, then join from the invite link or create a room
   useEffect(() => {
     const t = setTimeout(() => {
       loadFriends();
@@ -528,9 +576,11 @@ export default function FocusRoomPage() {
     return () => clearTimeout(t);
   }, []);
 
+  // while live: poll the room so members stay in sync and the leader can end it for everyone
   useEffect(() => {
     if (phase !== "live" || !roomId) return;
-    const poll = setInterval(async () => {
+
+    const refresh = async () => {
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
@@ -549,13 +599,28 @@ export default function FocusRoomPage() {
       } catch {
         return;
       }
-    }, 5000);
-    return () => clearInterval(poll);
+    }
+
+    const channel = supabase
+      .channel(`room-live-${roomId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+        refresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
+        refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh(); // initial load + resync after reconnect
+      });
+
+    return () => { supabase.removeChannel(channel); }; // no duplicate channels
   }, [phase, roomId, userId, displayName]);
 
+  // while in the lobby: poll the room so members follow when the leader starts
   useEffect(() => {
     if (phase !== "lobby" || !roomId) return;
-    const poll = setInterval(async () => {
+
+    const refresh = async () => {
       try {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
         if (!res.ok) return;
@@ -594,25 +659,44 @@ export default function FocusRoomPage() {
       } catch {
         return;
       }
-    }, 5000);
-    return () => clearInterval(poll);
+    };
+
+    const channel = supabase
+      .channel(`room-lobby-${roomId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+        refresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
+        refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
+
+    return () => { supabase.removeChannel(channel); };
   }, [phase, joinedRoom, roomId, userId, displayName]);
 
+  // debounce-save the room settings while the leader edits
   useEffect(() => {
     if (phase !== "lobby" || joinedRoom || !roomId) return;
     const name = roomName.trim();
     const goal = studyGoal.trim();
-    if (!name && !goal) return;
+    if (!name && !goal && maxParticipants === savedMaxRef.current) return;
     const t = setTimeout(() => {
       fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, goal }),
-      }).catch(() => undefined);
+        body: JSON.stringify({ name, goal, max_participants: partySize }),
+      })
+        .then((res) => {
+          if (res.ok) savedMaxRef.current = partySize;
+        })
+        .catch(() => undefined);
     }, 800);
     return () => clearTimeout(t);
-  }, [phase, joinedRoom, roomId, roomName, studyGoal]);
+  }, [phase, joinedRoom, roomId, roomName, studyGoal, maxParticipants, partySize]);
 
+  // save the session, then show the summary with rewards
   const finishSession = (completed: boolean) => {
     if (finishingRef.current) return;
     finishingRef.current = true;
@@ -664,9 +748,23 @@ export default function FocusRoomPage() {
         });
       }
       if (id) {
-        fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" }).catch(
-          () => undefined
-        );
+        // The owner can end the room at any time. When the timer has
+        // actually finished, any member may close it so an absent
+        // host cannot leave everyone stuck in an active room.
+        const isRoomOwner = !ownerId || ownerId === userId;
+        if (isRoomOwner || completed) {
+          fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" })
+            .then((res) => {
+              if (!res.ok && isRoomOwner) {
+                notifications.show({
+                  title: "Room not closed",
+                  message: "Other participants may still see this room as active.",
+                  color: "yellow",
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
         fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -692,14 +790,46 @@ export default function FocusRoomPage() {
     setPhase("summary");
   };
 
+  // keep the latest finishSession in a ref so the pollers always call the newest one
   useEffect(() => {
     finishSessionRef.current = finishSession;
   });
 
+  // mirror remaining into a ref so pollers can read the current value
   useEffect(() => {
     remainingRef.current = remaining;
   }, [remaining]);
 
+  // build a looping audio element for the selected ambience (and swap it when the sound changes)
+  useEffect(() => {
+    if (!soundFile) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      return;
+    }
+    const audio = new Audio(soundFile);
+    audio.loop = true;
+    audio.preload = "auto";
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      if (audioRef.current === audio) audioRef.current = null;
+    };
+  }, [soundFile]);
+
+  // play/pause ambience with the timer and apply the volume
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume / 100;
+    if (running && phase === "live") {
+      void audio.play().catch(() => undefined);
+    } else {
+      audio.pause();
+    }
+  }, [running, phase, soundFile, volume]);
+
+  // one tick per second while the session is running
   useEffect(() => {
     if (!running || phase !== "live") return;
     const interval = setInterval(() => {
@@ -715,6 +845,7 @@ export default function FocusRoomPage() {
     return () => clearInterval(interval);
   }, [running, phase]);
 
+  // when the countdown reaches zero, finish the session
   useEffect(() => {
     if (phase === "live" && !running && remaining === 0) {
       const t = setTimeout(() => finishSession(true), 0);
@@ -723,6 +854,7 @@ export default function FocusRoomPage() {
   }, [phase, running, remaining]);
 
 
+  // leader starts the shared timer for everyone
   const startSession = () => {
     if (!isLeader) {
       notifications.show({
@@ -756,6 +888,7 @@ export default function FocusRoomPage() {
           goal: studyGoal.trim() || undefined,
           linked_task_id: linkedTask || undefined,
           duration_minutes: selectedMinutes,
+          max_participants: partySize,
         }),
       })
         .then(async (res) => {
@@ -776,6 +909,7 @@ export default function FocusRoomPage() {
     })();
   };
 
+  // pause or resume the countdown (and tell the room)
   const toggleRunning = () => {
     const next = !running;
     setRunning(next);
@@ -789,13 +923,16 @@ export default function FocusRoomPage() {
     }
   };
 
+  // reset the countdown back to the full duration
   const resetTimer = () => {
     setRunning(false);
     setRemaining(total);
   };
 
+  // end the session before the time runs out
   const endEarly = () => finishSession(false);
 
+  // back to setup for another round
   const backToLobby = () => {
     finishingRef.current = false;
     setPhase("lobby");
@@ -811,6 +948,7 @@ export default function FocusRoomPage() {
     createRoom();
   };
 
+  // leave a joined room and start a fresh lobby
   const leaveLobby = async () => {
     if (!joinedRoom) return;
     finishingRef.current = false;
@@ -825,6 +963,7 @@ export default function FocusRoomPage() {
     setStudyGoal("");
     setDurationPreset(30);
     setCustomMinutes(45);
+    setMaxParticipants(DEFAULT_MAX_PARTICIPANTS);
     setRemaining(30 * 60);
     setRunning(false);
     notifications.show({
@@ -832,9 +971,15 @@ export default function FocusRoomPage() {
       message: "You left the room and got a fresh lobby.",
       color: "blue",
     });
-    createRoom({ duration: 30, name: "", goal: "" });
+    createRoom({
+      duration: 30,
+      name: "",
+      goal: "",
+      maxParticipants: DEFAULT_MAX_PARTICIPANTS,
+    });
   };
 
+  // invite a friend from the friends list
   const inviteFriend = async (friend: Friend) => {
     if (participants.some((p) => p.name === friend.name)) {
       notifications.show({
@@ -844,10 +989,10 @@ export default function FocusRoomPage() {
       });
       return;
     }
-    if (participants.length >= MAX_PARTICIPANTS - 1) {
+    if (participants.length >= partySize - 1) {
       notifications.show({
         title: "Lobby is full",
-        message: `The lobby is limited to ${MAX_PARTICIPANTS} members.`,
+        message: `The lobby is limited to ${partySize} members.`,
         color: "red",
       });
       return;
@@ -908,6 +1053,7 @@ export default function FocusRoomPage() {
     }
   };
 
+  // remove a friend, or cancel a pending request
   const unfriend = async (friend: Friend) => {
     if (friend.id) {
       await fetch(`/api/friends/${encodeURIComponent(friend.id)}`, { method: "DELETE" }).catch(
@@ -926,6 +1072,7 @@ export default function FocusRoomPage() {
     });
   };
 
+  // accept or decline an incoming friend request
   const respondToRequest = async (friend: Friend, action: "accept" | "reject") => {
     if (!friend.id) return;
     try {
@@ -973,6 +1120,7 @@ export default function FocusRoomPage() {
     }
   };
 
+  // send a friend request using their user code
   const submitAddFriend = async () => {
     const code = friendCode.trim();
     if (!code) {
@@ -1029,10 +1177,12 @@ export default function FocusRoomPage() {
     }
   };
 
+  // live view: shared countdown, ambience and members
   if (phase === "live") {
     return (
-      <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+      <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
         <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
+          {/* Header */}
           <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
             <Box>
               <Title order={1} fw={800}>
@@ -1053,6 +1203,7 @@ export default function FocusRoomPage() {
           </Group>
 
           <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md" mb={28}>
+            {/* Timer card */}
             <Paper p="lg" radius="lg" shadow="sm" withBorder style={{ gridColumn: "span 2" }}>
               <Group justify="space-between" mb="md">
                 <Title order={3} fz="lg" fw={700}>
@@ -1069,16 +1220,17 @@ export default function FocusRoomPage() {
                 </Badge>
               </Group>
 
+              {/* progress ring */}
               <Box style={{ display: "grid", placeItems: "center", padding: "24px 0 8px" }}>
                 <Box style={{ position: "relative", width: 260, height: 260 }}>
                   <svg width={260} height={260} viewBox="0 0 260 260" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx={130} cy={130} r={118} fill="none" stroke="#F1F3F5" strokeWidth={14} />
+                    <circle cx={130} cy={130} r={118} fill="none" stroke="light-dark(#F1F3F5, #2C2E33)" strokeWidth={14} />
                     <circle
                       cx={130}
                       cy={130}
                       r={118}
                       fill="none"
-                      stroke={running ? "#1C7ED6" : "#ADB5BD"}
+                      stroke={running ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#ADB5BD, #6C757D)"}
                       strokeWidth={14}
                       strokeLinecap="round"
                       strokeDasharray={2 * Math.PI * 118}
@@ -1112,6 +1264,7 @@ export default function FocusRoomPage() {
                 </Text>
               )}
 
+              {/* controls */}
               <Group justify="center" gap="sm" mt="lg">
                 <Tooltip label="Reset" withArrow>
                   <Button
@@ -1149,9 +1302,10 @@ export default function FocusRoomPage() {
             </Paper>
 
             <Stack gap="md">
+              {/* Ambience section */}
               <Paper p="lg" radius="lg" shadow="sm" withBorder>
                 <Group gap={8} mb="md">
-                  <ThemeIcon radius="lg" variant="light" color="indigo" size={32}>
+                  <ThemeIcon radius="lg" variant="light" color="blue" size={32}>
                     <Music size={18} />
                   </ThemeIcon>
                   <Title order={3} fz="lg" fw={700}>
@@ -1167,8 +1321,8 @@ export default function FocusRoomPage() {
                         p="sm"
                         style={{
                           borderRadius: 12,
-                          border: `1px solid ${active ? "#74C0FC" : "#E9ECEF"}`,
-                          backgroundColor: active ? "#E7F5FF" : "#FFFFFF",
+                          border: `1px solid ${active ? "light-dark(#ACCCF8, #5999F1)" : "light-dark(#E9ECEF, #2C2E33)"}`,
+                          backgroundColor: active ? "light-dark(#E7F5FF, #1B2A3A)" : "light-dark(#FFFFFF, #151515)",
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
@@ -1177,19 +1331,40 @@ export default function FocusRoomPage() {
                         }}
                         onClick={() => setSound(s.key)}
                       >
-                        <s.icon size={16} color={active ? "#1C7ED6" : "#868E96"} />
-                        <Text fz="sm" fw={600} c={active ? "#1C7ED6" : "#495057"}>
+                        <s.icon size={16} color={active ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#868E96, #ADB5BD)"} />
+                        <Text fz="sm" fw={600} c={active ? "light-dark(#2F80ED, #82B3F4)" : "light-dark(#495057, #CED4DA)"}>
                           {s.label}
                         </Text>
                       </Box>
                     );
                   })}
                 </SimpleGrid>
+                <Group justify="space-between" mt="md" mb={4}>
+                  <Group gap={6}>
+                    <Volume2 size={15} color="light-dark(#868E96, #ADB5BD)" />
+                    <Text fz="sm" fw={600} c="dimmed">
+                      Volume
+                    </Text>
+                  </Group>
+                  <Text fz="xs" fw={600} c="dimmed">
+                    {volume}%
+                  </Text>
+                </Group>
+                <Slider
+                  value={volume}
+                  onChange={setVolume}
+                  disabled={!soundFile}
+                  size="sm"
+                  color="blue"
+                  label={(value) => `${value}%`}
+                  aria-label="Ambience volume"
+                />
                 <Text c="dimmed" fz="xs" mt={10} ta="center">
                   Now playing: {activeSound.label === "Silence" ? "silence" : `${activeSound.label} sounds`}
                 </Text>
               </Paper>
 
+              {/* Room members */}
               <Paper p="lg" radius="lg" shadow="sm" withBorder>
                 <Group justify="space-between" mb="md">
                   <Group gap={8}>
@@ -1201,7 +1376,7 @@ export default function FocusRoomPage() {
                     </Title>
                   </Group>
                   <Badge variant="light" color="blue" radius="xl">
-                    {lobbyParticipants.length}/{MAX_PARTICIPANTS}
+                    {lobbyParticipants.length}/{partySize}
                   </Badge>
                 </Group>
                 <Stack gap="xs">
@@ -1210,7 +1385,7 @@ export default function FocusRoomPage() {
                       key={p.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1258,6 +1433,7 @@ export default function FocusRoomPage() {
             </Stack>
           </SimpleGrid>
 
+          {/* Today's focus goal */}
           <Paper p="lg" radius="lg" shadow="sm" withBorder>
             <Group justify="space-between" mb="sm">
               <Group gap={8}>
@@ -1289,6 +1465,7 @@ export default function FocusRoomPage() {
     );
   }
 
+  // summary view: session report + rewards
   if (phase === "summary" && sessionResult) {
     const result = sessionResult;
     const tier = tierFor(result.actualMinutes);
@@ -1298,9 +1475,10 @@ export default function FocusRoomPage() {
     const groupBonus = result.participantNames.length > 1;
 
     return (
-      <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+      <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
         <Box maw={760} mx="auto" p={{ base: 20, md: 40 }}>
           <Paper p="xl" radius="lg" shadow="sm" withBorder>
+            {/* result header */}
             <Stack align="center" gap={8} mb="lg">
               <ThemeIcon size={64} radius="xl" variant="filled" color={result.completed ? "green" : "yellow"}>
                 {result.completed ? <Check size={30} /> : <Timer size={30} />}
@@ -1317,6 +1495,7 @@ export default function FocusRoomPage() {
 
             <Divider mb="lg" />
 
+            {/* session details */}
             <Stack gap="sm">
               <Group justify="space-between" wrap="nowrap">
                 <Text fz="sm" c="dimmed">
@@ -1376,6 +1555,7 @@ export default function FocusRoomPage() {
 
             <Divider my="lg" />
 
+            {/* rewards earned */}
             <Stack align="center" gap={6}>
               <Text fz="sm" fw={700} tt="uppercase" c="dimmed">
                 Rewards Earned
@@ -1398,6 +1578,7 @@ export default function FocusRoomPage() {
               )}
             </Stack>
 
+            {/* actions */}
             <Group justify="center" mt="xl">
               <Button size="md" radius="xl" leftSection={<RefreshCw size={16} />} onClick={backToLobby}>
                 Start Another Session
@@ -1412,9 +1593,11 @@ export default function FocusRoomPage() {
     );
   }
 
+  // lobby / setup view
   return (
-    <Box style={{ backgroundColor: "#F7F9FC", minHeight: "100vh" }}>
+    <Box style={{ backgroundColor: "light-dark(#F7F9FC, #000000)", minHeight: "100vh" }}>
       <Box maw={1150} mx="auto" p={{ base: 20, md: 40 }}>
+        {/* Header */}
         <Group justify="space-between" align="flex-end" mb={24} wrap="wrap">
           <Box>
             <Title order={1} fw={800}>
@@ -1436,6 +1619,7 @@ export default function FocusRoomPage() {
 
         <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md" mb={28}>
           <Stack gap="md" style={{ gridColumn: "span 2" }}>
+            {/* Room setup */}
             <Paper p="lg" radius="lg" shadow="sm" withBorder>
               <Group gap={8} mb="lg">
                 <ThemeIcon radius="lg" variant="light" color="blue" size={32}>
@@ -1550,6 +1734,7 @@ export default function FocusRoomPage() {
           </Stack>
 
           <Stack gap="md">
+            {/* lobby participants */}
             <Paper p="lg" radius="lg" shadow="sm" withBorder>
               <Group justify="space-between" mb={4}>
                 <Group gap={8}>
@@ -1560,13 +1745,13 @@ export default function FocusRoomPage() {
                     Participants in the Lobby
                   </Title>
                 </Group>
-                <Badge variant="light" color="blue" radius="xl">
-                  {lobbyParticipants.length}/{MAX_PARTICIPANTS}
+                <Badge variant="light" color="blue" radius="xl" mb="md">
+                  {lobbyParticipants.length}/{partySize}
                 </Badge>
               </Group>
-              <Text c="dimmed" fz="xs" mb="md">
-                Invite up to {MAX_PARTICIPANTS - 1} friends to join the room
-              </Text>
+              {/* <Text c="dimmed" fz="xs" mb="md">
+                Invite up to {partySize - 1} friends to join the room
+              </Text> */}
 
               <Stack gap="xs">
                 {lobbyParticipants.map((p) => (
@@ -1574,7 +1759,7 @@ export default function FocusRoomPage() {
                     key={p.name}
                     justify="space-between"
                     p="xs"
-                    style={{ borderRadius: 10, backgroundColor: p.isYou ? "#E7F5FF" : "#F8F9FA" }}
+                    style={{ borderRadius: 10, backgroundColor: p.isYou ? "light-dark(#E7F5FF, #1B2A3A)" : "light-dark(#F8F9FA, #151515)" }}
                     wrap="nowrap"
                   >
                     <Group gap={10} wrap="nowrap">
@@ -1613,7 +1798,16 @@ export default function FocusRoomPage() {
                     )}
                   </Group>
                 ))}
-                {lobbyParticipants.length < MAX_PARTICIPANTS && (
+                <NumberInput
+                  label="Max Members"
+                  description={`Includes you · up to ${PARTY_SIZE_MAX}`}
+                  value={maxParticipants}
+                  onChange={(v) => setMaxParticipants(Number(v) || DEFAULT_MAX_PARTICIPANTS)}
+                  min={PARTY_SIZE_MIN}
+                  max={PARTY_SIZE_MAX}
+                  disabled={!isLeader}
+                />
+                {lobbyParticipants.length < partySize && (
                   <Text c="dimmed" fz="xs" ta="center">
                     Invite friends to fill the room
                   </Text>
@@ -1633,9 +1827,10 @@ export default function FocusRoomPage() {
               )}
             </Paper>
 
+            {/* friends online */}
             <Paper p="lg" radius="lg" shadow="sm" withBorder>
               <Group gap={8} mb="md">
-                <ThemeIcon radius="lg" variant="light" color="indigo" size={32}>
+                <ThemeIcon radius="lg" variant="light" color="blue" size={32}>
                   <Users size={18} />
                 </ThemeIcon>
                 <Title order={3} fz="lg" fw={700}>
@@ -1643,6 +1838,7 @@ export default function FocusRoomPage() {
                 </Title>
               </Group>
 
+              {/* incoming friend requests */}
               {incomingRequests.length > 0 && (
                 <Stack gap="xs" mb="md">
                   {incomingRequests.map((f) => (
@@ -1650,7 +1846,7 @@ export default function FocusRoomPage() {
                       key={f.id ?? f.userId ?? f.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#FFF9DB" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#FFF9DB, #332D13)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1693,6 +1889,7 @@ export default function FocusRoomPage() {
                 </Stack>
               )}
 
+              {/* outgoing friend requests */}
               {outgoingRequests.length > 0 && (
                 <Stack gap="xs" mb="md">
                   {outgoingRequests.map((f) => (
@@ -1700,7 +1897,7 @@ export default function FocusRoomPage() {
                       key={f.id ?? f.userId ?? f.name}
                       justify="space-between"
                       p="xs"
-                      style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                      style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                       wrap="nowrap"
                     >
                       <Group gap={10} wrap="nowrap">
@@ -1731,13 +1928,14 @@ export default function FocusRoomPage() {
                 </Stack>
               )}
 
+              {/* online friends */}
               <Stack gap="xs" mb="md">
                 {onlineFriends.map((f) => (
                   <Group
                     key={f.name}
                     justify="space-between"
                     p="xs"
-                    style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                    style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                     wrap="nowrap"
                   >
                     <Group gap={10} wrap="nowrap">
@@ -1749,7 +1947,7 @@ export default function FocusRoomPage() {
                           {f.name}
                         </Text>
                         <Group gap={5}>
-                          <Box w={7} h={7} style={{ borderRadius: 99, backgroundColor: "#2F9E44" }} />
+                          <Box w={7} h={7} style={{ borderRadius: 99, backgroundColor: "light-dark(#2F9E44, #51CF66)" }} />
                           <Text fz="xs" c="dimmed">
                             Online
                           </Text>
@@ -1780,6 +1978,7 @@ export default function FocusRoomPage() {
                 )}
               </Stack>
 
+              {/* invite actions */}
               <Stack gap="xs">
                 <CopyButton value={inviteCode}>
                   {({ copied, copy }) => (
@@ -1812,6 +2011,7 @@ export default function FocusRoomPage() {
           </Stack>
         </SimpleGrid>
 
+        {/* focus room history */}
         <Paper p="lg" radius="lg" shadow="sm" withBorder>
           <Group gap={8} mb="md">
             <ThemeIcon radius="lg" variant="light" color="yellow" size={32}>
@@ -1839,7 +2039,7 @@ export default function FocusRoomPage() {
                 key={row.id ?? `${row.room}-${i}`}
                 justify="space-between"
                 p="xs"
-                style={{ borderRadius: 10, backgroundColor: "#F8F9FA" }}
+                style={{ borderRadius: 10, backgroundColor: "light-dark(#F8F9FA, #151515)" }}
                 wrap="nowrap"
               >
                 <Text fz="sm" fw={600} truncate style={{ flex: 1 }} maw={340}>
@@ -1864,6 +2064,7 @@ export default function FocusRoomPage() {
         </Paper>
       </Box>
 
+      {/* add friend modal */}
       <Modal
         opened={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
