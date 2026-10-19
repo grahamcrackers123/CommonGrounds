@@ -22,9 +22,7 @@ import {
     Title,
 } from "@mantine/core";
 
-// adjust this path to wherever your theme file lives
-import { commonGroundsTheme } from "../../../theme/commonGroundsTheme";
-
+import { commonGroundsTheme } from "@/theme/commonGroundsTheme";
 
 import { useForm } from "@mantine/form";
 import { useMediaQuery } from "@mantine/hooks";
@@ -35,13 +33,13 @@ import {
     Check,
     Lock,
     Mail,
-    User,
     Sprout,
+    User,
     X,
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /* ----------------------------- */
 /* Password requirement component */
@@ -214,6 +212,16 @@ export default function AccessPage() {
                     : "Password must be at least 6 characters",
         },
     });
+     useEffect(() => {
+        const savedEmail = localStorage.getItem(
+            "commongrounds-remembered-email"
+        );
+
+        if (savedEmail) {
+            signinForm.setFieldValue("email", savedEmail);
+            signinForm.setFieldValue("rememberMe", true);
+        }
+    }, []);
 
     /* ----------------------------- */
     /* Sign-up form */
@@ -278,6 +286,16 @@ export default function AccessPage() {
     ) => {
         setSigninError(null);
         setSigninLoading(true);
+                if (values.rememberMe) {
+            localStorage.setItem(
+                "commongrounds-remembered-email",
+                values.email.trim()
+            );
+        } else {
+            localStorage.removeItem(
+                "commongrounds-remembered-email"
+            );
+        }
 
         const { error } =
             await supabase.auth.signInWithPassword({
@@ -478,7 +496,7 @@ export default function AccessPage() {
     /* ----------------------------- */
 
     return (
-        <MantineProvider forceColorScheme="light">
+        <MantineProvider theme={commonGroundsTheme} forceColorScheme="light">
             <Flex
                 direction="row"
                 mih="100vh"
@@ -495,7 +513,7 @@ export default function AccessPage() {
                     p="xl"
                     style={{
                         background:
-                            "#edf5fd"
+                            "#EEF5FE"
                     }}
                 >
                     <Group gap="sm">
@@ -503,14 +521,14 @@ export default function AccessPage() {
                             size={44}
                             radius="md"
                             style={{
-                                background: "#228be6",
+                                background: "#2F80ED",
                                 color: "white",
                             }}
                         >
                             <BookOpen size={24} />
                         </ThemeIcon>
 
-                        <Title order={2} c="#36458c">
+                        <Title order={2} c="#184077">
                             CommonGrounds
                         </Title>
                     </Group>
@@ -519,7 +537,7 @@ export default function AccessPage() {
                         <Stack gap="xs">
                             <Title
                                 order={1}
-                                c="#36458c"
+                                c="#184077"
                                 fz={{ md: 34, lg: 42 }}
                                 lh={1.15}
                             >
@@ -528,7 +546,7 @@ export default function AccessPage() {
                                     : "Your context-aware learning companion."}
                             </Title>
 
-                            <Text c="#4352a5" fz={{ md: "md", lg: "lg" }}>
+                            <Text c="#286DC9" fz={{ md: "md", lg: "lg" }}>
                                 {value === "signin"
                                     ? "Sign in to pick up where you left off."
                                     : "Study smarter with a plan that fits your day."}
@@ -549,17 +567,17 @@ export default function AccessPage() {
                                             radius="md"
                                             style={{
                                                 background: "white",
-                                                color: "#5c6fda",
+                                                color: "#2F80ED",
                                             }}
                                         >
                                             <Icon size={20} />
                                         </ThemeIcon>
 
                                         <Box>
-                                            <Text fw={600} c="#36458c">
+                                            <Text fw={600} c="#184077">
                                                 {title}
                                             </Text>
-                                            <Text size="sm" c="#4f60c0">
+                                            <Text size="sm" c="#286DC9">
                                                 {text}
                                             </Text>
                                         </Box>
@@ -569,7 +587,7 @@ export default function AccessPage() {
                         )}
                     </Stack>
 
-                    <Text size="xs" c="#4f60c0">
+                    <Text size="xs" c="#286DC9">
                         © {new Date().getFullYear()} CommonGrounds
                     </Text>
                 </Flex>
@@ -596,14 +614,14 @@ export default function AccessPage() {
                             size={36}
                             radius="md"
                             style={{
-                                background: "#5c6fda",
+                                background: "#2F80ED",
                                 color: "white",
                             }}
                         >
                             <BookOpen size={20} />
                         </ThemeIcon>
 
-                        <Title order={2} c="#36458c">
+                        <Title order={2} c="#184077">
                             CommonGrounds
                         </Title>
                     </Group>
@@ -630,7 +648,7 @@ export default function AccessPage() {
 
                         <SegmentedControl
                             color="blue"
-                            bg="white"
+                            bg="blue.1"
                             radius="lg"
                             autoContrast
                             data={[
@@ -720,7 +738,7 @@ export default function AccessPage() {
                                             : "md"
                                     }
                                 />
-                              
+
                                 <Anchor component="button" type="button" onClick={handleForgotPassword} size={isMobile ? 'xs' : 'md'}>
                                     Forgot Password?
                                 </Anchor>

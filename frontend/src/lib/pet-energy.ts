@@ -33,7 +33,15 @@ export async function applyEnergyDecay(
     const energy = decayedEnergy(pet);
     const stored = Math.max(0, Math.min(pet.pet_energy ?? ENERGY_MAX, ENERGY_MAX));
     if (energy < stored && pet.id) {
-        await supabase.from("pets").update({ pet_energy: energy }).eq("id", pet.id);
+        // Advance updated_at too, otherwise the same accumulated
+        // decay would be applied again on the next read.
+        await supabase
+            .from("pets")
+            .update({
+                pet_energy: energy,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", pet.id);
     }
     return energy;
 }

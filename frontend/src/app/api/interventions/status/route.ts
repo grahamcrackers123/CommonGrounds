@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { recordMissedSessions } from '@/lib/interventions/missed-sessions'
 import { computeRiskFlags, evaluateAndNotifyRisk } from '@/lib/interventions/notify'
 
 export async function GET() {
@@ -12,6 +13,13 @@ export async function GET() {
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Record blocks that passed without a focus session so the
+  // missed_sessions flag sees them in this same evaluation.
+  const missed = await recordMissedSessions(supabase, user.id)
+  if (missed.error) {
+    console.error('Missed session scan failed:', missed.error)
   }
 
   const { flags, error } = await computeRiskFlags(supabase, user.id)

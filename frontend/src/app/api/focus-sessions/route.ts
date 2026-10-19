@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { applyEnergyDecay } from "@/lib/pet-energy";
+import { recordBehavioralEvent } from "@/lib/interventions/events";
 import { NextResponse } from "next/server";
 import { pushToUser } from "@/lib/push/send";
 
@@ -41,6 +42,13 @@ export async function POST(req: Request) {
 
   const result = data?.[0];
   if (!result) return NextResponse.json({ error: "Session could not be saved" }, { status: 500 });
+
+  // Study activity counts as a behavioral event so risk checks
+  // (for example the inactivity flag) can see it.
+  await recordBehavioralEvent(user.id, "session_completed", {
+    room_id: typeof body.room_id === "string" ? body.room_id : null,
+    duration_min: durationMin,
+  });
 
   const sessionRewards: string[] = [];
   if ((result.earned_coins ?? 0) > 0) sessionRewards.push(`${result.earned_coins} coins`);

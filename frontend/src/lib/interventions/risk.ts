@@ -29,30 +29,46 @@ export function detectMissedSessions(
   if (missedCount >= 2) {
     return {
       type: 'missed_sessions',
-      message: 'Several scheduled study sessions were missed recently.',
+      message:
+        'You missed several planned study sessions this week. A short restart session could get you back on track.',
     }
   }
 
   return null
 }
 
+// Only real study activity should clear the inactivity flag;
+// logins and reward claims are not studying.
+const STUDY_EVENT_TYPES = ['session_completed', 'pet_quest']
+
 export function detectInactivity(
   events: BehavioralEvent[],
   now = new Date()
 ): RiskFlag | null {
+  // Users with no recorded history at all are just getting
+  // started; do not flag them as inactive.
+  if (events.length === 0) {
+    return null
+  }
+
   const threeDaysAgo = new Date(now)
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
 
-  const hasRecentActivity = events.some((event) => {
+  const hasRecentStudyActivity = events.some((event) => {
+    if (!STUDY_EVENT_TYPES.includes(event.type)) {
+      return false
+    }
+
     const occurredAt = new Date(event.occurred_at)
 
     return occurredAt >= threeDaysAgo && occurredAt <= now
   })
 
-  if (!hasRecentActivity) {
+  if (!hasRecentStudyActivity) {
     return {
       type: 'inactivity',
-      message: 'No recent study activity was recorded.',
+      message:
+        'No study activity was recorded in the last 3 days. Even a 10-minute session today counts.',
     }
   }
 
@@ -79,7 +95,8 @@ export function detectOverdueQuests(
   if (overdueCount >= 2) {
     return {
       type: 'overdue_quests',
-      message: 'Several coursework deadlines have passed without completion.',
+      message:
+        'You have coursework deadlines that have passed without completion. Consider rescheduling them.',
     }
   }
 
@@ -90,9 +107,13 @@ export type ScheduleBlockForRisk = {
   ends_at: string
 }
 
+// Availability and schedules are stored in Philippine time
+// (Asia/Manila, UTC+8), so workload days must be bucketed the
+// same way instead of using raw UTC dates.
+const PHILIPPINE_OFFSET_MS = 8 * 60 * 60 * 1000
+
 export function detectHighScheduledWorkload(
-  blocks: ScheduleBlockForRisk[],
-  now = new Date()
+  blocks: ScheduleBlockForRisk[]
 ): RiskFlag[] {
   const dailyMinutes = new Map<string, number>()
 
@@ -104,7 +125,12 @@ export function detectHighScheduledWorkload(
       continue
     }
 
-    const dayKey = start.toISOString().slice(0, 10)
+    const dayKey = new Date(
+      start.getTime() + PHILIPPINE_OFFSET_MS
+    )
+      .toISOString()
+      .slice(0, 10)
+
     const durationMinutes = (end.getTime() - start.getTime()) / 60000
 
     dailyMinutes.set(
@@ -117,9 +143,18 @@ export function detectHighScheduledWorkload(
 
   for (const [day, minutes] of dailyMinutes) {
     if (minutes > 8 * 60) {
+      const readableDay = new Date(
+        `${day}T00:00:00Z`
+      ).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC',
+      })
+
       flags.push({
         type: 'high_scheduled_workload',
-        message: `The schedule contains more than 8 hours of planned study time on ${day}.`,
+        message: `Your schedule has more than 8 hours of planned study on ${readableDay}. Consider spreading it across the week.`,
       })
     }
   }

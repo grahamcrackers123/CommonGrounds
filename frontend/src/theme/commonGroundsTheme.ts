@@ -1,59 +1,47 @@
 import { createTheme } from "@mantine/core";
 
+/*
+ * CommonGrounds brand palette, generated from #2F80ED.
+ *
+ * The built-in "blue" palette is intentionally overridden with
+ * the same shades so every existing color="blue" component uses
+ * the brand color in both light and dark mode.
+ */
+const brandBlue = [
+  "#EEF5FE",
+  "#E0ECFC",
+  "#CBDFFB",
+  "#ACCCF8",
+  "#82B3F4",
+  "#5999F1",
+  "#2F80ED",
+  "#286DC9",
+  "#215AA6",
+  "#184077",
+] as const;
+
 export const commonGroundsTheme = createTheme({
-  primaryColor: "cgBlue",
+  primaryColor: "brand",
+
+  // Use the exact brand shade in both modes so light and dark
+  // render identical button/control colors.
+  primaryShade: { light: 6, dark: 6 },
 
   colors: {
-    cgBlue: [
-      "#eef1ff",
-      "#dfe4ff",
-      "#c5cdff",
-      "#a8b4ff",
-      "#8b9eff",
-      "#7285ee",
-      "#5c6fda",
-      "#4f60c0",
-      "#4352a5",
-      "#36458c",
+    brand: brandBlue,
+    blue: brandBlue,
+
+    dark: [
+      "#FFFFFF",
+      "#F8FAFC",
+      "#F1F5F9",
+      "#E2E8F0",
+      "#CBD5E1",
+      "#475569",
+      "#334155",
+      "#1E293B",
+      "#111827",
+      "#000000",
     ],
-  },
-
-  primaryShade: 6,
-
-  fontFamily:
-    "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-
-  headings: {
-    fontFamily:
-      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-    fontWeight: "700",
-  },
-
-  defaultRadius: "md",
-
-  components: {
-    Button: {
-      defaultProps: {
-        radius: "md",
-      },
-    },
-
-    Card: {
-      defaultProps: {
-        radius: "lg",
-      },
-    },
-
-    TextInput: {
-      defaultProps: {
-        radius: "md",
-      },
-    },
-
-    Select: {
-      defaultProps: {
-        radius: "md",
-      },
-    },
   },
 });

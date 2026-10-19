@@ -1,12 +1,12 @@
 "use client";
 
 import { createClient } from '@/lib/supabase/client';
-import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, AppShell, Avatar, Badge, Box, Burger, Flex, Group, Image, ScrollArea, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import { Bell, Circle, Moon, Sun } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 
 interface NotificationRow {
     id: string;
@@ -80,8 +80,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [opened, { toggle }] = useDisclosure(false);
     const router = useRouter();
-    const [coins, setCoins] = useState<number | null>(null);
-    const [notificationList, setNotificationList] = useState<NotificationRow[]>([]);
     const [profile, setProfile] = useState<{ display_name: string } | null>(null);
     const [pet, setPet] = useState<{ level: number } | null>(null);
 
@@ -96,6 +94,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         { label: "Pet Garden", path: "/petgarden" },
         { label: "Reward Shop", path: "/rewardshop" },
         { label: "Progress Map", path: "/progressmap" },
+        { label: "Help & Tutorials", path: "/help" },
         { label: "Settings", path: "/settings" },
     ];
 
@@ -130,12 +129,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        router.push("/access");
-        router.refresh();
-    };
-
     const handleNavigation = (link: {
         label: string;
         path: string;
@@ -143,46 +136,12 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         router.push(link.path);
     };
 
-    useEffect(() => {
-        if (hideNavbar.includes(pathname)) return;
-        fetch('/api/rewards/balance')
-            .then((res) => res.json())
-            .then((data) => setCoins(data.coins ?? 0))
-            .catch(() => {
-                notifications.show({ title: 'Error', message: 'Could not load your coin balance.', color: 'red' });
-            });
-    }, [pathname]);
+    const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-    useEffect(() => {
-        if (hideNavbar.includes(pathname)) return;
-        let cancelled = false;
-
-        async function fetchNotifications() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data, error } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', user.id);
-            if (error) console.error('Error fetching notifications:', error);
-            else if (!cancelled) setNotificationList(data ?? []);
-        }
-
-        fetchNotifications();
-
-        // Keep the unread badge in sync while the page stays open.
-        const interval = window.setInterval(fetchNotifications, 60_000);
-        const handleFocus = () => fetchNotifications();
-        window.addEventListener('focus', handleFocus);
-
-        return () => {
-            cancelled = true;
-            window.clearInterval(interval);
-            window.removeEventListener('focus', handleFocus);
-        };
-    }, [supabase, pathname]);
-
-    const unreadCount = notificationList.filter((n) => n.read === false).length;
+    const { data: balanceData } = useSWR('/api/rewards/balance', fetcher, { refreshInterval: 0 });
+    const { data: unreadNotificationsData } = useSWR('/api/notifications', fetcher);
+    const coins = balanceData?.coins ?? null;
+    const unreadCount = (unreadNotificationsData?.notifications ?? []).filter((n: NotificationRow) => n.read === false).length;
 
     useEffect(() => {
         if (hideNavbar.includes(pathname)) return;
@@ -257,30 +216,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                             CommonGrounds
                         </Text>
                     </Group>
-
-                    <Group gap="sm">
-                        <ActionIcon
-                            variant="default"
-                            size="lg"
-                            radius="md"
-                            onClick={handleThemeToggle}
-                            aria-label="Toggle color scheme"
-                        >
-                            {colorScheme === "dark" ? (
-                                <Sun size={18} />
-                            ) : (
-                                <Moon size={18} />
-                            )}
-                        </ActionIcon>
-
-                        <Burger
-                            opened={opened}
-                            onClick={toggle}
-                            hiddenFrom="sm"
-                            size="sm"
-                            lineSize={2}
-                        />
-                    </Group>
                     <Group visibleFrom="md" gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }} w='100%'>
                         <Badge
                             size='lg'
@@ -316,13 +251,28 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                             </Flex>
                         </Badge>
                     </Group>
-                    <Burger
-                        opened={opened}
-                        onClick={toggle}
-                        hiddenFrom="sm"
-                        size="sm"
-                        lineSize={2}
-                    />
+                    <Group gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <ActionIcon
+                            variant="default"
+                            size="lg"
+                            radius="md"
+                            onClick={handleThemeToggle}
+                            aria-label="Toggle color scheme"
+                        >
+                            {colorScheme === "dark" ? (
+                                <Sun size={18} />
+                            ) : (
+                                <Moon size={18} />
+                            )}
+                        </ActionIcon>
+                        <Burger
+                            opened={opened}
+                            onClick={toggle}
+                            hiddenFrom="sm"
+                            size="sm"
+                            lineSize={2}
+                        />
+                    </Group>
                 </Flex>
             </AppShell.Header>
 
@@ -340,44 +290,70 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         "light-dark(var(--mantine-color-gray-2), #292929)",
                 }}
             >
-                <Group
-                    visibleFrom="sm"
-                    style={{
-                        justifyContent: "flex-start",
-                        alignItems: "flex-start",
-                        width: "100%",
-                        gap: "10px",
-                        marginBottom: "20px",
-                    }}
-                >
-                    <Avatar
-                        variant="filled"
-                        color="blue"
-                        radius="md"
+                <ScrollArea h="100%">
+                    <Group
+                        visibleFrom="sm"
+                        style={{
+                            justifyContent: "flex-start",
+                            alignItems: "flex-start",
+                            width: "100%",
+                            gap: "10px",
+                            marginBottom: "20px",
+                        }}
                     >
-                        CG
-                    </Avatar>
+                        <Avatar
+                            variant="filled"
+                            color="blue"
+                            radius="md"
+                        >
+                            CG
+                        </Avatar>
 
-                    <Text fw={700} size="xl">
-                        CommonGrounds
-                    </Text>
-                </Group>
+                        <Text fw={700} size="xl">
+                            CommonGrounds
+                        </Text>
+                    </Group>
 
-                <Flex
-                    gap="5px"
-                    direction="column"
-                >
-                    {navlinks.map((link) => (
-                        <FillCircle
-                            key={link.label}
-                            active={pathname === link.path}
-                            label={link.label}
-                            onClick={() =>
-                                handleNavigation(link)
-                            }
-                        />
-                    ))}
-                </Flex>
+                    <Flex
+                        gap="5px"
+                        direction="column"
+                    >
+                        <Box hiddenFrom="lg">
+                            <FillCircle
+                                key="Notifications"
+                                active={pathname === "/notification"}
+                                label="Notifications"
+                                onClick={() =>
+                                    handleNavigation({
+                                        label: "Notifications",
+                                        path: "/notification"
+                                    })
+                                }
+                            />
+                            <FillCircle
+                                key="Profile"
+                                active={pathname === "/profile"}
+                                label="Profile"
+                                onClick={() =>
+                                    handleNavigation({
+                                        label: "Profile",
+                                        path: "/profile"
+                                    })
+                                }
+                            />
+                        </Box>
+                        {navlinks.map((link) => (
+                            <FillCircle
+                                key={link.label}
+                                active={pathname === link.path}
+                                label={link.label}
+                                onClick={() =>
+                                    handleNavigation(link)
+                                }
+                            />
+                        ))}
+                    </Flex>
+                </ScrollArea>
             </AppShell.Navbar>
 
             <AppShell.Main
@@ -388,6 +364,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
             >
                 {children}
             </AppShell.Main>
-        </AppShell>
+        </AppShell >
     );
 }
