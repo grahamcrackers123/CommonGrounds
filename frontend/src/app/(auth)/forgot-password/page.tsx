@@ -39,6 +39,7 @@ export default function ForgotPasswordPage() {
         router.push("/access");
     };
 
+    
     const handleSendResetLink = async (values: { email: string }) => {
         setLoading(true);
         setErrorMessage("");
@@ -69,7 +70,7 @@ export default function ForgotPasswordPage() {
             setLoading(false);
         }
     };
-
+             
     return (
         <Container
             fluid

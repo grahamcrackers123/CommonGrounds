@@ -8,11 +8,11 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -280,5 +280,29 @@ export default function ResetPasswordPage() {
         )}
       </Paper>
     </Container>
+  );
+}
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <Container
+          fluid
+          px="md"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "100vh",
+          }}
+        >
+          <Text ta="center" size="sm">
+            Loading password reset...
+          </Text>
+        </Container>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
