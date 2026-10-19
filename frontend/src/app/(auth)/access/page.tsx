@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /* ----------------------------- */
 /* Password requirement component */
@@ -212,6 +212,16 @@ export default function AccessPage() {
                     : "Password must be at least 6 characters",
         },
     });
+     useEffect(() => {
+        const savedEmail = localStorage.getItem(
+            "commongrounds-remembered-email"
+        );
+
+        if (savedEmail) {
+            signinForm.setFieldValue("email", savedEmail);
+            signinForm.setFieldValue("rememberMe", true);
+        }
+    }, []);
 
     /* ----------------------------- */
     /* Sign-up form */
@@ -276,6 +286,16 @@ export default function AccessPage() {
     ) => {
         setSigninError(null);
         setSigninLoading(true);
+                if (values.rememberMe) {
+            localStorage.setItem(
+                "commongrounds-remembered-email",
+                values.email.trim()
+            );
+        } else {
+            localStorage.removeItem(
+                "commongrounds-remembered-email"
+            );
+        }
 
         const { error } =
             await supabase.auth.signInWithPassword({

@@ -81,6 +81,12 @@ interface TabProps {
     markUnsavedChanges: () => void;
 }
 
+interface AccountTabProps extends TabProps {
+    avatarUrl: string | null;
+    avatarUploading: boolean;
+    handleAvatarUpload: (file: File | null) => Promise<void>;
+}
+
 function to24h(time: string): string {
     const match = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!match) return time;
@@ -93,6 +99,8 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<TabSection>('account');
     const [unsavedChanges, setUnsavedChanges] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    const [avatarUploading, setAvatarUploading] = useState(false);
     const hydratedRef = useRef(false);
     const supabase = useMemo(() => createClient(), []);
     const [availabilityError, setAvailabilityError] = useState(false);
@@ -100,6 +108,94 @@ export default function SettingsPage() {
     const markUnsavedChanges = () => {
         setUnsavedChanges(true);
     };
+    
+const handleAvatarUpload = async (file: File | null) => {
+    if (!file) return;
+
+    const allowedTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+        notifications.show({
+            title: 'Invalid image',
+            message: 'Please choose a PNG, JPG, or WebP image.',
+            color: 'red',
+        });
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        notifications.show({
+            title: 'Image too large',
+            message: 'Your profile picture must be 5MB or smaller.',
+            color: 'red',
+        });
+        return;
+    }
+
+    setAvatarUploading(true);
+
+    try {
+        const {
+            data: { user },
+            error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error('Please sign in again before uploading an image.');
+        }
+
+        const filePath = `${user.id}/avatar.${file.type === 'image/png'
+            ? 'png'
+            : file.type === 'image/webp'
+                ? 'webp'
+                : 'jpg'}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, file, {
+                upsert: true,
+                contentType: file.type,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+
+        const publicUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', user.id);
+
+        if (profileError) throw profileError;
+
+        setAvatarUrl(publicUrl);
+
+        notifications.show({
+            title: 'Profile picture updated',
+            message: 'Your new profile picture has been saved.',
+            color: 'green',
+        });
+    } catch (error) {
+        notifications.show({
+            title: 'Upload failed',
+            message: error instanceof Error
+                ? error.message
+                : 'Could not upload your profile picture.',
+            color: 'red',
+        });
+    } finally {
+        setAvatarUploading(false);
+    }
+};
+
 
     const form = useForm<FormValues>({
         initialValues: {
@@ -135,10 +231,11 @@ export default function SettingsPage() {
             if (user) {
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs')
+                    .select('first_name, last_name, display_name, school, program, level, enrollment_status, focus_length, subjects, weekly_availability, coursework_priorities, notification_prefs,avatar_url')
                     .eq('id', user.id)
                     .single();
                 if (!cancelled && data) {
+                    setAvatarUrl(data.avatar_url ?? null);
                     form.setValues({
                         first_name: data.first_name ?? '',
                         last_name: data.last_name ?? '',
@@ -282,7 +379,15 @@ export default function SettingsPage() {
                             <Text c="dimmed">Loading your profile…</Text>
                         ) : (
                             <>
-                                {activeTab === 'account' && <AccountTab form={form} markUnsavedChanges={markUnsavedChanges} />}
+                                {activeTab === 'account' && (
+    <AccountTab
+        form={form}
+        markUnsavedChanges={markUnsavedChanges}
+        avatarUrl={avatarUrl}
+        avatarUploading={avatarUploading}
+        handleAvatarUpload={handleAvatarUpload}
+    />
+)}
                                 {activeTab === 'academic' && <AcademicTab form={form} markUnsavedChanges={markUnsavedChanges} />}
                                 {activeTab === 'schedule' && <ScheduleTab form={form} markUnsavedChanges={markUnsavedChanges} availabilityError={availabilityError} setAvailabilityError={setAvailabilityError} />}
                                 {activeTab === 'notifications' && <NotificationsTab form={form} markUnsavedChanges={markUnsavedChanges} />}
@@ -323,10 +428,17 @@ function SectionTitle({ icon: Icon, children }: { icon: typeof User; children: R
     );
 }
 
-function AccountTab({ form, markUnsavedChanges }: TabProps) {
+function AccountTab({
+    form,
+    markUnsavedChanges,
+    avatarUrl,
+    avatarUploading,
+    handleAvatarUpload,
+}: AccountTabProps) {
     const router = useRouter();
     const supabase = useMemo(() => createClient(), []);
     const [email, setEmail] = useState('');
+    const [emailUpdating, setEmailUpdating] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -336,6 +448,74 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
         })();
         return () => { cancelled = true; };
     }, [supabase]);
+
+    const handleChangeEmail = async () => {
+    const newEmail = email.trim();
+
+    if (!newEmail) {
+        notifications.show({
+            title: 'Email required',
+            message: 'Please enter your new email address.',
+            color: 'red',
+        });
+        return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        notifications.show({
+            title: 'Invalid email',
+            message: 'Please enter a valid email address.',
+            color: 'red',
+        });
+        return;
+    }
+
+    setEmailUpdating(true);
+
+    try {
+        const { data: { user }, error: userError } =
+            await supabase.auth.getUser();
+
+        if (userError || !user) {
+            throw new Error('Please sign in again before changing your email.');
+        }
+
+        if (newEmail.toLowerCase() === user.email?.toLowerCase()) {
+            notifications.show({
+                title: 'No changes',
+                message: 'This is already your current email address.',
+                color: 'blue',
+            });
+            return;
+        }
+
+        const { error } = await supabase.auth.updateUser({
+            email: newEmail,
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        notifications.show({
+            title: 'Email change requested',
+            message:
+                'Check your email for the confirmation instructions from Supabase. Your new address may not take effect until confirmation is complete.',
+            color: 'green',
+        });
+    } catch (error) {
+        notifications.show({
+            title: 'Email change failed',
+            message:
+                error instanceof Error
+                    ? error.message
+                    : 'Something went wrong. Please try again.',
+            color: 'red',
+        });
+    } finally {
+        setEmailUpdating(false);
+    }
+};
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -386,21 +566,37 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
             <div>
                 <SectionTitle icon={User}>Account</SectionTitle>
                 <Group gap='lg' align='center'>
-                    <Avatar size={95} radius={95} color='blue' style={{ border: '3px solid light-dark(#D3F9D8, #14311F)' }}>
+                   <Avatar
+    src={avatarUrl ?? undefined}
+    size={95}
+    radius={95}
+    color="blue"
+    style={{
+        border: '3px solid light-dark(#D3F9D8, #14311F)',
+    }}
+>
                         <Text fw={800} fz={26}>
                             {initials}
                         </Text>
                     </Avatar>
                     <Box>
-                        <FileButton
-                            onChange={() => notifications.show({ title: 'Draft', message: 'Avatar upload is not wired up yet.', color: 'blue' })}
-                            accept="image/png,image/jpeg,image/webp"
-                        >
-                            {(props) =>
-                                <Button variant='outline' radius='lg' {...props}>
-                                    Change Image
-                                </Button>}
-                        </FileButton>
+
+<FileButton
+    onChange={handleAvatarUpload}
+    accept="image/png,image/jpeg,image/webp"
+>
+    {(props) => (
+        <Button
+            loading={avatarUploading}
+            variant="outline"
+            radius="lg"
+            {...props}
+        >
+            Change Image
+        </Button>
+    )}
+</FileButton>
+
                         <Text c='dimmed' fz='xs' mt={6}>
                             PNG, JPG, or WebP up to 5MB.
                         </Text>
@@ -421,9 +617,18 @@ function AccountTab({ form, markUnsavedChanges }: TabProps) {
                 <Stack gap='md'>
                     <Flex gap='md' direction='row' align='flex-end'>
                         <TextInput label='Email' value={email} radius='lg' onChange={(e) => setEmail(e.currentTarget.value)} style={{ flex: 1, width: '100%' }} />
-                        <Button variant='outline' radius='lg' onClick={markUnsavedChanges} style={{ width: '100%', maxWidth: 160 }}>
-                            Change Email
-                        </Button>
+                        
+<Button
+    variant="outline"
+    radius="lg"
+    onClick={handleChangeEmail}
+    loading={emailUpdating}
+    disabled={emailUpdating}
+    style={{ width: '100%', maxWidth: 160 }}
+>
+    Change Email
+</Button>
+
                     </Flex>
                     <Flex gap='md' direction='row' align='flex-end'>
                         <TextInput label='Password' type='password' placeholder='Password' radius='lg' onChange={markUnsavedChanges} style={{ flex: 1, width: '100%' }} />
