@@ -8,6 +8,7 @@ import { notifications } from '@mantine/notifications';
 import { Bell, BookOpen, CalendarClock, FileDown, FileUp, GraduationCap, KeyRound, LogOut, Moon, Palette, Plus, Save, ShieldCheck, Trash2, User, X } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";import { TimePicker } from '@mantine/dates';
+import EnablePushButton from "@/components/enablepushbutton";
 
 
 type TabSection = "account" | "academic" | "schedule" | "notifications" | "privacy";
@@ -779,6 +780,7 @@ function NotificationsTab({ form }: TabProps) {
                     </Paper>
                 </div>
             ))}
+            <EnablePushButton></EnablePushButton>
         </Stack>
     );
 }

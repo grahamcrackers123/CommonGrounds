@@ -3,11 +3,11 @@
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { notifications as notify } from "@mantine/notifications";
-import { Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
+import { Clock, Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-type NotificationType = "friend_request" | "quest_deadline" | "quest_completed" | "risk_flag" | "room_invite" | "session_completed"
+type NotificationType = "friend_request" | "quest_deadline" | "quest_completed" | "risk_flag" | "room_invite" | "session_completed" | "focus_reminder"
 
 interface NotificationItem {
     id: string;
@@ -25,6 +25,8 @@ const types: Record<NotificationType, { icon: typeof Bell; tint: string; color: 
     risk_flag: { icon: Megaphone, tint: "#FFF4E6", color: "#E8590C", label: "Workload check-in" },
     room_invite: { icon: Users, tint: "#EDF2FF", color: "#3B5BDB", label: "Focus room invite" },
     session_completed: { icon: Sparkles, tint: "#EBFBEE", color: "#2F9E44", label: "Session reward" },
+    focus_reminder: { icon: Clock, tint: "#F3F0FF", color: "#7048E8", label: "Focus reminder" },
+    // reward_alert: { icon: Gift, tint: "#FFF9DB", color: "#F08C00", label: "Reward" },
 };
 
 const fallbackType = { icon: Bell, tint: "#F1F3F5", color: "#495057", label: "Update" };
