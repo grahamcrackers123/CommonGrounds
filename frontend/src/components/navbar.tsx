@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from '@/lib/supabase/client';
-import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, ScrollArea, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Bell, Circle, Moon, Sun } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -216,20 +216,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                             CommonGrounds
                         </Text>
                     </Group>
-
-                    <ActionIcon
-                        variant="default"
-                        size="lg"
-                        radius="md"
-                        onClick={handleThemeToggle}
-                        aria-label="Toggle color scheme"
-                    >
-                        {colorScheme === "dark" ? (
-                            <Sun size={18} />
-                        ) : (
-                            <Moon size={18} />
-                        )}
-                    </ActionIcon>
                     <Group visibleFrom="md" gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }} w='100%'>
                         <Badge
                             size='lg'
@@ -265,13 +251,28 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                             </Flex>
                         </Badge>
                     </Group>
-                    <Burger
-                        opened={opened}
-                        onClick={toggle}
-                        hiddenFrom="sm"
-                        size="sm"
-                        lineSize={2}
-                    />
+                    <Group gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <ActionIcon
+                            variant="default"
+                            size="lg"
+                            radius="md"
+                            onClick={handleThemeToggle}
+                            aria-label="Toggle color scheme"
+                        >
+                            {colorScheme === "dark" ? (
+                                <Sun size={18} />
+                            ) : (
+                                <Moon size={18} />
+                            )}
+                        </ActionIcon>
+                        <Burger
+                            opened={opened}
+                            onClick={toggle}
+                            hiddenFrom="sm"
+                            size="sm"
+                            lineSize={2}
+                        />
+                    </Group>
                 </Flex>
             </AppShell.Header>
 
@@ -289,44 +290,68 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         "light-dark(var(--mantine-color-gray-2), #292929)",
                 }}
             >
-                <Group
-                    visibleFrom="sm"
-                    style={{
-                        justifyContent: "flex-start",
-                        alignItems: "flex-start",
-                        width: "100%",
-                        gap: "10px",
-                        marginBottom: "20px",
-                    }}
-                >
-                    <Avatar
-                        variant="filled"
-                        color="blue"
-                        radius="md"
+                <ScrollArea h="100%">
+                    <Group
+                        visibleFrom="sm"
+                        style={{
+                            justifyContent: "flex-start",
+                            alignItems: "flex-start",
+                            width: "100%",
+                            gap: "10px",
+                            marginBottom: "20px",
+                        }}
                     >
-                        CG
-                    </Avatar>
+                        <Avatar
+                            variant="filled"
+                            color="blue"
+                            radius="md"
+                        >
+                            CG
+                        </Avatar>
 
-                    <Text fw={700} size="xl">
-                        CommonGrounds
-                    </Text>
-                </Group>
+                        <Text fw={700} size="xl">
+                            CommonGrounds
+                        </Text>
+                    </Group>
 
-                <Flex
-                    gap="5px"
-                    direction="column"
-                >
-                    {navlinks.map((link) => (
+                    <Flex
+                        gap="5px"
+                        direction="column"
+                    >
                         <FillCircle
-                            key={link.label}
-                            active={pathname === link.path}
-                            label={link.label}
+                            key="Notifications"
+                            active={pathname === "/notification"}
+                            label="Notifications"
                             onClick={() =>
-                                handleNavigation(link)
+                                handleNavigation({
+                                    label: "Notifications",
+                                    path: "/notification"
+                                })
                             }
                         />
-                    ))}
-                </Flex>
+                        <FillCircle
+                            key="Profile"
+                            active={pathname === "/profile"}
+                            label="Profile"
+                            onClick={() =>
+                                handleNavigation({
+                                    label: "Profile",
+                                    path: "/profile"
+                                })
+                            }
+                        />
+                        {navlinks.map((link) => (
+                            <FillCircle
+                                key={link.label}
+                                active={pathname === link.path}
+                                label={link.label}
+                                onClick={() =>
+                                    handleNavigation(link)
+                                }
+                            />
+                        ))}
+                    </Flex>
+                </ScrollArea>
             </AppShell.Navbar>
 
             <AppShell.Main
@@ -337,6 +362,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
             >
                 {children}
             </AppShell.Main>
-        </AppShell>
+        </AppShell >
     );
 }
