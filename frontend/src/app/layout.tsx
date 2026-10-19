@@ -1,5 +1,5 @@
 import InterventionPrompt from '@/components/intervention-prompt';
-import Navbar from '@/components/navbar';
+import AppLayout from '@/components/app-layout';
 import RealtimeSync from '@/components/realtime-sync';
 import ThemeProvider from '@/components/theme-provider';
 import { commonGroundsTheme } from '@/theme/commonGroundsTheme';
@@ -33,7 +33,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: LayoutProps<'/'>) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en" {...mantineHtmlProps}>
       <head />
@@ -50,11 +52,7 @@ export default function RootLayout({
               <Notifications />
               <RealtimeSync />
               <InterventionPrompt />
-              <Container fluid p={0}>
-                <Navbar>
-                  {children}
-                </Navbar>
-              </Container>
+              <AppLayout>{children}</AppLayout>
             </ModalsProvider>
           </ThemeProvider>
         </MantineProvider>
