@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── 1. Deadline reminders: unfinished quests due within 24h ──────────────
+  // Deadline reminders for unfinished quests due within 24h 
   const { data: quests, error: questsError } = await admin
     .from('quests')
     .select('id, user_id, title, deadline')
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     results.deadlines += r.sent;
   }
 
-  // ── 2. Focus session reminders: schedule blocks starting within 15 min ───
+  // Focus session reminders for schedule blocks starting within 15 min
   const { data: blocks, error: blocksError } = await admin
     .from('schedule_blocks')
     .select('id, user_id, starts_at, quests(title, status)')
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
     const quest = Array.isArray(raw) ? raw[0] : raw;
     if (quest?.status === 'completed') {
       bump('quest-completed');
-      continue; // don't remind for a finished quest
+      continue; // don't remind for finished quest
     }
 
     const mins = Math.max(1, Math.round((new Date(b.starts_at).getTime() - now.getTime()) / MIN));
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     results.focus += r.sent;
   }
 
-  // ── 3. Burnout & wellness nudges (reuses your existing risk evaluation) ──
+  // Burnout & wellness nudges
   if (now.getUTCHours() === WELLNESS_UTC_HOUR) {
     const { data: profileRows, error: profilesError } = await admin.from('profiles').select('id');
     if (profilesError) errors.push(`profiles query: ${profilesError.message}`);
@@ -130,7 +130,7 @@ export async function GET(request: Request) {
       for (const flag of flags.filter((f) => f.type !== 'inactivity')) {
         const title = FLAG_TITLES[flag.type] ?? 'Workload check-in';
 
-        // same rule as evaluateAndNotifyRisk: skip if an unread one with this title exists
+        // skip if an unread one with this title exists
         const { data: existing } = await admin
           .from('notifications')
           .select('id')
