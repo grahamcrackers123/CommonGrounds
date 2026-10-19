@@ -20,26 +20,6 @@ export default function EnablePushButton() {
     })();
   }, []);
 
-  // async function toggle() {
-  //   setBusy(true);
-  //   setError(null);
-  //   try {
-  //     if (subscribed) {
-  //       await disablePush();
-  //       setSubscribed(false);
-  //     } else {
-  //       const result = await enablePush();
-  //       setSubscribed(result.ok);
-  //       setSupport(getPushSupport());
-  //       if (!result.ok && result.reason === 'server') {
-  //         setError('Something went wrong saving your device. Please try again.');
-  //       }
-  //     }
-  //   } finally {
-  //     setBusy(false);
-  //   }
-  // }
-
     function describe(r: { reason?: string; detail?: string }) {
     switch (r.reason) {
       case 'missing-vapid-key':
