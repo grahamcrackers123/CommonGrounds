@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { recordBehavioralEvent } from "@/lib/interventions/events";
+import { evaluateAndNotifyRisk } from "@/lib/interventions/notify";
 import { applyXp } from "@/lib/pets/xp";
 
 // placeholder tentative value
@@ -76,6 +77,8 @@ export async function POST(
     prompt_id: recovery.prompt_id,
     quest_id: recovery.quest_id,
   });
+
+  await evaluateAndNotifyRisk(supabase, user.id);
 
   return NextResponse.json({ recoveryEvent: updated, petXp });
 }

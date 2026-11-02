@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendNotification } from '@/lib/push/send';
-import { computeRiskFlags, FLAG_TITLES } from '@/lib/interventions/notify'; // adjust path if needed
+import { computeRiskFlags, FLAG_TITLES } from '@/lib/interventions/notify';
+import { recordMissedSessions } from '@/lib/interventions/missed-sessions';
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -119,6 +120,14 @@ export async function GET(request: Request) {
       const userId = row.id as string;
       found.wellnessUsersChecked++;
 
+      // Record blocks that ended without a focus session so the
+      // missed_sessions flag works without a Dashboard visit.
+      const missed = await recordMissedSessions(admin, userId);
+      if (missed.error) {
+        console.error('Missed session scan failed:', userId, missed.error);
+        errors.push(`missed session scan: ${missed.error}`);
+      }
+
       const { flags, error } = await computeRiskFlags(admin, userId);
       if (error) {
         console.error('Risk evaluation failed:', userId, error);
@@ -126,23 +135,8 @@ export async function GET(request: Request) {
         continue;
       }
 
-      // inactivity is left for the later "come back" feature
-      for (const flag of flags.filter((f) => f.type !== 'inactivity')) {
+      for (const flag of flags) {
         const title = FLAG_TITLES[flag.type] ?? 'Workload check-in';
-
-        // skip if an unread one with this title exists
-        const { data: existing } = await admin
-          .from('notifications')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('type', 'risk_flag')
-          .eq('read', false)
-          .eq('title', title)
-          .limit(1);
-        if (existing && existing.length > 0) {
-          bump('unread-exists');
-          continue;
-        }
 
         const r = await send(
           userId,

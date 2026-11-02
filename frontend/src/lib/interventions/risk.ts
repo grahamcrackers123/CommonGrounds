@@ -96,7 +96,7 @@ export function detectOverdueQuests(
     return {
       type: 'overdue_quests',
       message:
-        'You have coursework deadlines that have passed without completion. Consider rescheduling them.',
+        'You have coursework deadlines that have passed without completion. Consider assigning a to-do day for them.',
     }
   }
 
@@ -139,25 +139,31 @@ export function detectHighScheduledWorkload(
     )
   }
 
-  const flags: RiskFlag[] = []
-
-  for (const [day, minutes] of dailyMinutes) {
-    if (minutes > 8 * 60) {
-      const readableDay = new Date(
-        `${day}T00:00:00Z`
-      ).toLocaleDateString('en-US', {
+  const overloadedDays = [...dailyMinutes.entries()]
+    .filter(([, minutes]) => minutes > 8 * 60)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day]) =>
+      new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
         timeZone: 'UTC',
       })
+    )
 
-      flags.push({
-        type: 'high_scheduled_workload',
-        message: `Your schedule has more than 8 hours of planned study on ${readableDay}. Consider spreading it across the week.`,
-      })
-    }
+  if (overloadedDays.length === 0) {
+    return []
   }
 
-  return flags
+  const dayList =
+    overloadedDays.length === 1
+      ? overloadedDays[0]
+      : `${overloadedDays.slice(0, -1).join(', ')}, and ${overloadedDays[overloadedDays.length - 1]}`
+
+  return [
+    {
+      type: 'high_scheduled_workload',
+      message: `Your schedule has more than 8 hours of planned study on ${dayList}. Consider spreading it across the week.`,
+    },
+  ]
 }

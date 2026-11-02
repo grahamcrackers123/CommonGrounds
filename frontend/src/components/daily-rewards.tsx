@@ -155,7 +155,7 @@ export default function DailyRewards() {
                     </Badge>
                 </Group>
 
-                <SimpleGrid cols={4} spacing={4} mb="md">
+                <SimpleGrid cols={3} spacing={10} mb="md">
                     {state.login.rewards.map((reward) => {
                         const isToday = reward.day === state.login.day && !state.login.claimed;
                         const isClaimed = state.login.claimed ? reward.day <= state.login.day : reward.day < state.login.day;
@@ -175,8 +175,6 @@ export default function DailyRewards() {
                                                 : undefined,
                                         opacity: isClaimed || isToday ? 1 : 0.7,
                                     }}
-                                    w={100}
-                                    h={100}
                                 >
                                     <Text fz="sm" fw={700} tt="uppercase" c={isToday ? "blue" : "dimmed"}>
                                         Day {reward.day}
@@ -368,7 +366,7 @@ export default function DailyRewards() {
                                     claim(
                                         { type: "bonus" },
                                         "bonus",
-                                        `All missions bonus — ${rewardLabel(state.bonus.coins, state.bonus.xp)}`
+                                        `All missions bonus: ${rewardLabel(state.bonus.coins, state.bonus.xp)}`
                                     )
                                 }
                             >

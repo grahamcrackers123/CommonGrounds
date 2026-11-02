@@ -1,29 +1,17 @@
 import webpush from 'web-push';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  isNotificationEnabled,
+  type NotificationPrefs,
+  type NotificationType,
+} from '@/lib/notification-prefs';
 
-// Same values as notifications.type
-export type NotificationType =
-  | 'quest_deadline'
-  | 'focus_reminder'
-  | 'risk_flag'
-  | 'session_completed' // focus session + quest completion rewards
-  | 'friend_request'
-  | 'room_invite'
-  | 'test';
+export type { NotificationType } from '@/lib/notification-prefs';
 
 export type PushPayload = { title: string; body?: string | null; url?: string; tag?: string };
 
 type Result = { sent: number; skipped?: string };
 type AdminClient = ReturnType<typeof createAdminClient>;
-
-const PREF_KEY: Partial<Record<NotificationType, string>> = {
-  quest_deadline: 'deadlineReminders',
-  focus_reminder: 'focusReminders',
-  risk_flag: 'burnoutNudges',
-  session_completed: 'rewardAlerts',
-  friend_request: 'friendInvites',
-  room_invite: 'friendInvites',
-};
 
 // where tapping the push takes the user
 const DEFAULT_URL: Record<NotificationType, string> = {
@@ -49,15 +37,13 @@ function initWebPush() {
 
 // only explicit false in notification_prefs turns a type off
 async function isEnabled(admin: AdminClient, userId: string, type: NotificationType) {
-  const prefKey = PREF_KEY[type];
-  if (!prefKey) return true;
   const { data: profile } = await admin
     .from('profiles')
     .select('notification_prefs')
     .eq('id', userId)
     .single();
-  const prefs = profile?.notification_prefs as Record<string, boolean> | null;
-  return prefs?.[prefKey] !== false;
+  const prefs = profile?.notification_prefs as NotificationPrefs | null;
+  return isNotificationEnabled(prefs, type);
 }
 
 async function deliverPush(

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 export type BehavioralEventType =
@@ -17,9 +18,10 @@ export async function recordBehavioralEvent(
     userId: string,
     type: BehavioralEventType,
     metadata: Record<string, unknown> = {},
-    occurredAt?: string
+    occurredAt?: string,
+    client?: SupabaseClient
 ) {
-    const supabase = await createClient();
+    const supabase = client ?? (await createClient());
 
     const { data, error } = await supabase
         .from("behavioral_events")

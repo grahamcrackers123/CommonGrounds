@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { recordBehavioralEvent } from "@/lib/interventions/events";
+import { evaluateAndNotifyRisk } from "@/lib/interventions/notify";
 import { NextResponse } from "next/server";
 
 type RoomRow = {
@@ -115,6 +116,10 @@ export async function POST() {
 
     settledRooms.add(room.id);
     settled += 1;
+  }
+
+  if (settled > 0) {
+    await evaluateAndNotifyRisk(supabase, user.id);
   }
 
   return NextResponse.json({ settled });

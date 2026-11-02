@@ -1,10 +1,12 @@
 import { xp_per_level } from '@/components/petgrowth'
 import { recordBehavioralEvent } from '@/lib/interventions/events'
+import { evaluateAndNotifyRisk } from '@/lib/interventions/notify'
 import { applyEnergyDecay, ENERGY_MAX } from '@/lib/pet-energy'
 import { QUEST_ENERGY_REWARD } from '@/lib/quest-rewards'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { pushToUser } from "@/lib/push/send"
+import { isNotificationEnabled, loadNotificationPrefs } from '@/lib/notification-prefs'
 
 export async function PATCH(
   request: Request,
@@ -80,6 +82,7 @@ export async function PATCH(
       energy_gained: energyGained,
       leveled_up: result.leveled_up ?? false,
     })
+    await evaluateAndNotifyRisk(supabase, user.id)
   }
 
   if (questInfo) {
@@ -93,19 +96,22 @@ export async function PATCH(
         ? `You earned ${rewards.join(', ')} for "${questInfo.title}"`
         : `You completed "${questInfo.title}"`
 
-    await supabase.rpc('create_notification', {
-      _user_id: user.id,
-      // The notifications.type check constraint does not allow
-      // 'quest_completed', so quests reuse the session type and the
-      // notifications page relabels them from the title.
-      _type: 'session_completed',
-      _title: 'Quest completed!',
-      _body: questBody,
-    })
-    await pushToUser(user.id, 'session_completed', {
-      title: 'Quest completed!',
-      body: questBody,
-    })
+    const prefs = await loadNotificationPrefs(supabase, user.id)
+    if (isNotificationEnabled(prefs, 'session_completed')) {
+      await supabase.rpc('create_notification', {
+        _user_id: user.id,
+        // The notifications.type check constraint does not allow
+        // 'quest_completed', so quests reuse the session type and the
+        // notifications page relabels them from the title.
+        _type: 'session_completed',
+        _title: 'Quest completed!',
+        _body: questBody,
+      })
+      await pushToUser(user.id, 'session_completed', {
+        title: 'Quest completed!',
+        body: questBody,
+      })
+    }
   }
 
   return NextResponse.json({

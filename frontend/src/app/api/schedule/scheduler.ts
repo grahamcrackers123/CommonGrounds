@@ -1,6 +1,8 @@
 export type Quest = {
     id: string
+    title: string | null
     deadline: string | null
+    scheduled_date?: string | null
     priority: string | null
     estimated_duration: number | null
 }
@@ -22,6 +24,30 @@ export type ScheduleBlock = {
     starts_at: string
     ends_at: string
     source: 'auto'
+}
+
+export type UnscheduledReason =
+    | 'missing_deadline'
+    | 'missing_duration'
+    | 'invalid_deadline'
+    | 'deadline_passed'
+    | 'no_availability'
+    | 'window_too_short'
+    | 'deadline_too_soon'
+    | 'no_free_slot'
+
+export type UnscheduledQuest = {
+    quest_id: string
+    title: string | null
+    deadline: string | null
+    priority: string | null
+    reason: UnscheduledReason
+    message: string
+}
+
+export type ScheduleResult = {
+    blocks: ScheduleBlock[]
+    unscheduled: UnscheduledQuest[]
 }
 
 const PRIORITY_WEIGHT: Record<string, number> = {
@@ -104,6 +130,18 @@ function getPhilippineDateParts(
         day: shifted.getUTCDate(),
         dayIndex: shifted.getUTCDay(),
     }
+}
+
+function getPhilippineDateKey(
+    date: Date
+): string {
+    const { year, month, day } =
+        getPhilippineDateParts(date)
+
+    return `${year}-${String(month + 1).padStart(
+        2,
+        '0'
+    )}-${String(day).padStart(2, '0')}`
 }
 
 /*
@@ -241,47 +279,151 @@ function isOverlapping(
     )
 }
 
+function getScheduledDateEnd(
+    scheduledDate: string
+): number {
+    const [year, month, day] =
+        scheduledDate.split('-').map(Number)
+
+    if (
+        !Number.isFinite(year) ||
+        !Number.isFinite(month) ||
+        !Number.isFinite(day)
+    ) {
+        return Number.NaN
+    }
+
+    return philippineDateTimeToUtc(
+        year,
+        month - 1,
+        day + 1,
+        '00:00'
+    ).getTime()
+}
+
+/*
+A to-do day is the quest's effective scheduling target, so
+overdue quests pinned to a later day must not sort ahead of
+quests whose real deadlines are sooner.
+*/
+function getEffectiveDeadlineMs(
+    quest: Quest,
+    now: Date
+): number {
+    const deadline = quest.deadline
+        ? new Date(quest.deadline).getTime()
+        : Number.POSITIVE_INFINITY
+
+    if (
+        Number.isNaN(deadline) ||
+        deadline > now.getTime() ||
+        !quest.scheduled_date
+    ) {
+        return deadline
+    }
+
+    const scheduledEnd =
+        getScheduledDateEnd(
+            quest.scheduled_date
+        )
+
+    return Number.isNaN(scheduledEnd)
+        ? deadline
+        : scheduledEnd
+}
+
+function createUnscheduledQuest(
+    quest: Quest,
+    reason: UnscheduledReason,
+    message: string
+): UnscheduledQuest {
+    return {
+        quest_id: quest.id,
+        title: quest.title,
+        deadline: quest.deadline,
+        priority: quest.priority,
+        reason,
+        message,
+    }
+}
+
 export function generateSchedule(
     quests: Quest[],
     availability: AvailabilityWindow[],
     existingBlocks: ExistingBlock[]
-): ScheduleBlock[] {
+): ScheduleResult {
+    const unscheduled:
+        UnscheduledQuest[] = []
+
+    const schedulableQuests:
+        Quest[] = []
+
+    for (const quest of quests) {
+        if (!quest.deadline) {
+            unscheduled.push(
+                createUnscheduledQuest(
+                    quest,
+                    'missing_deadline',
+                    'No deadline is set.'
+                )
+            )
+
+            continue
+        }
+
+        if (
+            !quest.estimated_duration ||
+            quest.estimated_duration <= 0
+        ) {
+            unscheduled.push(
+                createUnscheduledQuest(
+                    quest,
+                    'missing_duration',
+                    'No estimated duration is set.'
+                )
+            )
+
+            continue
+        }
+
+        schedulableQuests.push(quest)
+    }
+
+    const now = new Date()
+
     const sortedQuests =
-        [...quests]
-            .filter(
-                (quest) =>
-                    quest.deadline &&
-                    quest.estimated_duration &&
-                    quest.estimated_duration >
-                        0
-            )
-            .sort(
-                (a, b) => {
-                    const priorityDifference =
-                        getPriorityWeight(
-                            b.priority
-                        ) -
-                        getPriorityWeight(
-                            a.priority
-                        )
-
-                    if (
-                        priorityDifference !==
-                        0
-                    ) {
-                        return priorityDifference
-                    }
-
-                    return (
-                        new Date(
-                            a.deadline!
-                        ).getTime() -
-                        new Date(
-                            b.deadline!
-                        ).getTime()
+        schedulableQuests.sort(
+            (a, b) => {
+                const deadlineDifference =
+                    getEffectiveDeadlineMs(
+                        a,
+                        now
+                    ) -
+                    getEffectiveDeadlineMs(
+                        b,
+                        now
                     )
+
+                if (
+                    deadlineDifference !==
+                    0 &&
+                    !Number.isNaN(
+                        deadlineDifference
+                    )
+                ) {
+                    return deadlineDifference
                 }
-            )
+
+                return (
+                    getPriorityWeight(
+                        b.priority
+                    ) -
+                    getPriorityWeight(
+                        a.priority
+                    )
+                )
+            }
+        )
 
     const scheduledBlocks:
         ScheduleBlock[] = []
@@ -295,8 +437,6 @@ export function generateSchedule(
     const occupiedBlocks = [
         ...existingBlocks,
     ]
-
-    const now = new Date()
 
     for (
         const quest of sortedQuests
@@ -312,24 +452,57 @@ export function generateSchedule(
                 quest.deadline!
             )
 
+        const scheduledDate =
+            deadline.getTime() <=
+            now.getTime()
+                ? quest.scheduled_date ?? null
+                : null
+
         if (
             Number.isNaN(
                 deadline.getTime()
             )
         ) {
+            unscheduled.push(
+                createUnscheduledQuest(
+                    quest,
+                    'invalid_deadline',
+                    'Its deadline is invalid.'
+                )
+            )
+
+            continue
+        }
+
+        if (
+            !scheduledDate &&
+            deadline.getTime() <=
+            now.getTime()
+        ) {
+            unscheduled.push(
+                createUnscheduledQuest(
+                    quest,
+                    'deadline_passed',
+                    'Its deadline has passed. Set a to-do day to reschedule it.'
+                )
+            )
+
             continue
         }
 
         let placed = false
+        let sawTooShortWindow = false
+        let sawDeadlineLimit = false
+        let sawOccupied = false
 
         /*
         Build candidate availability windows.
 
         Weeks from the current one up to the quest's deadline
-        are considered, so quests roll into later weeks when
-        this week's sessions are already full. A window that
-        has already begun is still included; only its
-        remaining time is used.
+        or to-do day are considered, so quests roll into later
+        weeks when this week's sessions are already full. A
+        window that has already begun is still included; only
+        its remaining time is used.
         */
         const candidates: Array<{
             start: Date
@@ -356,16 +529,38 @@ export function generateSchedule(
                     break
                 }
 
-                /*
-                Later occurrences only start later, so once
-                one cannot finish before the deadline the
-                rest cannot either.
-                */
-                if (
+                if (scheduledDate) {
+                    /*
+                    A to-do day pins the quest to that
+                    Philippine calendar day, even when its
+                    original deadline has already passed.
+                    */
+                    const startDateKey =
+                        getPhilippineDateKey(start)
+
+                    if (
+                        startDateKey >
+                        scheduledDate
+                    ) {
+                        break
+                    }
+
+                    if (
+                        startDateKey !==
+                        scheduledDate
+                    ) {
+                        continue
+                    }
+                } else if (
                     start.getTime() +
                     durationMs >
                     deadline.getTime()
                 ) {
+                    /*
+                    Later occurrences only start later, so
+                    once one cannot finish before the
+                    deadline the rest cannot either.
+                    */
                     break
                 }
 
@@ -396,7 +591,8 @@ export function generateSchedule(
         /*
         Scan each candidate window in 15-minute steps and
         pack quest blocks back-to-back as long as they fit
-        inside the window and before the deadline.
+        inside the window and, unless a to-do day pins the
+        quest, before the deadline.
         */
         for (
             const candidate of candidates
@@ -431,6 +627,7 @@ export function generateSchedule(
                     blockEnd >
                     candidate.windowEnd
                 ) {
+                    sawTooShortWindow = true
                     break
                 }
 
@@ -439,7 +636,11 @@ export function generateSchedule(
                 deadline. Starting later makes this worse,
                 so the whole window can be skipped.
                 */
-                if (blockEnd > deadline) {
+                if (
+                    !scheduledDate &&
+                    blockEnd > deadline
+                ) {
+                    sawDeadlineLimit = true
                     break
                 }
 
@@ -480,6 +681,8 @@ export function generateSchedule(
                     break
                 }
 
+                sawOccupied = true
+
                 slotStart = new Date(
                     slotStart.getTime() +
                     SLOT_STEP_MS
@@ -492,9 +695,55 @@ export function generateSchedule(
         }
 
         if (!placed) {
+            const hasWindowLongEnough =
+                candidates.some(
+                    (candidate) =>
+                        candidate.windowEnd.getTime() -
+                        Math.max(
+                            candidate.start.getTime(),
+                            now.getTime()
+                        ) >=
+                        durationMs
+                )
+
+            let reason: UnscheduledReason =
+                'no_availability'
+
+            let message = scheduledDate
+                ? 'No availability window is set for its to-do day.'
+                : 'No availability window can fit it before its deadline.'
+
+            if (
+                hasWindowLongEnough &&
+                sawOccupied
+            ) {
+                reason = 'no_free_slot'
+                message = scheduledDate
+                    ? 'No free slot remains on its to-do day.'
+                    : 'No free slot remains before its deadline.'
+            } else if (sawDeadlineLimit) {
+                reason = 'deadline_too_soon'
+                message =
+                    'Not enough time remains before its deadline.'
+            } else if (sawTooShortWindow) {
+                reason = 'window_too_short'
+                message = scheduledDate
+                    ? 'Its estimated duration does not fit any availability window on its to-do day.'
+                    : 'No available window is long enough for this quest.'
+            }
+
+            unscheduled.push(
+                createUnscheduledQuest(
+                    quest,
+                    reason,
+                    message
+                )
+            )
+
             console.warn(
                 `Could not schedule quest ${quest.id} before its deadline`,
                 {
+                    reason,
                     deadline:
                         quest.deadline,
                     estimated_duration:
@@ -504,5 +753,8 @@ export function generateSchedule(
         }
     }
 
-    return scheduledBlocks
+    return {
+        blocks: scheduledBlocks,
+        unscheduled,
+    }
 }

@@ -23,7 +23,7 @@ export default async function ProfilePage() {
     await applyEnergyDecay(supabase, pet);
     const growth = getPetGrowth(pet.level);
 
-    const { data: profile } = await supabase.from("profiles").select("display_name, school, program, user_code, level, enrollment_status, weekly_availability, focus_length, created_at").eq("id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("display_name, school, program, user_code, level, enrollment_status, weekly_availability, focus_length, created_at, avatar_url").eq("id", user.id).single();
     if (!profile) return null;
     type UserBadge = { badges: { id: string; name: string; description: string; image_url: string } };
 
@@ -40,9 +40,13 @@ export default async function ProfilePage() {
                     <Group justify='space-between' align='flex-start' wrap='wrap'>
                         <Group gap='lg' wrap='nowrap' align='center'>
                             <Avatar size={110} radius={110} color='green' style={{ border: '3px solid light-dark(#D3F9D8, #14311F)' }}>
-                                <Text fw={800} fz={32}>
-                                    NA
-                                </Text>
+                                {profile.avatar_url ? (
+                                    <Image src={profile.avatar_url} alt="Profile Avatar" width={110} height={110} fit='cover' />
+                                ) : (
+                                    <Text c='dimmed' size='lg' fw={700}>
+                                        {profile.display_name.charAt(0)}
+                                    </Text>
+                                )}
                             </Avatar>
                             <Box>
                                 <Group gap={10}>

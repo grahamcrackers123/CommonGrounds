@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isNotificationEnabled, loadNotificationPrefs } from "@/lib/notification-prefs";
 
 const DUE_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -24,6 +25,11 @@ export async function notifyUpcomingQuestDeadlines(
     supabase: SupabaseClient,
     userId: string
 ): Promise<{ created: number; error: string | null }> {
+    const prefs = await loadNotificationPrefs(supabase, userId);
+    if (!isNotificationEnabled(prefs, "quest_deadline")) {
+        return { created: 0, error: null };
+    }
+
     const now = new Date();
     const windowEnd = new Date(now.getTime() + DUE_SOON_WINDOW_MS);
 

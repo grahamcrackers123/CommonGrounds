@@ -54,13 +54,13 @@ const faqGroups: FaqGroup[] = [
             {
                 question: "What is a quest?",
                 answer:
-                    "A quest is a coursework task with a subject, deadline, priority, and estimated time. Completing one earns you coins and pet XP.",
+                    "A quest is a coursework task with a subject, coursework type, deadline, and estimated time. Its type sets its priority and rewards, and completing one earns you coins and pet XP.",
                 action: { label: "Open Quest Calendar", path: "/questcalendar" },
             },
             {
                 question: "Where do the priority rules come from?",
                 answer:
-                    "You set them during setup for each coursework type (High, Medium, Low). They're applied when you create quests and can be changed in Settings.",
+                    "You set a priority for each coursework type during setup (High, Medium, Low). Every quest inherits its type's priority and rewards, and you can change the rules in Settings.",
                 action: { label: "Open Settings", path: "/settings" },
             },
             {
@@ -82,7 +82,7 @@ const faqGroups: FaqGroup[] = [
             {
                 question: "How do I study with friends?",
                 answer:
-                    "Add friends and invite them from the Focus Room. A room holds up to 4 people.",
+                    "Add friends and invite them from the Focus Room. A room holds up to 50 people.",
                 action: { label: "Open Focus Room", path: "/focusroom" },
             },
             {

@@ -19,9 +19,11 @@ export const FLAG_TITLES: Record<string, string> = {
   high_scheduled_workload: "Heavy schedule check-in",
 };
 
+// Inactivity comes first so it wins the single prompt slot and offers
+// a restart session instead of a passive nudge.
 const FLAG_TO_PROMPT: Record<string, PromptType> = {
+  inactivity: "restart_10min",
   missed_sessions: "restart_10min",
-  inactivity: "inactivity",
   overdue_quests: "schedule_extension",
   high_scheduled_workload: "schedule_extension",
 };
@@ -69,8 +71,8 @@ export async function computeRiskFlags(
   const blocks = (blocksResult.data ?? []) as ScheduleBlockForRisk[];
 
   const flags = [
-    detectMissedSessions(events),
     detectInactivity(events),
+    detectMissedSessions(events),
     detectOverdueQuests(quests),
     ...detectHighScheduledWorkload(blocks),
   ].filter((f): f is RiskFlag => f !== null);
@@ -78,9 +80,11 @@ export async function computeRiskFlags(
   return { flags, error: null };
 }
 
-// sends notif for each currently-active flag, but only if
-// unread risk_flag notification doesn't already exist
-// once user reads/dismisses it, a still-active flag will notify again
+const RISK_NOTIFICATION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Sends a notification for each currently-active flag at most
+// once per cooldown window, whether or not it was read, so an
+// unread alert never blocks future reminders.
 export async function evaluateAndNotifyRisk(
   supabase: SupabaseClient,
   userId: string
@@ -105,19 +109,23 @@ export async function evaluateAndNotifyRisk(
     return;
   }
 
+  const notifiedSince = new Date(
+    Date.now() - RISK_NOTIFICATION_COOLDOWN_MS
+  ).toISOString();
+
   for (const flag of flags) {
     const title = FLAG_TITLES[flag.type] ?? "Workload check-in";
 
-    const { data: existing } = await supabase
+    const { data: recent } = await supabase
       .from("notifications")
       .select("id")
       .eq("user_id", userId)
       .eq("type", "risk_flag")
-      .eq("read", false)
       .eq("title", title)
+      .gte("created_at", notifiedSince)
       .limit(1);
 
-    if (existing && existing.length > 0) continue;
+    if (recent && recent.length > 0) continue;
 
     await supabase.rpc("create_notification", {
       _user_id: userId,

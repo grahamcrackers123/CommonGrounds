@@ -1,5 +1,10 @@
 export type PushSupport = 'unsupported' | 'needs-install' | 'denied' | 'default' | 'granted';
 
+export type PushSubscriptionInfo = {
+  endpoint: string;
+  user_agent: string | null;
+};
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -60,14 +65,44 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: string; deta
   }
 }
 
-export async function disablePush() {
+export async function getLocalPushSubscription(): Promise<PushSubscription | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
   const reg = await navigator.serviceWorker.getRegistration('/sw.js');
-  const sub = await reg?.pushManager.getSubscription();
+  return (await reg?.pushManager.getSubscription()) ?? null;
+}
+
+export async function fetchPushSubscriptions(): Promise<PushSubscriptionInfo[]> {
+  const res = await fetch('/api/push/subscriptions', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Could not load push devices (${res.status})`);
+  const data = (await res.json()) as { subscriptions?: PushSubscriptionInfo[] };
+  return data.subscriptions ?? [];
+}
+
+export async function disablePush() {
+  const sub = await getLocalPushSubscription();
   if (!sub) return;
-  await fetch('/api/push/unsubscribe', {
+  const res = await fetch('/api/push/unsubscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ endpoint: sub.endpoint }),
   });
-  await sub.unsubscribe();
+  if (!res.ok) throw new Error(`Could not remove this device (${res.status})`);
+  try {
+    await sub.unsubscribe();
+  } catch {
+    // The server row is already gone, so no more pushes will be delivered.
+  }
+}
+
+export async function disableAllPush() {
+  const sub = await getLocalPushSubscription();
+  const res = await fetch('/api/push/subscriptions', { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Could not remove push devices (${res.status})`);
+  if (sub) {
+    try {
+      await sub.unsubscribe();
+    } catch {
+      // The server rows are already gone, so no more pushes will be delivered.
+    }
+  }
 }

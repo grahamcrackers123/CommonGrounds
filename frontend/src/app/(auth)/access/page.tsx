@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { persistSessionPreference } from "@/lib/supabase/cookies";
 
 import {
     Anchor,
@@ -212,7 +213,7 @@ export default function AccessPage() {
                     : "Password must be at least 6 characters",
         },
     });
-     useEffect(() => {
+    useEffect(() => {
         const savedEmail = localStorage.getItem(
             "commongrounds-remembered-email"
         );
@@ -286,7 +287,9 @@ export default function AccessPage() {
     ) => {
         setSigninError(null);
         setSigninLoading(true);
-                if (values.rememberMe) {
+        persistSessionPreference(values.rememberMe);
+
+        if (values.rememberMe) {
             localStorage.setItem(
                 "commongrounds-remembered-email",
                 values.email.trim()
@@ -456,7 +459,7 @@ export default function AccessPage() {
         // }
 
         setSignupError(
-            "We will send an automated confirmation email if an account does not already exist with this email."
+            "Confirmation email sent. Please confirm your email and complete account setup."
         );
     };
 

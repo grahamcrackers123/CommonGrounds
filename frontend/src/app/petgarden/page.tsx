@@ -1,3 +1,4 @@
+import PetNameEditor from "@/components/petnameeditor";
 import { getPetGrowth, getPetStatus, getXpProgress, xp_per_level } from "@/components/petgrowth";
 import { getPetActivity, relativeTime, type PetActivityKind } from "@/lib/pet-activity";
 import { applyEnergyDecay } from "@/lib/pet-energy";
@@ -186,9 +187,7 @@ export default async function PetGardenPage() {
                                     <Text fz="xs" c="dimmed" tt="uppercase" fw={700} lts={1}>
                                         Companion
                                     </Text>
-                                    <Title order={3} fz="xl" fw={800} mt={2}>
-                                        {pet.name}
-                                    </Title>
+                                    <PetNameEditor name={pet.name} />
                                     <Text c="dimmed" size="sm">
                                         {pet.species === "bunny" ? "Bunny" : pet.species} • {growth.stage} stage
                                     </Text>

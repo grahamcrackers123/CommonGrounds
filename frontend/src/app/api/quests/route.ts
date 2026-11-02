@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { isQuestPriority, rewardCoinsForPriority } from '@/lib/quest-rewards'
+import { priorityForCourseworkType, rewardCoinsForPriority } from '@/lib/quest-rewards'
 import { NextResponse } from 'next/server'
 
 // GET /api/quests?status=pending&...
@@ -49,28 +49,63 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
 
-  const priority = body.priority ?? 'medium'
+  const courseworkType =
+    typeof body.coursework_type === 'string' &&
+    body.coursework_type.trim()
+      ? body.coursework_type.trim()
+      : null
 
-  if (!isQuestPriority(priority)) {
-    return NextResponse.json({ error: 'Invalid quest priority' }, { status: 400 })
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('coursework_priorities')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const priority = priorityForCourseworkType(
+    courseworkType,
+    profile?.coursework_priorities
+  )
+
+  const insertPayload = {
+    user_id: user.id,
+    title: body.title,
+    subject: body.subject ?? null,
+    description: body.description ?? null,
+    coursework_type: courseworkType,
+    deadline: body.deadline ?? null,
+    priority,
+    estimated_duration: body.estimated_duration ?? null,
+    checklist: body.checklist ?? [],
+    status: body.status ?? 'pending',
+    reward_coins: rewardCoinsForPriority(priority),
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('quests')
-    .insert({
-      user_id: user.id,
-      title: body.title,
-      subject: body.subject ?? null,
-      description: body.description ?? null,
-      deadline: body.deadline ?? null,
-      priority,
-      estimated_duration: body.estimated_duration ?? null,
-      checklist: body.checklist ?? [],
-      status: body.status ?? 'pending',
-      reward_coins: rewardCoinsForPriority(priority),
-    })
+    .insert(insertPayload)
     .select()
     .single()
+
+  // Remove this fallback once the coursework_type column is migrated.
+  if (
+    error?.code === 'PGRST204' &&
+    error.message.includes('coursework_type')
+  ) {
+    const fallbackPayload: Record<string, unknown> = {
+      ...insertPayload,
+    }
+
+    delete fallbackPayload.coursework_type
+
+    const fallback = await supabase
+      .from('quests')
+      .insert(fallbackPayload)
+      .select()
+      .single()
+
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

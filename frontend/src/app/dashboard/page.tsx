@@ -8,11 +8,12 @@ import WelcomeRewardModal from "@/components/welcomerewardmodal";
 import WorkloadStatusChip from "@/components/workload-status-chip";
 import { getCoinsEarned } from "@/lib/coin-activity";
 import { startOfLocalDay } from "@/lib/daily";
-import { applyEnergyDecay } from "@/lib/pet-energy";
+import { applyEnergyDecay, decayedEnergy } from "@/lib/pet-energy";
 import { recordDailyStreak } from "@/lib/streak";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Box, Flex, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { BookOpen, Clock, Coins, Flame, TrendingUp, Zap } from "lucide-react";
+import { after } from "next/server";
 
 type FocusSession = {
     started_at: string | null;
@@ -67,6 +68,7 @@ export default async function DashboardPage() {
         { data: sessions },
         { data: nextBlock },
         { data: nextQuest },
+        coinsToday,
     ] = await Promise.all([
         supabase
             .from("profiles")
@@ -96,6 +98,7 @@ export default async function DashboardPage() {
             .order("deadline", { ascending: true, nullsFirst: false })
             .limit(1)
             .maybeSingle(),
+        getCoinsEarned(supabase, user.id, startOfLocalDay(now)),
     ]);
 
     const days: DayBucket[] = [];
@@ -114,20 +117,20 @@ export default async function DashboardPage() {
         bucket.xp += s.streak_xp_earned ?? 0;
     }
 
-    // Includes focus sessions, completed quests, and daily
-    // login / mission / bonus claims, not just focus coins.
-    const coinsToday = await getCoinsEarned(
-        supabase,
-        user.id,
-        startOfLocalDay(now)
-    );
-
     const today = days[6];
     const yesterday = days[5];
     const weekTotal = days.reduce((sum, d) => sum + d.minutes, 0);
     const maxDay = Math.max(...days.map((d) => d.minutes), 1);
 
-    const petEnergy = pet ? await applyEnergyDecay(supabase, pet) : 0;
+    const petEnergy = pet ? decayedEnergy(pet) : 0;
+
+    // Persist the lazy energy decay after the response is sent so the
+    // dashboard does not wait on the extra write.
+    if (pet) {
+        after(async () => {
+            await applyEnergyDecay(supabase, pet);
+        });
+    }
 
     const showReward = !profile?.new_user_reward_claimed;
     const showTutorial = profile?.new_user_reward_claimed && !profile?.tutorial_completed;
@@ -148,8 +151,8 @@ export default async function DashboardPage() {
             icon: Zap,
             tint: "light-dark(#EBFBEE, #173128)",
             color: "light-dark(#2F9E44, #51CF66)",
-            value: `${today.xp} XP`,
-            sub: `${pctDelta(today.xp, yesterday.xp)} vs yesterday`,
+            value: (pet?.xp ?? 0).toLocaleString() + " XP",
+            sub: `+${today.xp} earned today`,
         },
         {
             label: "Coins",

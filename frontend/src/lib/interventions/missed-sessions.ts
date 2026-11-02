@@ -102,7 +102,8 @@ export async function recordMissedSessions(
                 starts_at: block.starts_at,
                 ends_at: block.ends_at,
             },
-            block.ends_at
+            block.ends_at,
+            supabase
         );
         if (result.error) {
             if (!error) error = result.error.message;

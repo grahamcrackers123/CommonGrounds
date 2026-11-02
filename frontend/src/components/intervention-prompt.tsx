@@ -88,7 +88,7 @@ const PROMPT_META: Record<
         icon: CalendarClock,
         color: "grape",
         title: "Let's clear the overdue pile",
-        body: "Some deadlines have passed without completion. Consider rescheduling them so your plan stays realistic.",
+        body: "Some deadlines have passed without completion. Consider assigning a to-do day for them so your plan stays realistic.",
         acceptLabel: "Sounds good",
         acceptMessage: "Open your quest calendar to reschedule the ones that slipped.",
     },

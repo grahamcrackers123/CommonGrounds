@@ -12,11 +12,14 @@ import {
 } from "@mantine/core";
 import {
     Bot,
+    CalendarCheck2,
     CalendarClock,
     Cat,
     ChevronLeft,
     ChevronRight,
+    ClipboardList,
     Flower2,
+    FolderOpen,
     Lightbulb,
     MapPin,
     ShoppingCart,
@@ -28,6 +31,9 @@ export type TutorialSection =
     | "welcome"
     | "meetpet"
     | "questcalendar"
+    | "createquest"
+    | "scheduling"
+    | "materials"
     | "focusroom"
     | "rewardshop"
     | "progressmap"
@@ -38,6 +44,9 @@ export const tutorialTabs: { key: TutorialSection; label: string; icon: typeof S
     { key: "welcome", label: "Welcome", icon: Sparkles },
     { key: "meetpet", label: "Your Companion", icon: Cat },
     { key: "questcalendar", label: "Quest Calendar", icon: CalendarClock },
+    { key: "createquest", label: "Create a Quest", icon: ClipboardList },
+    { key: "scheduling", label: "Auto-Scheduling", icon: CalendarCheck2 },
+    { key: "materials", label: "Study Materials", icon: FolderOpen },
     { key: "focusroom", label: "Focus Room", icon: Timer },
     { key: "rewardshop", label: "Reward Shop", icon: ShoppingCart },
     { key: "progressmap", label: "Progress Map", icon: MapPin },
@@ -69,18 +78,58 @@ export const tutorialSteps: Record<Exclude<TutorialSection, "welcome">, Tutorial
         title: "Quest Calendar",
         intro: "Quests are your coursework and tasks, organized in one calendar.",
         points: [
-            "Add a quest with a title, subject, deadline, estimated minutes, and priority.",
-            "The reward preview shows the coins and pet XP you'll earn for completing it.",
-            "Priority rules from your setup are applied, and you can filter by status or subject.",
+            "Switch between Week and Month views with the buttons above the calendar, or use the arrows to move ahead and back.",
+            "Use the Calendar View, Quest List, and Modules tabs to move between your plan, a filterable list, and your study files.",
+            "Click a day to focus it, then open a quest to see its subject, coursework type, priority, status, deadline, and rewards.",
+            "Completed quests leave the calendar; overdue quests stay visible so nothing slips through.",
+            "Search or filter by status and subject in the Quest List tab to find work quickly.",
         ],
         tip: "Pending deadlines feed your dashboard reminders and workload alerts.",
         cta: { label: "Open Quest Calendar", path: "/questcalendar" },
+    },
+    createquest: {
+        title: "Create a quest",
+        intro: "Every assignment, reading, or project becomes a quest with a deadline and a reward.",
+        points: [
+            "Open Quest Calendar and click Add Quest. Title, subject, deadline, and estimated duration are required.",
+            "Pick a coursework type (required once you've added types in Settings): it sets the quest's priority and its coin, pet XP, and energy rewards.",
+            "Estimate how long it will take (at least 15 minutes). The planner uses this duration to reserve a study block for you.",
+            "Optionally add a description or attach a PDF, DOCX, TXT, or MD file up to 10 MB.",
+            "Use Mark as In Progress when you start, then Mark as Done to claim the quest's rewards.",
+        ],
+        tip: "You can edit a quest from its details panel, and the edit form also lets you delete it. Coursework types and priorities can be changed in Settings.",
+        cta: { label: "Create a Quest", path: "/questcalendar" },
+    },
+    scheduling: {
+        title: "Automatic scheduling",
+        intro: "Regenerate Plan turns your quests into study blocks inside the availability you set during setup.",
+        points: [
+            "Check your weekly availability in Settings first. The planner only places blocks inside those windows.",
+            "Click Regenerate Plan and quests are ordered by earliest deadline, then by priority: high, medium, then low.",
+            "Each quest is packed into a free 15-minute slot, must fit entirely before its deadline, and never overlaps another block.",
+            "Regenerating rebuilds only auto-generated blocks; blocks marked manual are left untouched.",
+            "If a quest cannot be placed, you get a reason such as no availability, window too short, deadline too soon, or no free slot.",
+            "For an overdue quest, open it in Edit and set a To-do day so the planner can schedule it again.",
+        ],
+        tip: "Scheduled blocks appear on the calendar, and each quest's details show its scheduled time and scheduling reason.",
+        cta: { label: "Open Quest Calendar", path: "/questcalendar" },
+    },
+    materials: {
+        title: "Study materials",
+        intro: "Keep the files for each quest close to the work.",
+        points: [
+            "Open the Modules tab in Quest Calendar to see everything you have uploaded.",
+            "Upload PDF, DOCX, TXT, or MD files up to 10 MB, then attach them to a quest when you create or edit it.",
+            "Click a material to open it, or ask Wasi questions about your learning materials.",
+        ],
+        tip: "Materials attached to a quest also appear in its details panel.",
+        cta: { label: "Open Study Materials", path: "/questcalendar" },
     },
     focusroom: {
         title: "Focus Room",
         intro: "Run focused study sessions on your own or with friends.",
         points: [
-            "Rooms hold up to 4 people, so invite friends and study together.",
+            "Rooms hold up to 50 people, so invite friends and study together.",
             "Set a duration, pick an ambient sound, and link the session to a quest.",
             "Finishing earns coins, pet energy, and streak XP based on the time you complete.",
         ],
@@ -154,7 +203,8 @@ export function TutorialWelcome({
 
             <Text>
                 Your profile is set and your companion is waiting for you. This short tour
-                shows how everything connects, so you can get the most out of your study time.
+                walks through quests, automatic scheduling, focus sessions, and rewards so
+                you can get the most out of your study time.
             </Text>
 
             <Paper radius='lg' p='md' withBorder style={{ backgroundColor: 'light-dark(#F1F9FF, #1B2A3A)' }}>
@@ -164,6 +214,9 @@ export function TutorialWelcome({
                 <List size='sm' spacing={4}>
                     <List.Item>
                         <Text span fw={600}>Quests</Text>: turn coursework into tasks with deadlines and rewards.
+                    </List.Item>
+                    <List.Item>
+                        <Text span fw={600}>Scheduling</Text>: let the planner fit quests into your weekly availability.
                     </List.Item>
                     <List.Item>
                         <Text span fw={600}>Focus sessions</Text>: study solo or with friends and log your time.
@@ -180,8 +233,8 @@ export function TutorialWelcome({
             {showActions ? (
                 <>
                     <Text c='dimmed' size='sm'>
-                        Seven short steps, about a minute in total. You can skip now and come back
-                        to any tutorial from the sidebar at any time.
+                        {tutorialTabs.length - 1} short steps, about two minutes in total. You can
+                        skip now and come back to any tutorial from Help &amp; Tutorials at any time.
                     </Text>
 
                     <Group gap='sm'>

@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { Badge, Box, Button, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { notifications as notify } from "@mantine/notifications";
 import { Clock, Bell, BellOff, Check, CheckCheck, HeartHandshake, Megaphone, Sparkles, Timer, Trophy, UserPlus, Users, X } from "lucide-react";
@@ -33,8 +32,16 @@ const fallbackType = { icon: Bell, tint: "light-dark(#F1F3F5, #2C2E33)", color: 
 
 type NotifFilter = "all" | "unread" | "deadline" | "reward" | "social" | "wellness";
 
+type NotificationRow = {
+    id: string | number;
+    type?: string | null;
+    title?: string | null;
+    body?: string | null;
+    created_at?: string | null;
+    read?: boolean | null;
+};
+
 export default function NotificationPage() {
-    const supabase = createClient();
     const router = useRouter();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [filter, setFilter] = useState<NotifFilter>("all");
@@ -45,41 +52,36 @@ export default function NotificationPage() {
     const socialCount = notifications.filter((n) => n.type === 'friend_request' || n.type === 'room_invite').length;
 
     useEffect(() => {
+        let cancelled = false;
         async function fetchNotifications() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data, error } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false });
+            const res = await fetch('/api/notifications', { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json() as { notifications?: NotificationRow[] };
 
-            if (error) console.error('Error fetching notifications:', error);
-            else {
-                const rows = (data ?? []).map((n) => {
-                    const title = String(n.title ?? "");
-                    const rawType = String(n.type ?? "");
+            const rows = (data.notifications ?? []).map((n) => {
+                const title = String(n.title ?? "");
+                const rawType = String(n.type ?? "");
 
-                    // Older quest notifications were stored as session_completed.
-                    const type: NotificationType =
-                        rawType === "session_completed" && title === "Quest completed!"
-                            ? "quest_completed"
-                            : (rawType as NotificationType);
+                // Older quest notifications were stored as session_completed.
+                const type: NotificationType =
+                    rawType === "session_completed" && title === "Quest completed!"
+                        ? "quest_completed"
+                        : (rawType as NotificationType);
 
-                    return {
-                        id: String(n.id),
-                        type,
-                        title,
-                        body: String(n.body ?? ""),
-                        createdAt: String(n.created_at ?? ""),
-                        unread: n.read === false,
-                    };
-                });
-                setNotifications(rows);
-            }
+                return {
+                    id: String(n.id),
+                    type,
+                    title,
+                    body: String(n.body ?? ""),
+                    createdAt: String(n.created_at ?? ""),
+                    unread: n.read === false,
+                };
+            });
+            if (!cancelled) setNotifications(rows);
         }
-        fetchNotifications();
-    }, [supabase]);
+        fetchNotifications().catch(() => undefined);
+        return () => { cancelled = true; };
+    }, []);
 
     const filteredNotifications = useMemo(() => {
         switch (filter) {
