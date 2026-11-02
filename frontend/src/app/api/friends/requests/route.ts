@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { pushToUser } from "@/lib/push/send";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -24,11 +25,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-    await supabase.rpc("create_notification", {
+  const requestBody = `${user.user_metadata?.display_name ?? "Someone"} wants to be friends`;
+
+  await supabase.rpc("create_notification", {
     _user_id: found[0].id,
     _type: "friend_request",
     _title: "New friend request",
-    _body: `${user.user_metadata?.display_name ?? "Someone"} wants to be friends`,
+    _body: requestBody,
+  });
+
+  await pushToUser(found[0].id, "friend_request", {
+    title: "New friend request",
+    body: requestBody,
   });
   
   return NextResponse.json({ request: data }, { status: 201 });

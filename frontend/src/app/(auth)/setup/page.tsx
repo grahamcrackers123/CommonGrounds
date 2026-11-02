@@ -588,7 +588,7 @@ export default function SetupPage() {
                                     <Flex direction='row' align='flex-end' gap='sm' mb='md' w='100%'>
                                         <TextInput
                                             label="Coursework Types"
-                                            placeholder="Enter your coursework types"
+                                            placeholder="Enter your coursework types (e.g., Homework, Essay, Project)"
                                             radius="lg"
                                             style={{ flex: 1 }}
                                             value={courseworkInput}

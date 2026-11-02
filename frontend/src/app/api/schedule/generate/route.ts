@@ -115,26 +115,14 @@ export async function POST() {
         error: questsError,
     } = await supabase
         .from('quests')
-        .select(
-            'id, deadline, priority, estimated_duration'
-        )
+        .select('*')
         .eq(
             'user_id',
             user.id
         )
-        .eq(
+        .in(
             'status',
-            'pending'
-        )
-        .not(
-            'deadline',
-            'is',
-            null
-        )
-        .not(
-            'estimated_duration',
-            'is',
-            null
+            ['pending', 'in_progress']
         )
 
     if (questsError) {
@@ -158,7 +146,7 @@ export async function POST() {
         (quests ?? []) as Quest[]
 
     console.log(
-        'Pending quests for scheduler:',
+        'Pending/in-progress quests for scheduler:',
         validQuests
     )
 
@@ -167,8 +155,9 @@ export async function POST() {
     ) {
         return NextResponse.json({
             message:
-                'No pending quests need scheduling.',
+                'No pending or in-progress quests need scheduling.',
             blocks: [],
+            unscheduled: [],
             scheduled_count: 0,
             duration_ms:
                 Date.now() -
@@ -282,7 +271,11 @@ export async function POST() {
     =====================================================
     */
 
-    const generatedBlocks =
+    const {
+        blocks:
+            generatedBlocks,
+        unscheduled,
+    } =
         generateSchedule(
             validQuests,
             availability,
@@ -292,6 +285,11 @@ export async function POST() {
     console.log(
         'Generated schedule blocks:',
         generatedBlocks
+    )
+
+    console.log(
+        'Unscheduled quests:',
+        unscheduled
     )
 
     /*
@@ -361,6 +359,7 @@ export async function POST() {
             blocks:
                 insertedBlocks ??
                 [],
+            unscheduled,
             scheduled_count:
                 insertedBlocks
                     ?.length ??
@@ -381,6 +380,7 @@ export async function POST() {
         message:
             'No available windows were found for the pending quests.',
         blocks: [],
+        unscheduled,
         scheduled_count: 0,
         duration_ms:
             Date.now() -

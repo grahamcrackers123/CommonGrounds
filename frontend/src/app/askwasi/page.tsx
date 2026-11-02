@@ -5,6 +5,7 @@ import {
     Badge,
     Button,
     Card,
+    Flex,
     Group,
     Paper,
     ScrollArea,
@@ -416,10 +417,10 @@ export default function AskWasiPage() {
             </Card>
 
 {/* Main Ask Wasi Workspace */}
-<Group
+<Flex
     align="stretch"
     gap="md"
-    wrap="nowrap"
+    direction={{ base: "column", sm: "row" }}
     style={{
         flex: 1,
         minHeight: 600,
@@ -430,7 +431,7 @@ export default function AskWasiPage() {
         withBorder
         radius="lg"
         p="md"
-        w={{ base: 230, sm: 260 }}
+        w={{ base: "100%", sm: 260 }}
         style={{
             flexShrink: 0,
             borderColor:
@@ -651,7 +652,7 @@ Materials
                 }}
             >
                 <ScrollArea
-                    h={520}
+                    h={{ base: 420, sm: 520 }}
                     px={{ base: "md", sm: "xl" }}
                     py="xl"
                     scrollbarSize={6}
@@ -660,7 +661,7 @@ Materials
                         <Stack
                             align="center"
                             justify="center"
-                            h={450}
+                            h={{ base: 360, sm: 450 }}
                             gap="sm"
                         >
                             <Paper
@@ -986,6 +987,7 @@ Materials
                     variant="unstyled"
                     style={{
                         flex: 1,
+                        minWidth: 0,
                         color: "light-dark(var(--mantine-color-text), #FFFFFF)",
                         background: "light-dark(transparent, #151515)",
                         borderRadius: 8,
@@ -1033,7 +1035,7 @@ Materials
                 Enter to send · Shift + Enter for a new line
             </Text>
                </Stack>
-    </Group>
+    </Flex>
 </Stack>
     );
 }

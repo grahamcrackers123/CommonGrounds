@@ -1,10 +1,13 @@
 "use client";
 
+import { useFocusSession } from '@/components/focus-session-provider';
+import { fmt } from '@/lib/focus-session';
 import { createClient } from '@/lib/supabase/client';
-import { ActionIcon, AppShell, Avatar, Badge, Burger, Flex, Group, Image, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, AppShell, Avatar, Badge, Box, Burger, Flex, Group, Image, ScrollArea, Text, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { Bell, Circle, Moon, Sun } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { Bell, Circle, Moon, Sun, Timer } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 
@@ -17,20 +20,23 @@ interface NotificationRow {
 function FillCircle({
     active,
     label,
-    onClick,
+    href,
 }: {
     active: boolean;
     label: string;
-    onClick: () => void;
+    href: string;
 }) {
     return (
-        <UnstyledButton
-            onClick={onClick}
+        <Link
+            href={href}
+            prefetch
             style={{
                 display: "flex",
                 alignItems: "center",
                 cursor: "pointer",
                 width: "100%",
+                textDecoration: "none",
+                color: "inherit",
             }}
         >
             <Group
@@ -69,7 +75,7 @@ function FillCircle({
                     {label}
                 </Text>
             </Group>
-        </UnstyledButton>
+        </Link>
     );
 }
 
@@ -78,8 +84,8 @@ const hideNavbar = ['/access', '/forgot-password', '/setup'];
 export default function Navbar({ children }: { children: React.ReactNode }) {
     const supabase = useMemo(() => createClient(), []);
     const pathname = usePathname();
-    const [opened, { toggle }] = useDisclosure(false);
-    const router = useRouter();
+    const { phase, remaining, roomName } = useFocusSession();
+    const [opened, { toggle, close }] = useDisclosure(false);
     const [profile, setProfile] = useState<{ display_name: string } | null>(null);
     const [pet, setPet] = useState<{ level: number } | null>(null);
 
@@ -129,13 +135,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const handleNavigation = (link: {
-        label: string;
-        path: string;
-    }) => {
-        router.push(link.path);
-    };
-
     const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
     const { data: balanceData } = useSWR('/api/rewards/balance', fetcher, { refreshInterval: 0 });
@@ -169,6 +168,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
             else setPet(data ?? null);
         };
         loadPet();
+        close();
     }, [supabase, pathname]);
 
     if (hideNavbar.includes(pathname)) {
@@ -211,25 +211,7 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         >
                             CG
                         </Avatar>
-
-                        <Text fw={700} size="xl">
-                            CommonGrounds
-                        </Text>
                     </Group>
-
-                    <ActionIcon
-                        variant="default"
-                        size="lg"
-                        radius="md"
-                        onClick={handleThemeToggle}
-                        aria-label="Toggle color scheme"
-                    >
-                        {colorScheme === "dark" ? (
-                            <Sun size={18} />
-                        ) : (
-                            <Moon size={18} />
-                        )}
-                    </ActionIcon>
                     <Group visibleFrom="md" gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }} w='100%'>
                         <Badge
                             size='lg'
@@ -241,37 +223,74 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                                 {coins}
                             </Flex>
                         </Badge>
-                        <Badge
-                            size='lg'
-                            variant='light'
-                            color='pink'
-                            onClick={() => router.push('/notification')}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <Flex direction='row' align='center' gap='sm'>
-                                <Bell size={16} />
-                                {unreadCount}
-                            </Flex>
-                        </Badge>
-                        <Badge
-                            size='lg'
-                            variant='light'
-                            color='blue'
-                            onClick={() => router.push('/profile')}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <Flex direction='row' align='center' gap='sm'>
-                                {profile?.display_name || 'Profile'} • Lv {pet?.level ?? '—'}
-                            </Flex>
-                        </Badge>
+                        <Link href="/notification" prefetch style={{ textDecoration: 'none' }}>
+                            <Badge
+                                size='lg'
+                                variant='light'
+                                color='pink'
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <Flex direction='row' align='center' gap='sm'>
+                                    <Bell size={16} />
+                                    {unreadCount}
+                                </Flex>
+                            </Badge>
+                        </Link>
+                        <Link href="/profile" prefetch style={{ textDecoration: 'none' }}>
+                            <Badge
+                                size='lg'
+                                variant='light'
+                                color='blue'
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <Flex direction='row' align='center' gap='sm'>
+                                    {profile?.display_name || 'Profile'} • Lv {pet?.level ?? '—'}
+                                </Flex>
+                            </Badge>
+                        </Link>
                     </Group>
-                    <Burger
-                        opened={opened}
-                        onClick={toggle}
-                        hiddenFrom="sm"
-                        size="sm"
-                        lineSize={2}
-                    />
+                    <Flex direction='row' gap="sm" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+                        {phase === "live" && pathname !== "/focusroom" && (
+                            <Link
+                                href="/focusroom"
+                                prefetch
+                                title={`Focusing in ${roomName.trim() || "Focus Room"}`}
+                                style={{ textDecoration: 'none' }}
+                            >
+                                <Badge
+                                    size='lg'
+                                    variant='light'
+                                    color='green'
+                                    style={{ cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
+                                >
+                                    <Flex direction='row' align='center' gap='sm'>
+                                        <Timer size={16} />
+                                        {fmt(remaining)}
+                                    </Flex>
+                                </Badge>
+                            </Link>
+                        )}
+                        <ActionIcon
+                            variant="default"
+                            size="lg"
+                            radius="md"
+                            onClick={handleThemeToggle}
+                            aria-label="Toggle color scheme"
+                        >
+                            {colorScheme === "dark" ? (
+                                <Sun size={18} />
+                            ) : (
+                                <Moon size={18} />
+                            )}
+                        </ActionIcon>
+                        <Burger
+                            opened={opened}
+                            onClick={toggle}
+                            hiddenFrom="sm"
+                            size="sm"
+                            lineSize={2}
+                        />
+                    </Flex>
                 </Flex>
             </AppShell.Header>
 
@@ -289,44 +308,59 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
                         "light-dark(var(--mantine-color-gray-2), #292929)",
                 }}
             >
-                <Group
-                    visibleFrom="sm"
-                    style={{
-                        justifyContent: "flex-start",
-                        alignItems: "flex-start",
-                        width: "100%",
-                        gap: "10px",
-                        marginBottom: "20px",
-                    }}
-                >
-                    <Avatar
-                        variant="filled"
-                        color="blue"
-                        radius="md"
+                <ScrollArea h="100%">
+                    <Group
+                        visibleFrom="sm"
+                        style={{
+                            justifyContent: "flex-start",
+                            alignItems: "flex-start",
+                            width: "100%",
+                            gap: "10px",
+                            marginBottom: "20px",
+                        }}
                     >
-                        CG
-                    </Avatar>
+                        <Avatar
+                            variant="filled"
+                            color="blue"
+                            radius="md"
+                        >
+                            CG
+                        </Avatar>
 
-                    <Text fw={700} size="xl">
-                        CommonGrounds
-                    </Text>
-                </Group>
+                        <Text fw={700} size="xl">
+                            CommonGrounds
+                        </Text>
+                    </Group>
 
-                <Flex
-                    gap="5px"
-                    direction="column"
-                >
-                    {navlinks.map((link) => (
-                        <FillCircle
-                            key={link.label}
-                            active={pathname === link.path}
-                            label={link.label}
-                            onClick={() =>
-                                handleNavigation(link)
-                            }
-                        />
-                    ))}
-                </Flex>
+                    <Flex
+                        gap="5px"
+                        direction="column"
+                    >
+                        <Box hiddenFrom="lg">
+                            <FillCircle
+                                key="Notifications"
+                                active={pathname === "/notification"}
+                                label="Notifications"
+                                href="/notification"
+
+                            />
+                            <FillCircle
+                                key="Profile"
+                                active={pathname === "/profile"}
+                                label="Profile"
+                                href="/profile"
+                            />
+                        </Box>
+                        {navlinks.map((link) => (
+                            <FillCircle
+                                key={link.label}
+                                active={pathname === link.path}
+                                label={link.label}
+                                href={link.path}
+                            />
+                        ))}
+                    </Flex>
+                </ScrollArea>
             </AppShell.Navbar>
 
             <AppShell.Main
@@ -337,6 +371,6 @@ export default function Navbar({ children }: { children: React.ReactNode }) {
             >
                 {children}
             </AppShell.Main>
-        </AppShell>
+        </AppShell >
     );
 }

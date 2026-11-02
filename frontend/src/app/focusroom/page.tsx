@@ -1,21 +1,31 @@
 "use client";
 
+import { useFocusSession } from "@/components/focus-session-provider";
 import {
-  clampMaxParticipants,
+  PRESET_MINUTES,
+  SOUNDS,
+  fmt,
+  initialsOf,
+  statusOf,
+  type RewardTier,
+} from "@/lib/focus-session";
+import {
   DEFAULT_MAX_PARTICIPANTS,
   PARTY_SIZE_MAX,
   PARTY_SIZE_MIN,
+  clampMaxParticipants,
 } from "@/lib/rooms";
-import { createClient } from "@/lib/supabase/client";
 import {
   ActionIcon,
   Avatar,
   Badge,
   Box,
   Button,
+  Center,
   CopyButton,
   Divider,
   Group,
+  Loader,
   Menu,
   Modal,
   NumberInput,
@@ -31,13 +41,9 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import {
   AlarmClock,
-  AudioLinesOff,
   Check,
-  CloudRain,
-  Coffee,
   Copy,
   Crown,
   Flame,
@@ -53,7 +59,6 @@ import {
   Sparkles,
   Square,
   Timer,
-  Trees,
   Trophy,
   UserMinus,
   UserPlus,
@@ -61,251 +66,89 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-type Phase = "lobby" | "live" | "summary";
-
-interface Friend {
-  id?: string;
-  userId?: string;
-  name: string;
-  initials: string;
-  color: string;
-  online: boolean;
-  status?: "accepted" | "pending";
-  direction?: "incoming" | "outgoing";
-}
-
-interface Participant {
-  name: string;
-  initials: string;
-  color: string;
-  isYou?: boolean;
-  userId?: string;
-  status?: "ready" | "focus" | "break" | "completed";
-}
-
-interface HistoryRow {
-  id?: string;
-  room: string;
-  minutes: number;
-  date: string;
-}
-
-interface SessionResult {
-  roomName: string;
-  studyGoal: string;
-  linkedTask: string | null;
-  plannedMinutes: number;
-  actualMinutes: number;
-  participantNames: string[];
-  completed: boolean;
-}
-
-interface RewardTier {
-  duration_min: number;
-  coins: number;
-  pet_energy: number;
-  streak_xp: number;
-}
-
-const PRESET_MINUTES = [15, 30, 45, 60];
-
-// ambience options, each maps to a looping track in /public/sounds
-const SOUNDS = [
-  { key: "none", label: "Silence", icon: AudioLinesOff, audio: null },
-  { key: "rain", label: "Rain", icon: CloudRain, audio: "/sounds/rain-sound.wav" },
-  { key: "cafe", label: "Cafe", icon: Coffee, audio: "/sounds/cafe-sound.mp3" },
-  { key: "forest", label: "Forest", icon: Trees, audio: "/sounds/forest-sound.wav" },
-];
-
-const FRIEND_COLORS = ["pink", "blue", "orange", "violet", "teal", "grape", "indigo", "cyan"];
-
-const initialsOf = (name: string) =>
-  name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-const colorFor = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return FRIEND_COLORS[hash % FRIEND_COLORS.length];
-};
-
-// member status dot colors + labels
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  ready: { label: "Ready", color: "light-dark(#ADB5BD, #6C757D)" },
-  focus: { label: "Focusing", color: "light-dark(#2F9E44, #51CF66)" },
-  break: { label: "On break", color: "light-dark(#F08C00, #FFA94D)" },
-  completed: { label: "Finished", color: "light-dark(#868E96, #ADB5BD)" },
-};
-
-const statusOf = (status?: string) => STATUS_META[status ?? "ready"] ?? STATUS_META.ready;
-
-const fmt = (totalSeconds: number) => {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-};
-
-// read the focus history saved in localStorage
-const loadHistory = (): HistoryRow[] => {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem("focusroom-history");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {
-    return [];
-  }
-  return [];
-};
-
-// normalize a friends API row into a Friend
-const mapBackendFriend = (row: Record<string, unknown>): Friend => {
-  const name =
-    (typeof row.display_name === "string" && row.display_name) ||
-    (typeof row.name === "string" && row.name) ||
-    (typeof row.full_name === "string" && row.full_name) ||
-    "Friend";
-  const friendId =
-    (typeof row.friend_user_id === "string" && row.friend_user_id) ||
-    (typeof row.friend_id === "string" && row.friend_id) ||
-    (typeof row.user_id === "string" && row.user_id) ||
-    "";
-  const status = row.status === "pending" ? "pending" : "accepted";
-  const direction =
-    row.direction === "outgoing" ? "outgoing" : row.direction === "incoming" ? "incoming" : undefined;
-  const lastSeen =
-    (typeof row.last_seen_at === "string" && new Date(row.last_seen_at).getTime()) ||
-    (typeof row.presence === "string" && new Date(row.presence).getTime()) ||
-    0;
-  const online = status === "accepted" && (!lastSeen || Date.now() - lastSeen < 3 * 60 * 1000);
-  return {
-    id:
-      row.friendship_id != null
-        ? String(row.friendship_id)
-        : row.id != null
-          ? String(row.id)
-          : undefined,
-    userId: friendId ? String(friendId) : undefined,
-    name,
-    initials: initialsOf(name),
-    color: colorFor(name),
-    online,
-    status,
-    direction,
-  };
-};
-
-// normalize a session row into the history shape
-const mapHistoryRow = (row: Record<string, unknown>): HistoryRow => ({
-  id: row.id != null ? String(row.id) : undefined,
-  room: typeof row.name === "string" && row.name ? row.name : "Focus Room",
-  minutes: typeof row.duration_minutes === "number" ? row.duration_minutes : 0,
-  date:
-    (typeof row.ended_at === "string" && row.ended_at) ||
-    (typeof row.started_at === "string" && row.started_at) ||
-    "",
-});
+import { useEffect, useRef } from "react";
 
 export default function FocusRoomPage() {
-  const supabase = useMemo(() => createClient(), []);
-  // refs that survive re-renders: in-flight room, finish guard, countdown, audio
-  const roomPromiseRef = useRef<Promise<string | null> | null>(null);
-  const finishingRef = useRef(false);
-  const finishSessionRef = useRef<(completed: boolean) => void>(() => { });
-  const remainingRef = useRef(30 * 60);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const savedMaxRef = useRef(DEFAULT_MAX_PARTICIPANTS);
-  // which view is showing: lobby -> live -> summary
-  const [phase, setPhase] = useState<Phase>("lobby");
+  const {
+    phase,
+    roomName,
+    setRoomName,
+    studyGoal,
+    setStudyGoal,
+    durationPreset,
+    setDurationPreset,
+    customMinutes,
+    setCustomMinutes,
+    maxParticipants,
+    setMaxParticipants,
+    linkedTask,
+    setLinkedTask,
+    quests,
+    rewardTiers,
+    history,
+    inviteModalOpen,
+    setInviteModalOpen,
+    friendCode,
+    setFriendCode,
+    friendReqSending,
+    joinCode,
+    setJoinCode,
+    joining,
+    joinedRoom,
+    restoring,
+    remaining,
+    running,
+    sound,
+    setSound,
+    volume,
+    setVolume,
+    sessionResult,
+    isLeader,
+    lobbyParticipants,
+    isParticipantLeader,
+    selectedMinutes,
+    total,
+    progress,
+    activeSound,
+    soundFile,
+    inviteCode,
+    roomCode,
+    todaySessions,
+    todayMinutes,
+    runningTodayMinutes,
+    todayProgress,
+    onlineFriends,
+    incomingRequests,
+    outgoingRequests,
+    enterFocusRoom,
+    startSession,
+    toggleRunning,
+    resetTimer,
+    endEarly,
+    backToLobby,
+    leaveLobby,
+    joinRoomWithCode,
+    inviteFriend,
+    unfriend,
+    respondToRequest,
+    submitAddFriend,
+  } = useFocusSession();
 
-  // room setup fields
-  const [roomName, setRoomName] = useState("");
-  const [studyGoal, setStudyGoal] = useState("");
-  const [durationPreset, setDurationPreset] = useState<number | "custom">(30);
-  const [customMinutes, setCustomMinutes] = useState(45);
-  const [maxParticipants, setMaxParticipants] = useState(DEFAULT_MAX_PARTICIPANTS);
-  const [linkedTask, setLinkedTask] = useState<string | null>(null);
-  const [quests, setQuests] = useState<{ id: string; title: string }[]>([]);
-  const [rewardTiers, setRewardTiers] = useState<RewardTier[]>([]);
-
-  // people: friends list, room participants, and the signed-in user
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [displayName, setDisplayName] = useState("You");
-  const [userId, setUserId] = useState<string | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [ownStatus, setOwnStatus] = useState<Participant["status"]>();
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [roomCode, setRoomCode] = useState<string | null>(null);
-
-  // local history + invite/join state
-  const [history, setHistory] = useState<HistoryRow[]>(loadHistory);
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [friendCode, setFriendCode] = useState("");
-  const [friendReqSending, setFriendReqSending] = useState(false);
-  const [joinCode, setJoinCode] = useState("");
-  const [joining, setJoining] = useState(false);
-  const [joinedRoom, setJoinedRoom] = useState(false);
-
-  // focus session state: countdown, play/pause, ambience
-  const [remaining, setRemaining] = useState(30 * 60);
-  const [running, setRunning] = useState(false);
-  const [sound, setSound] = useState("rain");
-  const [volume, setVolume] = useState(60);
-  const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
-  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
-
-  // who leads the room + derived timer math
-  const isLeader = !joinedRoom;
-  const youParticipant: Participant = {
-    name: displayName,
-    initials: initialsOf(displayName),
-    color: "green",
-    isYou: true,
-    userId: userId ?? undefined,
-    status: ownStatus ?? (phase === "live" ? (running ? "focus" : "break") : "ready"),
-  };
-  const lobbyParticipants = [youParticipant, ...participants];
-  const leaderId = ownerId ?? (isLeader ? userId : null);
-  const isParticipantLeader = (p: Participant) =>
-    leaderId != null && p.userId != null
-      ? p.userId === leaderId
-      : isLeader && Boolean(p.isYou);
-  const selectedMinutes = durationPreset === "custom" ? Math.max(1, customMinutes) : durationPreset;
-  const total = selectedMinutes * 60;
-  const progress = Math.round(((total - remaining) / total) * 100);
   const partySize = clampMaxParticipants(maxParticipants);
-  // ambience track currently selected
-  const activeSound = SOUNDS.find((s) => s.key === sound) ?? SOUNDS[0];
-  const soundFile = activeSound.audio;
-  const inviteCode = roomCode ?? "";
 
-  // today's sessions for the header badges
-  const todayRows = history.filter(
-    (h) => new Date(h.date).toDateString() === new Date().toDateString()
-  );
-  const todaySessions = todayRows.length;
-  const todayMinutes = todayRows.reduce((sum, row) => sum + row.minutes, 0);
-  const runningTodayMinutes = phase === "live" ? todayMinutes + (total - remaining) / 60 : todayMinutes;
-  const todayProgress = Math.min(100, (runningTodayMinutes / 120) * 100);
-  // friend groups: online, incoming requests, outgoing requests
-  const onlineFriends = friends.filter((f) => f.online);
-  const incomingRequests = friends.filter(
-    (f) => f.status === "pending" && f.direction !== "outgoing"
-  );
-  const outgoingRequests = friends.filter(
-    (f) => f.status === "pending" && f.direction === "outgoing"
-  );
+  const enteredRef = useRef(false);
+  useEffect(() => {
+    if (enteredRef.current) return;
+    enteredRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const invite = params.get("code");
+    if (invite) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    enterFocusRoom(invite);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // pick the reward tier that matches the focused minutes
   const tierFor = (minutes: number): RewardTier => {
     let best: RewardTier | null = null;
     for (const tier of rewardTiers) {
@@ -317,865 +160,13 @@ export default function FocusRoomPage() {
     return { duration_min: minutes, coins: 0, pet_energy: 0, streak_xp: 0 };
   };
 
-  // load the signed-in user's id and display name
-  useEffect(() => {
-    async function loadProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .single();
-      if (data?.display_name) setDisplayName(data.display_name);
-    }
-    loadProfile();
-  }, [supabase]);
-
-  // load pending quests for the "Linked Task" select
-  useEffect(() => {
-    fetch("/api/quests?status=pending")
-      .then((res) => res.json())
-      .then((data) => {
-        const list = (data.quests ?? []).map((q: { id: string; title: string }) => ({
-          id: q.id,
-          title: q.title,
-        }));
-        setQuests(list);
-      })
-      .catch(() => undefined);
-  }, []);
-
-  // load reward tiers (coins / XP / pet energy) for the summary
-  useEffect(() => {
-    supabase
-      .from("focus_reward_tiers")
-      .select("duration_min, coins, pet_energy, streak_xp")
-      .order("duration_min", { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && Array.isArray(data)) setRewardTiers(data);
-      });
-  }, [supabase]);
-
-  // fetch the friends list
-  const loadFriends = async () => {
-    try {
-      const res = await fetch("/api/friends");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.friends)) {
-          setFriends(data.friends.map((row: Record<string, unknown>) => mapBackendFriend(row)));
-        }
-      }
-    } catch {
-      return;
-    }
-  };
-
-  // refresh the focus history from the backend
-  const refreshHistory = async () => {
-    try {
-      const res = await fetch("/api/rooms/history");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.history)) {
-          setHistory(data.history.map((row: Record<string, unknown>) => mapHistoryRow(row)));
-        }
-      }
-    } catch {
-      return;
-    }
-  };
-
-  // create the room on the backend, remembering the promise so it only happens once
-  const createRoom = (overrides?: {
-    duration?: number;
-    name?: string;
-    goal?: string;
-    maxParticipants?: number;
-  }) => {
-    const promise = (async (): Promise<string | null> => {
-      setRoomId(null);
-      setRoomCode(null);
-      const sentMax = clampMaxParticipants(overrides?.maxParticipants ?? maxParticipants);
-      try {
-        const res = await fetch("/api/rooms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            duration_minutes: overrides?.duration ?? selectedMinutes,
-            name: (overrides?.name ?? roomName).trim() || undefined,
-            goal: (overrides?.goal ?? studyGoal).trim() || undefined,
-            linked_task_id: linkedTask || undefined,
-            max_participants: sentMax,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.room?.id) {
-            const id = String(data.room.id);
-            setRoomId(id);
-            if (data.room.code) setRoomCode(String(data.room.code));
-            savedMaxRef.current = sentMax;
-            return id;
-          }
-        }
-      } catch {
-        return null;
-      }
-      return null;
-    })();
-    roomPromiseRef.current = promise;
-    return promise;
-  };
-
-  // reuse the room we already created, or create it now
-  const ensureRoom = async (): Promise<string | null> => {
-    if (roomId) return roomId;
-    if (roomPromiseRef.current) return roomPromiseRef.current;
-    return createRoom();
-  };
-
-  // merge room + participant data from the API into local state
-  const applyRoomState = (state: {
-    room?: Record<string, unknown>;
-    participants?: unknown[];
-  }) => {
-    const room = (state?.room ?? state) as Record<string, unknown>;
-    if (typeof room?.owner_id === "string") setOwnerId(room.owner_id);
-    if (joinedRoom) {
-      if (typeof room?.name === "string" && room.name) setRoomName(room.name);
-      if (typeof room?.study_goal === "string" && room.study_goal) setStudyGoal(room.study_goal);
-      if (typeof room?.max_participants === "number")
-        setMaxParticipants(clampMaxParticipants(room.max_participants));
-    }
-
-    const rows = Array.isArray(state?.participants) ? state.participants : [];
-    type RoomMember = {
-      name: string;
-      status: Participant["status"] | undefined;
-      userId: string | undefined;
-    };
-    const mapped = rows
-      .map((r): RoomMember | null => {
-        const rec = r as Record<string, unknown>;
-        const name =
-          typeof rec.display_name === "string"
-            ? rec.display_name
-            : typeof rec.name === "string"
-              ? rec.name
-              : null;
-        if (!name) return null;
-        const status =
-          typeof rec.status === "string" && rec.status in STATUS_META
-            ? (rec.status as Participant["status"])
-            : undefined;
-        const uid = typeof rec.user_id === "string" ? rec.user_id : undefined;
-        return { name, status, userId: uid };
-      })
-      .filter((p): p is RoomMember => p !== null);
-
-    const self = mapped.find((p) => (userId && p.userId === userId) || p.name === displayName);
-    if (self?.status) setOwnStatus(self.status);
-
-    const others = mapped.filter(
-      (p) => !(userId && p.userId === userId) && p.name !== displayName
+  if (restoring) {
+    return (
+      <Center style={{ minHeight: "60vh" }}>
+        <Loader />
+      </Center>
     );
-    setParticipants(
-      [...new Map(others.map((p) => [p.userId ?? p.name, p])).values()].map((p) => ({
-        name: p.name,
-        initials: initialsOf(p.name),
-        color: colorFor(p.name),
-        status: p.status,
-        userId: p.userId,
-      }))
-    );
-  };
-
-  // join a room using its invite code
-  const joinRoomWithCode = async (rawCode: string) => {
-    const code = rawCode.trim().toUpperCase();
-    if (!code) {
-      notifications.show({
-        title: "Missing code",
-        message: "Enter the invite code to join a room.",
-        color: "red",
-      });
-      return;
-    }
-    setJoining(true);
-    try {
-      const res = await fetch("/api/rooms/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.room_id) {
-        notifications.show({
-          title: "Could not join",
-          message: data.error ?? "Check the invite code and try again.",
-          color: "red",
-        });
-        return;
-      }
-      const id = String(data.room_id);
-      setRoomId(id);
-      setRoomCode(code);
-      setJoinedRoom(true);
-      setJoinCode("");
-      finishingRef.current = false;
-      const stateRes = await fetch(`/api/rooms/${encodeURIComponent(id)}`);
-      if (stateRes.ok) {
-        const state = await stateRes.json();
-        applyRoomState(state);
-        const room = state?.room ?? state;
-        const minutes = Number(room?.duration_minutes);
-        if (Number.isFinite(minutes) && minutes > 0) {
-          if (PRESET_MINUTES.includes(minutes)) {
-            setDurationPreset(minutes);
-          } else {
-            setDurationPreset("custom");
-            setCustomMinutes(minutes);
-          }
-        }
-      }
-      notifications.show({
-        title: "Joined room",
-        message: "You're in. The shared timer starts when the host begins.",
-        color: "green",
-      });
-    } catch {
-      notifications.show({
-        title: "Could not join",
-        message: "You appear to be offline.",
-        color: "red",
-      });
-    } finally {
-      setJoining(false);
-    }
-  };
-
-  // on mount: load friends and history, then join from the invite link or create a room
-  useEffect(() => {
-    const t = setTimeout(() => {
-      loadFriends();
-      refreshHistory();
-      const params = new URLSearchParams(window.location.search);
-      const invite = params.get("code");
-      if (invite) {
-        window.history.replaceState({}, "", window.location.pathname);
-        joinRoomWithCode(invite);
-      } else {
-        createRoom();
-      }
-    }, 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  // while live: poll the room so members stay in sync and the leader can end it for everyone
-  useEffect(() => {
-    if (phase !== "live" || !roomId) return;
-
-    const refresh = async () => {
-      try {
-        const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        applyRoomState(data);
-        const room = data?.room ?? data;
-        const status = typeof room?.status === "string" ? room.status : null;
-        if ((status === "ended" || status === "completed") && !finishingRef.current) {
-          notifications.show({
-            title: "Session ended",
-            message: "The room leader ended the session for everyone.",
-            color: "blue",
-          });
-          finishSessionRef.current(remainingRef.current <= 0);
-        }
-      } catch {
-        return;
-      }
-    }
-
-    const channel = supabase
-      .channel(`room-live-${roomId}`)
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-        refresh)
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
-        refresh)
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") refresh(); // initial load + resync after reconnect
-      });
-
-    return () => { supabase.removeChannel(channel); }; // no duplicate channels
-  }, [phase, roomId, userId, displayName]);
-
-  // while in the lobby: poll the room so members follow when the leader starts
-  useEffect(() => {
-    if (phase !== "lobby" || !roomId) return;
-
-    const refresh = async () => {
-      try {
-        const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        applyRoomState(data);
-        if (!joinedRoom) return;
-        const room = data?.room ?? data;
-        const status = typeof room?.status === "string" ? room.status : null;
-        if (status && !["active", "focus"].includes(status)) return;
-        if (typeof room?.started_at !== "string") return;
-        const minutes = Number(room?.duration_minutes);
-        if (!Number.isFinite(minutes) || minutes <= 0) return;
-        const elapsed = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
-        const left = Math.round(minutes * 60 - elapsed);
-        if (left <= 0) return;
-        if (PRESET_MINUTES.includes(minutes)) {
-          setDurationPreset(minutes);
-        } else {
-          setDurationPreset("custom");
-          setCustomMinutes(minutes);
-        }
-        setRemaining(left);
-        setSessionStartedAt(room.started_at);
-        setRunning(true);
-        setPhase("live");
-        fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "focus" }),
-        }).catch(() => undefined);
-        notifications.show({
-          title: "Room started",
-          message: "The leader started the shared timer. Lock in!",
-          color: "blue",
-        });
-      } catch {
-        return;
-      }
-    };
-
-    const channel = supabase
-      .channel(`room-lobby-${roomId}`)
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-        refresh)
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${roomId}` },
-        refresh)
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") refresh();
-      });
-
-    return () => { supabase.removeChannel(channel); };
-  }, [phase, joinedRoom, roomId, userId, displayName]);
-
-  // debounce-save the room settings while the leader edits
-  useEffect(() => {
-    if (phase !== "lobby" || joinedRoom || !roomId) return;
-    const name = roomName.trim();
-    const goal = studyGoal.trim();
-    if (!name && !goal && maxParticipants === savedMaxRef.current) return;
-    const t = setTimeout(() => {
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, goal, max_participants: partySize }),
-      })
-        .then((res) => {
-          if (res.ok) savedMaxRef.current = partySize;
-        })
-        .catch(() => undefined);
-    }, 800);
-    return () => clearTimeout(t);
-  }, [phase, joinedRoom, roomId, roomName, studyGoal, maxParticipants, partySize]);
-
-  // save the session, then show the summary with rewards
-  const finishSession = (completed: boolean) => {
-    if (finishingRef.current) return;
-    finishingRef.current = true;
-    setRunning(false);
-    setOwnStatus("completed");
-    const elapsed = total - remaining;
-    const actualMinutes = completed
-      ? selectedMinutes
-      : Math.max(1, Math.round(elapsed / 60));
-    const result: SessionResult = {
-      roomName: roomName.trim() || "Focus Room",
-      studyGoal: studyGoal.trim() || "No goal set",
-      linkedTask: linkedTask ? quests.find((q) => q.id === linkedTask)?.title ?? linkedTask : null,
-      plannedMinutes: selectedMinutes,
-      actualMinutes,
-      participantNames: [youParticipant.name, ...participants.map((p) => p.name)],
-      completed,
-    };
-    setSessionResult(result);
-    const endedAt = new Date().toISOString();
-    void (async () => {
-      const id = roomId ?? (await ensureRoom());
-      try {
-        const res = await fetch("/api/focus-sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            room_id: id,
-            started_at: sessionStartedAt ?? endedAt,
-            ended_at: endedAt,
-            duration_min: actualMinutes,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!data?.saved) {
-          notifications.show({
-            title: "Session not saved",
-            message:
-              data?.error ??
-              "The session could not be saved. Check that the complete_focus_session SQL has been run.",
-            color: "red",
-          });
-        }
-      } catch {
-        notifications.show({
-          title: "Session not saved",
-          message: "You appear to be offline.",
-          color: "red",
-        });
-      }
-      if (id) {
-        // The owner can end the room at any time. When the timer has
-        // actually finished, any member may close it so an absent
-        // host cannot leave everyone stuck in an active room.
-        const isRoomOwner = !ownerId || ownerId === userId;
-        if (isRoomOwner || completed) {
-          fetch(`/api/rooms/${encodeURIComponent(id)}/complete`, { method: "POST" })
-            .then((res) => {
-              if (!res.ok && isRoomOwner) {
-                notifications.show({
-                  title: "Room not closed",
-                  message: "Other participants may still see this room as active.",
-                  color: "yellow",
-                });
-              }
-            })
-            .catch(() => undefined);
-        }
-        fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed" }),
-        }).catch(() => undefined);
-      }
-    })();
-    setSessionStartedAt(null);
-    const row: HistoryRow = {
-      room: result.roomName,
-      minutes: actualMinutes,
-      date: endedAt,
-    };
-    setHistory((prev) => {
-      const next = [row, ...prev];
-      try {
-        localStorage.setItem("focusroom-history", JSON.stringify(next));
-      } catch {
-        console.warn("Could not persist focus history.");
-      }
-      return next;
-    });
-    setPhase("summary");
-  };
-
-  // keep the latest finishSession in a ref so the pollers always call the newest one
-  useEffect(() => {
-    finishSessionRef.current = finishSession;
-  });
-
-  // mirror remaining into a ref so pollers can read the current value
-  useEffect(() => {
-    remainingRef.current = remaining;
-  }, [remaining]);
-
-  // build a looping audio element for the selected ambience (and swap it when the sound changes)
-  useEffect(() => {
-    if (!soundFile) {
-      audioRef.current?.pause();
-      audioRef.current = null;
-      return;
-    }
-    const audio = new Audio(soundFile);
-    audio.loop = true;
-    audio.preload = "auto";
-    audioRef.current = audio;
-    return () => {
-      audio.pause();
-      if (audioRef.current === audio) audioRef.current = null;
-    };
-  }, [soundFile]);
-
-  // play/pause ambience with the timer and apply the volume
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = volume / 100;
-    if (running && phase === "live") {
-      void audio.play().catch(() => undefined);
-    } else {
-      audio.pause();
-    }
-  }, [running, phase, soundFile, volume]);
-
-  // one tick per second while the session is running
-  useEffect(() => {
-    if (!running || phase !== "live") return;
-    const interval = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [running, phase]);
-
-  // when the countdown reaches zero, finish the session
-  useEffect(() => {
-    if (phase === "live" && !running && remaining === 0) {
-      const t = setTimeout(() => finishSession(true), 0);
-      return () => clearTimeout(t);
-    }
-  }, [phase, running, remaining]);
-
-
-  // leader starts the shared timer for everyone
-  const startSession = () => {
-    if (!isLeader) {
-      notifications.show({
-        title: "Only the leader can start",
-        message: "Wait for the room leader to start the shared session.",
-        color: "yellow",
-      });
-      return;
-    }
-    finishingRef.current = false;
-    setRemaining(total);
-    setRunning(true);
-    setPhase("live");
-    setSessionStartedAt(new Date().toISOString());
-    setOwnStatus("focus");
-    void (async () => {
-      const id = await ensureRoom();
-      if (!id) {
-        notifications.show({
-          title: "Room not saved",
-          message: "Could not create the room. Check your connection and try again.",
-          color: "red",
-        });
-        return;
-      }
-      fetch(`/api/rooms/${encodeURIComponent(id)}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: roomName.trim() || undefined,
-          goal: studyGoal.trim() || undefined,
-          linked_task_id: linkedTask || undefined,
-          duration_minutes: selectedMinutes,
-          max_participants: partySize,
-        }),
-      })
-        .then(async (res) => {
-          if (res.ok) return;
-          const data = await res.json().catch(() => ({}));
-          notifications.show({
-            title: "Room settings not saved",
-            message: data.error ?? "The room could not be started on the server.",
-            color: "red",
-          });
-        })
-        .catch(() => undefined);
-      fetch(`/api/rooms/${encodeURIComponent(id)}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "focus" }),
-      }).catch(() => undefined);
-    })();
-  };
-
-  // pause or resume the countdown (and tell the room)
-  const toggleRunning = () => {
-    const next = !running;
-    setRunning(next);
-    setOwnStatus(next ? "focus" : "break");
-    if (roomId) {
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next ? "focus" : "break" }),
-      }).catch(() => undefined);
-    }
-  };
-
-  // reset the countdown back to the full duration
-  const resetTimer = () => {
-    setRunning(false);
-    setRemaining(total);
-  };
-
-  // end the session before the time runs out
-  const endEarly = () => finishSession(false);
-
-  // back to setup for another round
-  const backToLobby = () => {
-    finishingRef.current = false;
-    setPhase("lobby");
-    setRunning(false);
-    setRemaining(total);
-    setParticipants([]);
-    setOwnStatus("ready");
-    refreshHistory();
-    if (joinedRoom) {
-      void leaveLobby();
-      return;
-    }
-    createRoom();
-  };
-
-  // leave a joined room and start a fresh lobby
-  const leaveLobby = async () => {
-    if (!joinedRoom) return;
-    finishingRef.current = false;
-    if (roomId) {
-      await fetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, { method: "POST" }).catch(
-        () => undefined
-      );
-    }
-    setJoinedRoom(false);
-    setParticipants([]);
-    setRoomName("");
-    setStudyGoal("");
-    setDurationPreset(30);
-    setCustomMinutes(45);
-    setMaxParticipants(DEFAULT_MAX_PARTICIPANTS);
-    setRemaining(30 * 60);
-    setRunning(false);
-    notifications.show({
-      title: "Left lobby",
-      message: "You left the room and got a fresh lobby.",
-      color: "blue",
-    });
-    createRoom({
-      duration: 30,
-      name: "",
-      goal: "",
-      maxParticipants: DEFAULT_MAX_PARTICIPANTS,
-    });
-  };
-
-  // invite a friend from the friends list
-  const inviteFriend = async (friend: Friend) => {
-    if (participants.some((p) => p.name === friend.name)) {
-      notifications.show({
-        title: "Already in lobby",
-        message: `${friend.name} is already a participant.`,
-        color: "blue",
-      });
-      return;
-    }
-    if (participants.length >= partySize - 1) {
-      notifications.show({
-        title: "Lobby is full",
-        message: `The lobby is limited to ${partySize} members.`,
-        color: "red",
-      });
-      return;
-    }
-    if (!roomId) {
-      notifications.show({
-        title: "Room not ready",
-        message: "The room hasn't been created yet. Try again in a moment.",
-        color: "red",
-      });
-      return;
-    }
-    if (friend.status === "pending") {
-      notifications.show({
-        title: "Friend request pending",
-        message:
-          friend.direction === "outgoing"
-            ? `${friend.name} hasn't accepted your friend request yet.`
-            : `Accept ${friend.name}'s friend request before inviting them.`,
-        color: "yellow",
-      });
-      return;
-    }
-    if (!friend.userId) {
-      notifications.show({
-        title: "Invite failed",
-        message: `${friend.name} can't be invited right now.`,
-        color: "red",
-      });
-      return;
-    }
-    try {
-      const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ friend_id: friend.userId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        notifications.show({
-          title: "Invite sent",
-          message: `Waiting for ${friend.name} to accept. They'll appear here once they join.`,
-          color: "green",
-        });
-      } else {
-        notifications.show({
-          title: "Invite failed",
-          message: data.error ?? "Try again later.",
-          color: "red",
-        });
-      }
-    } catch {
-      notifications.show({
-        title: "Invite failed",
-        message: "You appear to be offline.",
-        color: "red",
-      });
-    }
-  };
-
-  // remove a friend, or cancel a pending request
-  const unfriend = async (friend: Friend) => {
-    if (friend.id) {
-      await fetch(`/api/friends/${encodeURIComponent(friend.id)}`, { method: "DELETE" }).catch(
-        () => undefined
-      );
-    }
-    setFriends((fs) => fs.filter((f) => f.name !== friend.name));
-    setParticipants((ps) => ps.filter((p) => p.name !== friend.name));
-    notifications.show({
-      title: friend.status === "pending" ? "Request canceled" : "Unfriended",
-      message:
-        friend.status === "pending"
-          ? `Your friend request to ${friend.name} was canceled.`
-          : `${friend.name} was removed from your friends list.`,
-      color: "blue",
-    });
-  };
-
-  // accept or decline an incoming friend request
-  const respondToRequest = async (friend: Friend, action: "accept" | "reject") => {
-    if (!friend.id) return;
-    try {
-      const res = await fetch(`/api/friends/requests/${encodeURIComponent(friend.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        notifications.show({
-          title: "Could not update request",
-          message: data.error ?? "Try again later.",
-          color: "red",
-        });
-        return;
-      }
-      if (action === "accept") {
-        setFriends((fs) =>
-          fs.map((f) =>
-            f.id === friend.id
-              ? { ...f, status: "accepted", direction: undefined, online: true }
-              : f
-          )
-        );
-        notifications.show({
-          title: "Friend added",
-          message: `${friend.name} is now your friend.`,
-          color: "green",
-        });
-      } else {
-        setFriends((fs) => fs.filter((f) => f.id !== friend.id));
-        notifications.show({
-          title: "Request declined",
-          message: `You declined ${friend.name}'s friend request.`,
-          color: "blue",
-        });
-      }
-    } catch {
-      notifications.show({
-        title: "Could not update request",
-        message: "You appear to be offline.",
-        color: "red",
-      });
-    }
-  };
-
-  // send a friend request using their user code
-  const submitAddFriend = async () => {
-    const code = friendCode.trim();
-    if (!code) {
-      notifications.show({
-        title: "Missing code",
-        message: "Enter the friend code to send a request.",
-        color: "red",
-      });
-      return;
-    }
-    setFriendReqSending(true);
-    try {
-      const searchRes = await fetch(`/api/friends/search?code=${encodeURIComponent(code)}`);
-      const searchData = await searchRes.json();
-      if (!searchRes.ok) {
-        notifications.show({
-          title: "Not found",
-          message: searchData.error ?? "No user with that code.",
-          color: "red",
-        });
-        return;
-      }
-      const friendName =
-        typeof searchData.user?.display_name === "string" ? searchData.user.display_name : code;
-      const res = await fetch("/api/friends/requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        notifications.show({
-          title: "Request sent",
-          message: `Friend request sent to ${friendName}.`,
-          color: "green",
-        });
-      } else {
-        notifications.show({
-          title: "Could not send request",
-          message: data.error ?? "Try again later.",
-          color: "red",
-        });
-      }
-    } catch {
-      notifications.show({
-        title: "Could not send request",
-        message: "You appear to be offline.",
-        color: "red",
-      });
-    } finally {
-      setFriendReqSending(false);
-      setFriendCode("");
-      setInviteModalOpen(false);
-    }
-  };
+  }
 
   // live view: shared countdown, ambience and members
   if (phase === "live") {

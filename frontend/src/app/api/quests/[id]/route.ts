@@ -1,5 +1,5 @@
 
-import { isQuestPriority, rewardCoinsForPriority } from '@/lib/quest-rewards'
+import { priorityForCourseworkType, rewardCoinsForPriority } from '@/lib/quest-rewards'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -31,7 +31,6 @@ export async function PATCH(
     'subject',
     'description',
     'deadline',
-    'priority',
     'estimated_duration',
     'checklist',
     'status',
@@ -43,26 +42,80 @@ export async function PATCH(
     }
   }
 
-  // Keep Student Coin rewards synchronized with priority.
-  if ('priority' in body) {
-    const priority = body.priority
+  if ('scheduled_date' in body) {
+    const deadlinePassed =
+      typeof body.deadline === 'string' &&
+      new Date(body.deadline).getTime() < Date.now()
 
-    if (!isQuestPriority(priority)) {
-      return NextResponse.json(
-        { error: 'Invalid quest priority' },
-        { status: 400 }
-      )
-    }
-
-    updates.reward_coins = rewardCoinsForPriority(priority)
+    updates.scheduled_date =
+      deadlinePassed &&
+      typeof body.scheduled_date === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(body.scheduled_date)
+        ? body.scheduled_date
+        : null
   }
 
-  const { data, error } = await supabase
+  if ('coursework_type' in body) {
+    const courseworkType =
+      typeof body.coursework_type === 'string' &&
+      body.coursework_type.trim()
+        ? body.coursework_type.trim()
+        : null
+
+    updates.coursework_type = courseworkType
+
+    // Keep priority and Student Coin rewards derived from the coursework type.
+    if (courseworkType) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('coursework_priorities')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const priority = priorityForCourseworkType(
+        courseworkType,
+        profile?.coursework_priorities
+      )
+
+      updates.priority = priority
+      updates.reward_coins = rewardCoinsForPriority(priority)
+    }
+  }
+
+  let { data, error } = await supabase
     .from('quests')
     .update(updates)
     .eq('id', id)
     .select()
     .single()
+
+  // Remove this fallback once the new quest columns are migrated.
+  if (error?.code === 'PGRST204') {
+    const fallbackUpdates: Record<string, unknown> = {
+      ...updates,
+    }
+
+    let removedColumn = false
+
+    for (const column of ['coursework_type', 'scheduled_date']) {
+      if (error.message.includes(column)) {
+        delete fallbackUpdates[column]
+        removedColumn = true
+      }
+    }
+
+    if (removedColumn) {
+      const fallback = await supabase
+        .from('quests')
+        .update(fallbackUpdates)
+        .eq('id', id)
+        .select()
+        .single()
+
+      data = fallback.data
+      error = fallback.error
+    }
+  }
 
   if (error) {
     // RLS prevents access to quests the user does not own.

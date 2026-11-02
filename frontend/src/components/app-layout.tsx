@@ -3,6 +3,7 @@
 
 import { usePathname } from "next/navigation";
 import Navbar from "@/components/navbar";
+import { FocusSessionProvider } from "@/components/focus-session-provider";
 import { Container } from "@mantine/core";
 
 export default function AppLayout({
@@ -23,8 +24,10 @@ export default function AppLayout({
   }
 
   return (
-    <Container fluid p={0}>
-      <Navbar>{children}</Navbar>
-    </Container>
+    <FocusSessionProvider>
+      <Container fluid p={0}>
+        <Navbar>{children}</Navbar>
+      </Container>
+    </FocusSessionProvider>
   );
 }

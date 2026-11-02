@@ -289,7 +289,7 @@ export default async function ProgressMapPage({
     const completedQuests = questRows.filter((quest) => quest.status === "completed");
     const completionRate = questRows.length > 0 ? Math.round((completedQuests.length / questRows.length) * 100) : 0;
     const totalMinutes = sessionRows.reduce((sum, session) => sum + session.minutes, 0);
-    const focusXp = sessionRows.reduce((sum, session) => sum + session.xp, 0);
+    const totalXp = petRes.data ? getXpProgress(petRes.data.xp) : 0;
 
     // All coin sources: focus sessions, quest rewards, and daily
     // login / mission / bonus claims.
@@ -487,11 +487,11 @@ export default async function ProgressMapPage({
             sub: `Best: ${streak?.longest_streak ?? 0} days`,
         },
         {
-            label: "Focus XP",
+            label: "XP Earned",
             icon: Zap,
             tint: "light-dark(#FFF4E6, #342417)",
             color: "light-dark(#E8590C, #FFA94D)",
-            value: `${focusXp} XP`,
+            value: `${totalXp} XP`,
             sub: `${coinsEarned.toLocaleString()} coins earned`,
         },
     ];
@@ -690,7 +690,7 @@ export default async function ProgressMapPage({
                         </Group>
                     ) : (
                         <Text c="dimmed" fz="sm">
-                            No companion yet — pick one in the Pet Garden to start your journey.
+                            No companion yet. Pick one in the Pet Garden to start your journey.
                         </Text>
                     )}
                 </Paper>
@@ -828,7 +828,7 @@ export default async function ProgressMapPage({
                         </Group>
                         {subjectStats.length === 0 ? (
                             <Text c="dimmed" fz="sm">
-                                No subjects yet — subjects come from your academic profile and the quests you add.
+                                No subjects yet. Subjects come from your academic profile and the quests you add.
                             </Text>
                         ) : (
                             <Stack gap="md">

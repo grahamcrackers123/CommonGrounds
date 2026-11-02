@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { pushToUser } from "@/lib/push/send";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(
   req: Request,
@@ -11,7 +14,9 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { friend_id } = await req.json().catch(() => ({}));
-  if (!friend_id) return NextResponse.json({ error: "friend_id is required" }, { status: 400 });
+
+  if (typeof friend_id !== "string" || !UUID_RE.test(friend_id))
+    return NextResponse.json({ error: "friend_id is required" }, { status: 400 });
 
   const { data: room } = await supabase
     .from("rooms").select("owner_id, code, name").eq("id", id).single();
@@ -26,12 +31,23 @@ export async function POST(
     .maybeSingle();
   if (!friendship) return NextResponse.json({ error: "Not friends with this user" }, { status: 403 });
 
+  const inviteBody = `Join "${room.name ?? room.code}" · Code ${room.code}`;
+
   const { error } = await supabase.rpc("create_notification", {
     _user_id: friend_id,
     _type: "room_invite",
     _title: "Room invite",
-    _body: `Join "${room.name ?? room.code}" · Code ${room.code}`,
+    _body: inviteBody,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // mirror in-app notification as a push
+  const { data: inviter } = await supabase
+    .from("profiles").select("display_name").eq("id", user.id).single();
+  await pushToUser(friend_id, "room_invite", {
+    title: `${inviter?.display_name ?? "A friend"} invited you to a focus room`,
+    body: inviteBody,
+  });
+
   return NextResponse.json({ ok: true });
 }

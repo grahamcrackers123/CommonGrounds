@@ -5,7 +5,8 @@ import {
   Box,
   Button,
   Checkbox,
-  Divider,
+  Drawer,
+  Flex,
   Group,
   Modal,
   NumberInput,
@@ -19,6 +20,8 @@ import {
   TextInput,
   useMantineColorScheme,
 } from "@mantine/core";
+
+import { DateInput } from "@mantine/dates";
 
 import {
   BookOpen,
@@ -46,7 +49,7 @@ import {
 
 import { useRouter } from "next/navigation";
 
-import { QUEST_ENERGY_REWARD } from "@/lib/quest-rewards";
+import { QUEST_ENERGY_REWARD, rewardXpForPriority } from "@/lib/quest-rewards";
 import { createClient } from "@/lib/supabase/client";
 
 /* =========================================================
@@ -70,8 +73,10 @@ type Quest = {
   title: string;
   description: string | null;
   subject: string | null;
+  coursework_type?: string | null;
 
   deadline: string | null;
+  scheduled_date: string | null;
 
   priority: QuestPriority;
   status: QuestStatus;
@@ -81,6 +86,13 @@ type Quest = {
 
   reward_coins: number | null;
   completed_at: string | null;
+};
+
+type UnscheduledQuest = {
+  quest_id: string;
+  title: string | null;
+  reason: string;
+  message: string;
 };
 
 type PlanBlock = {
@@ -119,6 +131,15 @@ const formatMonthYear = (date: Date) =>
     month: "long",
     year: "numeric",
   });
+
+const parseDateOnly = (value: string) => {
+  const [year, month, day] =
+    value.split("-").map(Number);
+
+  return new Date(year, month - 1, day);
+};
+
+
 
 const addDays = (
   date: Date,
@@ -402,18 +423,49 @@ export default function QuestCalendarPage() {
   ======================================================= */
 
   const [newQuest, setNewQuest] =
-    useState({
+    useState<{
+      title: string;
+      description: string;
+      subject: string;
+      coursework_type: string;
+      deadline: string;
+      estimated_duration: number | string;
+    }>({
       title: "",
       description: "",
       subject: "",
+      coursework_type: "",
       deadline: "",
-      priority:
-        "medium" as QuestPriority,
       estimated_duration: 60,
     });
 
-  const [courseworkType, setCourseworkType] =
+  const [todoDay, setTodoDay] =
     useState("");
+
+  type QuestFormErrors = {
+    title?: string;
+    subject?: string;
+    coursework_type?: string;
+    deadline?: string;
+    estimated_duration?: string;
+  };
+
+  const [questFormErrors, setQuestFormErrors] =
+    useState<QuestFormErrors>({});
+
+  const clearQuestFormError = (
+    field: keyof QuestFormErrors
+  ) => {
+    setQuestFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   /* =======================================================
      LOAD QUESTS
@@ -782,6 +834,8 @@ export default function QuestCalendarPage() {
    * converted to the user's local date before matching them
    * against a calendar day. Using the raw UTC substring
    * would move early-morning deadlines to the day before.
+   * A to-do day takes precedence so overdue quests appear
+   * on the day the user plans to work on them.
    */
   const getQuestsForDate = (
     date: Date
@@ -802,7 +856,25 @@ export default function QuestCalendarPage() {
           return false;
         }
 
-        if (!quest.deadline) {
+        const todoDayForQuest =
+          quest.deadline &&
+          new Date(
+            quest.deadline
+          ).getTime() < now.getTime()
+            ? quest.scheduled_date
+            : null;
+
+        const questDate = todoDayForQuest
+          ? parseDateOnly(
+            todoDayForQuest
+          )
+          : quest.deadline
+            ? new Date(
+              quest.deadline
+            )
+            : null;
+
+        if (!questDate) {
           return false;
         }
 
@@ -817,9 +889,8 @@ export default function QuestCalendarPage() {
         }
 
         return (
-          formatDateKey(
-            new Date(quest.deadline)
-          ) === key
+          formatDateKey(questDate) ===
+          key
         );
       }
     );
@@ -931,6 +1002,22 @@ export default function QuestCalendarPage() {
     Object.keys(
       courseworkPriorities
     );
+
+  /*
+   * Quests created before coursework_type was stored only have the
+   * resulting priority, so fall back to the first matching priority rule.
+   */
+  const getCourseworkTypeForPriority = (
+    priority: QuestPriority
+  ) =>
+    Object.entries(
+      courseworkPriorities
+    ).find(
+      ([, value]) =>
+        typeof value === "string" &&
+        value.toLowerCase() ===
+        priority.toLowerCase()
+    )?.[0] ?? "";
 
   const selectedQuestBlocks =
     selectedQuest
@@ -1074,13 +1161,15 @@ export default function QuestCalendarPage() {
       title: "",
       description: "",
       subject: "",
+      coursework_type: "",
       deadline:
         `${selectedDateKey}T19:00`,
-      priority: "medium",
       estimated_duration: 60,
     });
 
-    setCourseworkType("");
+    setTodoDay("");
+
+    setQuestFormErrors({});
 
     setQuestAttachment(null);
 
@@ -1097,6 +1186,8 @@ export default function QuestCalendarPage() {
     setEditingQuest(
       quest
     );
+
+    setSelectedQuest(null);
 
     let deadline = "";
 
@@ -1130,17 +1221,24 @@ export default function QuestCalendarPage() {
         quest.subject ??
         "",
 
-      deadline,
+      coursework_type:
+        quest.coursework_type ??
+        getCourseworkTypeForPriority(
+          quest.priority
+        ),
 
-      priority:
-        quest.priority,
+      deadline,
 
       estimated_duration:
         quest.estimated_duration ??
         60,
     });
 
-    setCourseworkType("");
+    setTodoDay(
+      quest.scheduled_date ?? ""
+    );
+
+    setQuestFormErrors({});
 
     setQuestAttachment(null);
 
@@ -1155,20 +1253,54 @@ export default function QuestCalendarPage() {
 
   const handleSaveQuest =
     async () => {
-      if (
-        !newQuest.title.trim()
-      ) {
-        alert(
-          "Please enter a quest title."
-        );
+      const errors: QuestFormErrors = {};
 
-        return;
+      if (!newQuest.title.trim()) {
+        errors.title =
+          "Quest title is required.";
+      }
+
+      if (!newQuest.subject.trim()) {
+        errors.subject =
+          "Subject is required.";
+      }
+
+      if (
+        !editingQuest &&
+        courseworkTypes.length > 0 &&
+        !newQuest.coursework_type
+      ) {
+        errors.coursework_type =
+          "Coursework type is required.";
       }
 
       if (!newQuest.deadline) {
-        alert(
-          "Please set a deadline for this quest."
-        );
+        errors.deadline =
+          "Deadline is required.";
+      }
+
+      const duration = Number(
+        newQuest.estimated_duration
+      );
+
+      if (
+        newQuest.estimated_duration === "" ||
+        !Number.isFinite(duration) ||
+        duration < 15
+      ) {
+        errors.estimated_duration =
+          "Estimated duration must be at least 15 minutes.";
+      }
+
+      setQuestFormErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        notifications.show({
+          title: "Missing details",
+          message:
+            "Please fill in all required fields.",
+          color: "red",
+        });
 
         return;
       }
@@ -1201,16 +1333,27 @@ export default function QuestCalendarPage() {
                     newQuest.subject ||
                     null,
 
+                  coursework_type:
+                    newQuest.coursework_type ||
+                    null,
+
                   deadline:
                     toISOStringFromLocalDateTime(
                       newQuest.deadline
                     ),
 
-                  priority:
-                    newQuest.priority,
+                  scheduled_date:
+                    new Date(
+                      newQuest.deadline
+                    ).getTime() <
+                    now.getTime()
+                      ? todoDay || null
+                      : null,
 
                   estimated_duration:
-                    newQuest.estimated_duration,
+                    Number(
+                      newQuest.estimated_duration
+                    ) || null,
                 }),
               }
             );
@@ -1250,16 +1393,19 @@ export default function QuestCalendarPage() {
                     newQuest.subject ||
                     null,
 
+                  coursework_type:
+                    newQuest.coursework_type ||
+                    null,
+
                   deadline:
                     toISOStringFromLocalDateTime(
                       newQuest.deadline
                     ),
 
-                  priority:
-                    newQuest.priority,
-
                   estimated_duration:
-                    newQuest.estimated_duration,
+                    Number(
+                      newQuest.estimated_duration
+                    ) || null,
 
                   checklist: [],
 
@@ -1943,19 +2089,58 @@ export default function QuestCalendarPage() {
         const scheduledCount =
           data.scheduled_count ?? 0;
 
+        const unscheduled: UnscheduledQuest[] =
+          Array.isArray(data.unscheduled)
+            ? data.unscheduled
+            : [];
+
+        const unscheduledDetails =
+          unscheduled.map(
+            (quest) =>
+              `"${quest.title ?? "Untitled quest"}": ${quest.message}`
+          );
+
+        const moreCount = Math.max(
+          unscheduledDetails.length - 3,
+          0
+        );
+
+        const unscheduledSummary =
+          unscheduled.length > 0
+            ? ` ${unscheduled.length} quest(s) were not planned: ${unscheduledDetails
+              .slice(0, 3)
+              .join("; ")}${moreCount > 0 ? ` (+${moreCount} more)` : ""}.`
+            : "";
+
         if (scheduledCount > 0) {
           notifications.show({
-            title: "Plan regenerated",
-            message: `${scheduledCount} quest block(s) placed inside your weekly availability.`,
-            color: "green",
+            title:
+              unscheduled.length > 0
+                ? "Plan regenerated with unscheduled quests"
+                : "Plan regenerated",
+            message: `${scheduledCount} quest block(s) placed inside your weekly availability.${unscheduledSummary}`,
+            color:
+              unscheduled.length > 0
+                ? "yellow"
+                : "green",
+            autoClose:
+              unscheduled.length > 0
+                ? 10000
+                : 5000,
           });
         } else {
           notifications.show({
             title: "Nothing scheduled",
             message:
-              data.message ??
-              "No pending quest with a deadline and duration could be placed.",
+              unscheduled.length > 0
+                ? `No quest blocks were placed.${unscheduledSummary}`
+                : data.message ??
+                "No pending quest with a deadline and duration could be placed.",
             color: "yellow",
+            autoClose:
+              unscheduled.length > 0
+                ? 10000
+                : 5000,
           });
         }
 
@@ -2020,9 +2205,11 @@ export default function QuestCalendarPage() {
           HEADER
       ================================================= */}
 
-        <Group
+        <Flex
           justify="space-between"
-          align="flex-start"
+          align={{ base: "stretch", sm: "flex-start" }}
+          direction={{ base: "column", sm: "row" }}
+          gap="sm"
         >
           <Box>
             <Text
@@ -2041,11 +2228,14 @@ export default function QuestCalendarPage() {
             </Text>
           </Box>
 
-          <Group gap="xs">
+          <Group
+            gap="xs"
+            w={{ base: "100%", sm: "auto" }}
+          >
             <TextInput
               placeholder="Search quests..."
               size="xs"
-              w={230}
+              w={{ base: "100%", sm: 230 }}
               value={searchQuery}
               onChange={(event) =>
                 setSearchQuery(
@@ -2087,7 +2277,7 @@ export default function QuestCalendarPage() {
               {overdueTasks}
             </Badge>
           </Group>
-        </Group>
+        </Flex>
 
         {/* =================================================
           TABS
@@ -2102,6 +2292,7 @@ export default function QuestCalendarPage() {
             style={{
               borderBottom:
                 "1px solid #e5e7eb",
+              overflowX: "auto",
             }}
             justify="space-between"
           >
@@ -2130,9 +2321,11 @@ export default function QuestCalendarPage() {
 
               {/* CALENDAR TOOLBAR */}
 
-              <Group
+              <Flex
                 justify="space-between"
-                align="center"
+                align={{ base: "stretch", sm: "center" }}
+                direction={{ base: "column", sm: "row" }}
+                gap="xs"
               >
                 <Group gap="xs">
                   <Button
@@ -2178,7 +2371,10 @@ export default function QuestCalendarPage() {
                   </Button>
                 </Group>
 
-                <Group gap="xs">
+                <Group
+                  gap="xs"
+                  w={{ base: "100%", sm: "auto" }}
+                >
                   <Group
                     gap={0}
                     style={{
@@ -2260,7 +2456,7 @@ export default function QuestCalendarPage() {
                     Regenerate Plan
                   </Button>
                 </Group>
-              </Group>
+              </Flex>
 
               {loadingQuests && (
                 <Paper
@@ -2283,501 +2479,646 @@ export default function QuestCalendarPage() {
                 CALENDAR + DETAILS
             ================================================= */}
 
-              <SimpleGrid
-                cols={{
-                  base: 1,
-                  lg: 3,
+              {/* =================================================
+                CALENDAR
+            ================================================= */}
+              <Paper
+                withBorder
+                radius="lg"
+                p="md"
+                style={{
+                  backgroundColor:
+                    "light-dark(#ffffff, #111111)",
+                  borderColor:
+                    "light-dark(#e5e7eb, #2b2b2b)",
+                  overflowX: "auto",
                 }}
-                spacing="md"
               >
+                {calendarView === "week" ? (
+                  <Box
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(7, minmax(0, 1fr))",
+                      gap: 8,
+                      minWidth: 900,
+                    }}
+                  >
+                    {weekDays.map((day) => {
+                      const questsForDay =
+                        getQuestsForDate(day);
 
-                {/* =================================================
-                  CALENDAR
-              ================================================= */}
-                <Paper
-                  withBorder
-                  radius="lg"
-                  p="md"
-                  style={{
-                    gridColumn: "span 2",
-                    backgroundColor:
-                      "light-dark(#ffffff, #111111)",
-                    borderColor:
-                      "light-dark(#e5e7eb, #2b2b2b)",
-                  }}
-                >
-                  {calendarView === "week" ? (
-                    <Box
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(7, minmax(0, 1fr))",
-                        gap: 8,
-                      }}
-                    >
-                      {weekDays.map((day) => {
-                        const questsForDay =
-                          getQuestsForDate(day);
+                      const blocksForDay =
+                        getBlocksForDate(day);
 
-                        const isSelected =
-                          formatDateKey(day) ===
-                          formatDateKey(selectedDate);
+                      const maxVisibleItems = 3;
+                      const visibleBlocks =
+                        blocksForDay.slice(
+                          0,
+                          maxVisibleItems
+                        );
+                      const visibleQuests =
+                        questsForDay.slice(
+                          0,
+                          Math.max(
+                            0,
+                            maxVisibleItems -
+                            visibleBlocks.length
+                          )
+                        );
+                      const hiddenItems =
+                        blocksForDay.length +
+                        questsForDay.length -
+                        visibleBlocks.length -
+                        visibleQuests.length;
 
-                        return (
-                          <Box
-                            key={formatDateKey(day)}
+                      const isSelected =
+                        formatDateKey(day) ===
+                        formatDateKey(selectedDate);
+
+                      return (
+                        <Box
+                          key={formatDateKey(day)}
+                        >
+                          {/* DAY NAME */}
+                          <Text
+                            ta="center"
+                            size="xs"
+                            fw={600}
+                            mb={6}
+                            c="dimmed"
                           >
-                            {/* DAY NAME */}
+                            {day.toLocaleDateString(
+                              "en-US",
+                              {
+                                weekday: "short",
+                              }
+                            )}
+                          </Text>
+
+                          {/* DAY CELL */}
+                          <Paper
+                            withBorder
+                            radius="md"
+                            p={{ base: 6, sm: 8 }}
+                            mih={{ base: 240, sm: 280 }}
+                            bg={
+                              isSelected
+                                ? "light-dark(#f3f7ff, #1f2937)"
+                                : "light-dark(#ffffff, #181818)"
+                            }
+                            style={{
+                              cursor: "pointer",
+                              overflow: "hidden",
+                              borderColor:
+                                isSelected
+                                  ? "light-dark(#b9d4ff, #3b82f6)"
+                                  : "light-dark(#e5e7eb, #2b2b2b)",
+                            }}
+                            onClick={() =>
+                              setSelectedDate(day)
+                            }
+                          >
+                            {/* DATE NUMBER */}
                             <Text
                               ta="center"
-                              size="xs"
-                              fw={600}
-                              mb={6}
-                              c="dimmed"
+                              size="sm"
+                              fw={700}
+                              mb="xs"
+                              c={
+                                isSelected
+                                  ? "blue"
+                                  : "light-dark(#212529, #f1f3f5)"
+                              }
                             >
-                              {day.toLocaleDateString(
-                                "en-US",
-                                {
-                                  weekday: "short",
-                                }
-                              )}
+                              {day.getDate()}
                             </Text>
 
-                            {/* DAY CELL */}
-                            <Paper
-                              withBorder
-                              radius="md"
-                              p={7}
-                              mih={205}
-                              bg={
-                                isSelected
-                                  ? "light-dark(#f3f7ff, #1f2937)"
-                                  : "light-dark(#ffffff, #181818)"
-                              }
-                              style={{
-                                cursor: "pointer",
-                                borderColor:
-                                  isSelected
-                                    ? "light-dark(#b9d4ff, #3b82f6)"
-                                    : "light-dark(#e5e7eb, #2b2b2b)",
-                              }}
-                              onClick={() =>
-                                setSelectedDate(day)
-                              }
-                            >
-                              {/* DATE NUMBER */}
-                              <Text
-                                ta="center"
-                                size="xs"
-                                fw={700}
-                                mb="xs"
-                                c={
-                                  isSelected
-                                    ? "blue"
-                                    : "light-dark(#212529, #f1f3f5)"
+                            {/* SCHEDULED BLOCKS + QUESTS */}
+                            <Stack gap={5}>
+                              {visibleBlocks.map((block) => {
+                                const quest =
+                                  getQuestForBlock(block);
+
+                                if (!quest) {
+                                  return null;
                                 }
-                              >
-                                {day.getDate()}
-                              </Text>
 
-                              {/* SCHEDULED BLOCKS + QUESTS */}
-                              <Stack gap={5}>
-                                {getBlocksForDate(day).map((block) => {
-                                  const quest =
-                                    getQuestForBlock(block);
-
-                                  if (!quest) {
-                                    return null;
-                                  }
-
-                                  return (
-                                    <Box
-                                      key={block.id}
-                                      p={7}
-                                      style={{
-                                        background:
-                                          "light-dark(#eefbf0, #14311f)",
-                                        borderLeft: `3px solid ${getPriorityColor(
-                                          quest.priority
-                                        )}`,
-                                        borderRadius: 6,
-                                        cursor: "pointer",
-                                      }}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setSelectedQuest(quest);
-                                      }}
+                                return (
+                                  <Box
+                                    key={block.id}
+                                    p={{ base: 4, sm: 7 }}
+                                    style={{
+                                      background:
+                                        "light-dark(#eefbf0, #14311f)",
+                                      borderLeft: `3px solid ${getPriorityColor(
+                                        quest.priority
+                                      )}`,
+                                      borderRadius: 6,
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedQuest(quest);
+                                    }}
+                                  >
+                                    <Text
+                                      size="sm"
+                                      fw={600}
+                                      lineClamp={2}
+                                      c="light-dark(#212529, #f1f3f5)"
                                     >
-                                      <Text
-                                        size="xs"
-                                        fw={600}
-                                        lineClamp={2}
-                                        c="light-dark(#212529, #f1f3f5)"
-                                      >
-                                        {quest.title}
-                                      </Text>
+                                      {quest.title}
+                                    </Text>
 
-                                      <Group gap={4} wrap="nowrap">
-                                        <Clock size={11} color="light-dark(#2f9e44, #51cf66)" />
+                                    <Group gap={4} wrap="nowrap">
+                                      <Clock size={12} color="light-dark(#2f9e44, #51cf66)" />
 
-                                        <Text size="xs" c="dimmed">
-                                          {formatQuestTime(
-                                            block.starts_at
-                                          )}
-                                          –
-                                          {formatQuestTime(
-                                            block.ends_at
-                                          )}
-                                        </Text>
-                                      </Group>
-                                    </Box>
-                                  );
-                                })}
-
-                                {questsForDay.map(
-                                  (quest) => (
-                                    <Box
-                                      key={quest.id}
-                                      p={7}
-                                      style={{
-                                        background:
-                                          selectedQuest?.id ===
-                                            quest.id
-                                            ? "light-dark(#e8f1ff, #1e3a5f)"
-                                            : "light-dark(#f3f4f6, #252525)",
-                                        borderLeft: `3px solid ${getPriorityColor(
-                                          quest.priority
-                                        )}`,
-                                        borderRadius: 6,
-                                        cursor: "pointer",
-                                      }}
-                                      onClick={(
-                                        event
-                                      ) => {
-                                        event.stopPropagation();
-
-                                        setSelectedQuest(
-                                          quest
-                                        );
-                                      }}
-                                    >
-                                      <Text
-                                        size="xs"
-                                        fw={600}
-                                        lineClamp={2}
-                                        c="light-dark(#212529, #f1f3f5)"
-                                      >
-                                        {quest.title}
-                                      </Text>
-
-                                      <Text
-                                        size="xs"
-                                        c="dimmed"
-                                      >
+                                      <Text size="xs" c="dimmed">
                                         {formatQuestTime(
-                                          quest.deadline
+                                          block.starts_at
+                                        )}
+                                        –
+                                        {formatQuestTime(
+                                          block.ends_at
                                         )}
                                       </Text>
-                                    </Box>
-                                  )
-                                )}
-                              </Stack>
-                            </Paper>
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  ) : (
-                    <Box
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(7, minmax(0, 1fr))",
-                        gap: 6,
-                      }}
-                    >
-                      {monthDays.map(
-                        (day) => {
-                          const questsForDay =
-                            getQuestsForDate(
-                              day.date
-                            );
+                                    </Group>
+                                  </Box>
+                                );
+                              })}
 
-                          const isSelected =
-                            formatDateKey(
-                              day.date
-                            ) ===
-                            formatDateKey(
-                              selectedDate
-                            );
+                              {visibleQuests.map(
+                                (quest) => (
+                                  <Box
+                                    key={quest.id}
+                                    p={{ base: 4, sm: 7 }}
+                                    style={{
+                                      background:
+                                        selectedQuest?.id ===
+                                          quest.id
+                                          ? "light-dark(#e8f1ff, #1e3a5f)"
+                                          : "light-dark(#f3f4f6, #252525)",
+                                      borderLeft: `3px solid ${getPriorityColor(
+                                        quest.priority
+                                      )}`,
+                                      borderRadius: 6,
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={(
+                                      event
+                                    ) => {
+                                      event.stopPropagation();
 
-                          return (
-                            <Paper
-                              key={formatDateKey(day.date)}
-                              withBorder
-                              radius="md"
-                              p={7}
-                              mih={205}
-                              bg={
-                                isSelected
-                                  ? isDarkMode
-                                    ? "#263653"
-                                    : "#f3f7ff"
-                                  : isDarkMode
-                                    ? "#111827"
-                                    : "#ffffff"
-                              }
-                              style={{
-                                cursor: "pointer",
-                                borderColor: isDarkMode
-                                  ? "#374151"
-                                  : isSelected
-                                    ? "#b9d4ff"
-                                    : "#e5e7eb",
-                              }}
-                              onClick={() =>
-                                setSelectedDate(
-                                  day.date
+                                      setSelectedQuest(
+                                        quest
+                                      );
+                                    }}
+                                  >
+                                    <Text
+                                      size="sm"
+                                      fw={600}
+                                      lineClamp={2}
+                                      c="light-dark(#212529, #f1f3f5)"
+                                    >
+                                      {quest.title}
+                                    </Text>
+
+                                    <Text
+                                      size="xs"
+                                      c="dimmed"
+                                    >
+                                      {formatQuestTime(
+                                        quest.deadline
+                                      )}
+                                    </Text>
+                                  </Box>
                                 )
+                              )}
+
+                              {hiddenItems > 0 && (
+                                <Text
+                                  size="xs"
+                                  fw={600}
+                                  c="dimmed"
+                                  ta="center"
+                                >
+                                  +{hiddenItems} more
+                                </Text>
+                              )}
+                            </Stack>
+                          </Paper>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  <Box
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(7, minmax(0, 1fr))",
+                      gap: 6,
+                      minWidth: 900,
+                    }}
+                  >
+                    {monthDays.map(
+                      (day) => {
+                        const questsForDay =
+                          getQuestsForDate(
+                            day.date
+                          );
+
+                        const blocksForDay =
+                          getBlocksForDate(
+                            day.date
+                          );
+
+                        const maxVisibleItems = 3;
+                        const visibleBlocks =
+                          blocksForDay.slice(
+                            0,
+                            maxVisibleItems
+                          );
+                        const visibleQuests =
+                          questsForDay.slice(
+                            0,
+                            Math.max(
+                              0,
+                              maxVisibleItems -
+                              visibleBlocks.length
+                            )
+                          );
+                        const hiddenItems =
+                          blocksForDay.length +
+                          questsForDay.length -
+                          visibleBlocks.length -
+                          visibleQuests.length;
+
+                        const isSelected =
+                          formatDateKey(
+                            day.date
+                          ) ===
+                          formatDateKey(
+                            selectedDate
+                          );
+
+                        return (
+                          <Paper
+                            key={formatDateKey(day.date)}
+                            withBorder
+                            radius="md"
+                            p={{ base: 6, sm: 8 }}
+                            mih={{ base: 160, sm: 200 }}
+                            bg={
+                              isSelected
+                                ? isDarkMode
+                                  ? "#263653"
+                                  : "#f3f7ff"
+                                : isDarkMode
+                                  ? "#111827"
+                                  : "#ffffff"
+                            }
+                            style={{
+                              cursor: "pointer",
+                              overflow: "hidden",
+                              borderColor: isDarkMode
+                                ? "#374151"
+                                : isSelected
+                                  ? "#b9d4ff"
+                                  : "#e5e7eb",
+                            }}
+                            onClick={() =>
+                              setSelectedDate(
+                                day.date
+                              )
+                            }
+                          >
+                            {/* DATE */}
+                            <Text
+                              size="sm"
+                              fw={600}
+                              mb={5}
+                              c={
+                                isSelected
+                                  ? "blue"
+                                  : "light-dark(#212529, #f1f3f5)"
                               }
                             >
-                              {/* DATE */}
-                              <Text
-                                size="xs"
-                                fw={600}
-                                mb={5}
-                                c={
-                                  isSelected
-                                    ? "blue"
-                                    : "light-dark(#212529, #f1f3f5)"
+                              {day.date.getDate()}
+                            </Text>
+
+                            {/* SCHEDULED BLOCKS + QUESTS */}
+                            <Stack gap={4}>
+                              {visibleBlocks.map((block) => {
+                                const quest =
+                                  getQuestForBlock(block);
+
+                                if (!quest) {
+                                  return null;
                                 }
-                              >
-                                {day.date.getDate()}
-                              </Text>
 
-                              {/* SCHEDULED BLOCKS + QUESTS */}
-                              <Stack gap={4}>
-                                {getBlocksForDate(day.date)
-                                  .slice(0, 2)
-                                  .map((block) => {
-                                    const quest =
-                                      getQuestForBlock(block);
-
-                                    if (!quest) {
-                                      return null;
-                                    }
-
-                                    return (
-                                      <Box
-                                        key={block.id}
-                                        px={5}
-                                        py={3}
-                                        style={{
-                                          background:
-                                            "light-dark(#eefbf0, #14311f)",
-                                          borderLeft: `3px solid ${getPriorityColor(
-                                            quest.priority
-                                          )}`,
-                                          borderRadius: 4,
-                                          cursor: "pointer",
-                                        }}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          setSelectedQuest(quest);
-                                        }}
-                                      >
-                                        <Text
-                                          size="xs"
-                                          lineClamp={1}
-                                          c="light-dark(#212529, #f1f3f5)"
-                                        >
-                                          {quest.title}
-                                        </Text>
-
-                                        <Group gap={4} wrap="nowrap">
-                                          <Clock size={10} color="light-dark(#2f9e44, #51cf66)" />
-
-                                          <Text size="xs" c="dimmed">
-                                            {formatQuestTime(
-                                              block.starts_at
-                                            )}
-                                            –
-                                            {formatQuestTime(
-                                              block.ends_at
-                                            )}
-                                          </Text>
-                                        </Group>
-                                      </Box>
-                                    );
-                                  })}
-
-                                {questsForDay
-                                  .slice(0, 3)
-                                  .map((quest) => (
-                                    <Box
-                                      key={quest.id}
-                                      px={5}
-                                      py={3}
-                                      style={{
-                                        background:
-                                          selectedQuest?.id ===
-                                            quest.id
-                                            ? isDarkMode
-                                              ? "#263653"
-                                              : "#e9e9e9"
-                                            : isDarkMode
-                                              ? "#1f2937"
-                                              : "#f5f5f5",
-                                        borderLeft: `3px solid ${getPriorityColor(
-                                          quest.priority
-                                        )}`,
-                                        borderRadius: 4,
-                                        cursor: "pointer",
-                                      }}
-
-                                      onClick={(
-                                        event
-                                      ) => {
-                                        event.stopPropagation();
-
-                                        setSelectedQuest(
-                                          quest
-                                        );
-                                      }}
+                                return (
+                                  <Box
+                                    key={block.id}
+                                    px={5}
+                                    py={3}
+                                    style={{
+                                      background:
+                                        "light-dark(#eefbf0, #14311f)",
+                                      borderLeft: `3px solid ${getPriorityColor(
+                                        quest.priority
+                                      )}`,
+                                      borderRadius: 4,
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedQuest(quest);
+                                    }}
+                                  >
+                                    <Text
+                                      size="sm"
+                                      lineClamp={1}
+                                      c="light-dark(#212529, #f1f3f5)"
                                     >
-                                      <Text
-                                        size="xs"
-                                        lineClamp={1}
-                                        c="light-dark(#212529, #f1f3f5)"
-                                      >
-                                        {quest.title}
+                                      {quest.title}
+                                    </Text>
+
+                                    <Group gap={4} wrap="nowrap">
+                                      <Clock size={11} color="light-dark(#2f9e44, #51cf66)" />
+
+                                      <Text size="xs" c="dimmed">
+                                        {formatQuestTime(
+                                          block.starts_at
+                                        )}
+                                        –
+                                        {formatQuestTime(
+                                          block.ends_at
+                                        )}
                                       </Text>
-                                    </Box>
-                                  ))}
-                              </Stack>
-                            </Paper>
-                          );
-                        }
-                      )}
-                    </Box>
-                  )}
-                </Paper>
-                {/* =================================================
-    QUEST DETAILS
-================================================= */}
+                                    </Group>
+                                  </Box>
+                                );
+                              })}
 
-                <Paper
-                  withBorder
-                  radius="md"
-                  p="md"
-                  mih={250}
-                  bg={isDarkMode ? "#111827" : "#ffffff"}
-                >
-                  <Group
-                    justify="space-between"
-                    mb="sm"
-                  >
-                    <Text
-                      fw={700}
-                      size="sm"
-                      c={isDarkMode ? "#f3f4f6" : "#222"}
-                    >
-                      Quest Details
-                    </Text>
+                              {visibleQuests
+                                .map((quest) => (
+                                  <Box
+                                    key={quest.id}
+                                    px={5}
+                                    py={3}
+                                    style={{
+                                      background:
+                                        selectedQuest?.id ===
+                                          quest.id
+                                          ? isDarkMode
+                                            ? "#263653"
+                                            : "#e9e9e9"
+                                          : isDarkMode
+                                            ? "#1f2937"
+                                            : "#f5f5f5",
+                                      borderLeft: `3px solid ${getPriorityColor(
+                                        quest.priority
+                                      )}`,
+                                      borderRadius: 4,
+                                      cursor: "pointer",
+                                    }}
 
-                    {selectedQuest && (
-                      <Button
-                        variant="subtle"
-                        color="blue"
-                        size="compact-xs"
-                        onClick={() => setSelectedQuest(null)}
-                      >
-                        <X size={14} />
-                      </Button>
+                                    onClick={(
+                                      event
+                                    ) => {
+                                      event.stopPropagation();
+
+                                      setSelectedQuest(
+                                        quest
+                                      );
+                                    }}
+                                  >
+                                    <Text
+                                      size="sm"
+                                      lineClamp={1}
+                                      c="light-dark(#212529, #f1f3f5)"
+                                    >
+                                      {quest.title}
+                                    </Text>
+                                  </Box>
+                                ))}
+
+                              {hiddenItems > 0 && (
+                                <Text
+                                  size="xs"
+                                  fw={600}
+                                  c="dimmed"
+                                  ta="center"
+                                >
+                                  +{hiddenItems} more
+                                </Text>
+                              )}
+                            </Stack>
+                          </Paper>
+                        );
+                      }
                     )}
-                  </Group>
+                  </Box>
+                )}
+              </Paper>
 
-                  <Divider
-                    mb="sm"
-                    color={isDarkMode ? "#374151" : "#e5e7eb"}
-                  />
+              <Drawer
+                opened={selectedQuest !== null}
+                onClose={() => setSelectedQuest(null)}
+                position="right"
+                size="lg"
+                title="Quest Details"
+                styles={{
+                  content: {
+                    backgroundColor: isDarkMode
+                      ? "#111827"
+                      : "#ffffff",
+                  },
+                  header: {
+                    backgroundColor: isDarkMode
+                      ? "#111827"
+                      : "#ffffff",
+                  },
+                  body: {
+                    backgroundColor: isDarkMode
+                      ? "#111827"
+                      : "#ffffff",
+                  },
+                }}
+              >
+                {selectedQuest ? (
+                  <Stack gap="sm">
 
-                  {selectedQuest ? (
-                    <Stack gap="sm">
+                    {/* TITLE + DESCRIPTION */}
+                    <Box>
+                      <Text
+                        fw={700}
+                        size="sm"
+                        c={isDarkMode ? "#f3f4f6" : "#222"}
+                      >
+                        {selectedQuest.title}
+                      </Text>
 
-                      {/* TITLE + DESCRIPTION */}
-                      <Box>
+                      <Text
+                        size="xs"
+                        c={isDarkMode ? "#d1d5db" : "dimmed"}
+                        mt={3}
+                      >
+                        {selectedQuest.description ||
+                          "No description provided."}
+                      </Text>
+                    </Box>
+
+                    {/* BASIC DETAILS */}
+                    <Paper
+                      radius="md"
+                      p="sm"
+                      bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+                    >
+                      <Stack gap={5}>
                         <Text
-                          fw={700}
-                          size="sm"
+                          size="xs"
                           c={isDarkMode ? "#f3f4f6" : "#222"}
                         >
-                          {selectedQuest.title}
+                          <b>Subject:</b>{" "}
+                          {selectedQuest.subject || "General"}
+                        </Text>
+
+                        {selectedQuest.coursework_type && (
+                          <Text
+                            size="xs"
+                            c={isDarkMode ? "#f3f4f6" : "#222"}
+                          >
+                            <b>Coursework Type:</b>{" "}
+                            {selectedQuest.coursework_type}
+                          </Text>
+                        )}
+
+                        <Text
+                          size="xs"
+                          c={isDarkMode ? "#f3f4f6" : "#222"}
+                        >
+                          <b>Estimated Duration:</b>{" "}
+                          {selectedQuest.estimated_duration ?? 0} minutes
                         </Text>
 
                         <Text
                           size="xs"
-                          c={isDarkMode ? "#d1d5db" : "dimmed"}
-                          mt={3}
+                          c={isDarkMode ? "#f3f4f6" : "#222"}
                         >
-                          {selectedQuest.description ||
-                            "No description provided."}
+                          <b>
+                            Priority
+                            {selectedQuest.coursework_type
+                              ? " (from coursework type)"
+                              : ""}
+                            :
+                          </b>{" "}
+                          {getPriorityLabel(selectedQuest.priority)}
                         </Text>
-                      </Box>
 
-                      {/* BASIC DETAILS */}
+                        <Text
+                          size="xs"
+                          c={isDarkMode ? "#f3f4f6" : "#222"}
+                        >
+                          <b>Status:</b>{" "}
+                          {getStatusLabel(selectedQuest.status)}
+                        </Text>
+
+                        <Text
+                          size="xs"
+                          c={isDarkMode ? "#f3f4f6" : "#222"}
+                        >
+                          <b>Deadline:</b>
+                          <br />
+                          {formatQuestDate(selectedQuest.deadline)}
+                          <br />
+                          {formatQuestTime(selectedQuest.deadline)}
+                        </Text>
+
+                        {selectedQuest.scheduled_date && (
+                          <Text
+                            size="xs"
+                            c={isDarkMode ? "#f3f4f6" : "#222"}
+                          >
+                            <b>To-do day:</b>{" "}
+                            {formatQuestDate(
+                              parseDateOnly(
+                                selectedQuest.scheduled_date
+                              ).toISOString()
+                            )}
+                          </Text>
+                        )}
+                      </Stack>
+                    </Paper>
+
+                    {/* REWARD */}
+                    <Box>
+                      <Text
+                        size="xs"
+                        fw={700}
+                        mb={4}
+                        c={isDarkMode ? "#f3f4f6" : "#222"}
+                      >
+                        Reward
+                      </Text>
+
                       <Paper
                         radius="md"
                         p="sm"
                         bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
                       >
-                        <Stack gap={5}>
+                        <Group gap="md">
                           <Text
                             size="xs"
                             c={isDarkMode ? "#f3f4f6" : "#222"}
                           >
-                            <b>Subject:</b>{" "}
-                            {selectedQuest.subject || "General"}
+                            🪙{" "}
+                            <b>
+                              +{selectedQuest.reward_coins ?? 0}
+                            </b>{" "}
+                            Student Coins
                           </Text>
 
                           <Text
                             size="xs"
                             c={isDarkMode ? "#f3f4f6" : "#222"}
                           >
-                            <b>Estimated Duration:</b>{" "}
-                            {selectedQuest.estimated_duration ?? 0} minutes
+                            🐾{" "}
+                            <b>
+                              +{rewardXpForPriority(selectedQuest.priority)}
+                            </b>{" "}
+                            Pet XP
                           </Text>
 
                           <Text
                             size="xs"
                             c={isDarkMode ? "#f3f4f6" : "#222"}
                           >
-                            <b>Priority:</b>{" "}
-                            {getPriorityLabel(selectedQuest.priority)}
+                            ⚡{" "}
+                            <b>
+                              +{QUEST_ENERGY_REWARD}
+                            </b>{" "}
+                            Energy
                           </Text>
+                        </Group>
 
+                        {selectedQuest.status === "completed" && (
                           <Text
                             size="xs"
-                            c={isDarkMode ? "#f3f4f6" : "#222"}
+                            c="green"
+                            mt={6}
                           >
-                            <b>Status:</b>{" "}
-                            {getStatusLabel(selectedQuest.status)}
+                            Reward claimed when the quest
+                            was completed.
                           </Text>
-
-                          <Text
-                            size="xs"
-                            c={isDarkMode ? "#f3f4f6" : "#222"}
-                          >
-                            <b>Deadline:</b>
-                            <br />
-                            {formatQuestDate(selectedQuest.deadline)}
-                            <br />
-                            {formatQuestTime(selectedQuest.deadline)}
-                          </Text>
-                        </Stack>
+                        )}
                       </Paper>
+                    </Box>
 
-                      {/* REWARD */}
+                    {/* SCHEDULED TIME */}
+                    {selectedQuestBlocks.length > 0 && (
                       <Box>
                         <Text
                           size="xs"
@@ -2785,7 +3126,7 @@ export default function QuestCalendarPage() {
                           mb={4}
                           c={isDarkMode ? "#f3f4f6" : "#222"}
                         >
-                          Reward
+                          Scheduled Time
                         </Text>
 
                         <Paper
@@ -2793,155 +3134,149 @@ export default function QuestCalendarPage() {
                           p="sm"
                           bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
                         >
-                          <Group gap="md">
-                            <Text
-                              size="xs"
-                              c={isDarkMode ? "#f3f4f6" : "#222"}
-                            >
-                              🪙{" "}
-                              <b>
-                                +{selectedQuest.reward_coins ?? 0}
-                              </b>{" "}
-                              Student Coins
-                            </Text>
+                          <Stack gap={3}>
+                            {selectedQuestBlocks.map(
+                              (block) => (
+                                <Group
+                                  key={block.id}
+                                  gap={6}
+                                  wrap="nowrap"
+                                >
+                                  <Clock
+                                    size={12}
+                                    color="light-dark(#2f9e44, #51cf66)"
+                                  />
 
-                            <Text
-                              size="xs"
-                              c={isDarkMode ? "#f3f4f6" : "#222"}
-                            >
-                              🐾{" "}
-                              <b>
-                                +{selectedQuest.reward_coins ?? 0}
-                              </b>{" "}
-                              Pet XP
-                            </Text>
-
-                            <Text
-                              size="xs"
-                              c={isDarkMode ? "#f3f4f6" : "#222"}
-                            >
-                              ⚡{" "}
-                              <b>
-                                +{QUEST_ENERGY_REWARD}
-                              </b>{" "}
-                              Energy
-                            </Text>
-                          </Group>
-
-                          {selectedQuest.status === "completed" && (
-                            <Text
-                              size="xs"
-                              c="green"
-                              mt={6}
-                            >
-                              Reward claimed when the quest
-                              was completed.
-                            </Text>
-                          )}
+                                  <Text
+                                    size="xs"
+                                    c={isDarkMode ? "#f3f4f6" : "#222"}
+                                  >
+                                    {formatQuestDate(
+                                      block.starts_at
+                                    )}{" "}
+                                    ·{" "}
+                                    {formatQuestTime(
+                                      block.starts_at
+                                    )}
+                                    –
+                                    {formatQuestTime(
+                                      block.ends_at
+                                    )}
+                                    {block.source === "manual"
+                                      ? " (manual)"
+                                      : " (auto)"}
+                                  </Text>
+                                </Group>
+                              )
+                            )}
+                          </Stack>
                         </Paper>
                       </Box>
+                    )}
 
-                      {/* SCHEDULED TIME */}
-                      {selectedQuestBlocks.length > 0 && (
-                        <Box>
-                          <Text
-                            size="xs"
-                            fw={700}
-                            mb={4}
-                            c={isDarkMode ? "#f3f4f6" : "#222"}
-                          >
-                            Scheduled Time
-                          </Text>
+                    {/* SCHEDULING REASON */}
+                    <Box>
+                      <Text
+                        size="xs"
+                        fw={700}
+                        mb={4}
+                        c={isDarkMode ? "#f3f4f6" : "#222"}
+                      >
+                        Scheduling Reason
+                      </Text>
 
-                          <Paper
-                            radius="md"
-                            p="sm"
-                            bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
-                          >
-                            <Stack gap={3}>
-                              {selectedQuestBlocks.map(
-                                (block) => (
-                                  <Group
-                                    key={block.id}
-                                    gap={6}
-                                    wrap="nowrap"
-                                  >
-                                    <Clock
-                                      size={12}
-                                      color="light-dark(#2f9e44, #51cf66)"
-                                    />
-
-                                    <Text
-                                      size="xs"
-                                      c={isDarkMode ? "#f3f4f6" : "#222"}
-                                    >
-                                      {formatQuestDate(
-                                        block.starts_at
-                                      )}{" "}
-                                      ·{" "}
-                                      {formatQuestTime(
-                                        block.starts_at
-                                      )}
-                                      –
-                                      {formatQuestTime(
-                                        block.ends_at
-                                      )}
-                                      {block.source === "manual"
-                                        ? " (manual)"
-                                        : " (auto)"}
-                                    </Text>
-                                  </Group>
-                                )
-                              )}
-                            </Stack>
-                          </Paper>
-                        </Box>
-                      )}
-
-                      {/* SCHEDULING REASON */}
-                      <Box>
+                      <Paper
+                        radius="md"
+                        p="sm"
+                        bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+                      >
                         <Text
                           size="xs"
-                          fw={700}
-                          mb={4}
-                          c={isDarkMode ? "#f3f4f6" : "#222"}
+                          c={isDarkMode ? "#d1d5db" : "dimmed"}
                         >
-                          Scheduling Reason
+                          {selectedQuestBlocks.length > 0
+                            ? `Placed on ${formatQuestDate(
+                              selectedQuestBlocks[0]
+                                .starts_at
+                            )} at ${formatQuestTime(
+                              selectedQuestBlocks[0]
+                                .starts_at
+                            )} using your weekly availability and ${
+                              selectedQuest.scheduled_date
+                                ? "its to-do day"
+                                : "its deadline"
+                            }.`
+                            : "No scheduled block yet. Click Regenerate Plan to place this quest inside your weekly availability."}
                         </Text>
+                      </Paper>
+                    </Box>
 
-                        <Paper
-                          radius="md"
-                          p="sm"
-                          bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
-                        >
+                    {/* MATERIALS */}
+                    <Box>
+                      <Text
+                        size="xs"
+                        fw={700}
+                        mb={4}
+                        c={isDarkMode ? "#f3f4f6" : "#222"}
+                      >
+                        Materials
+                      </Text>
+
+                      <Paper
+                        radius="md"
+                        p="sm"
+                        bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+                      >
+                        {materials.filter(
+                          (material) =>
+                            material.quest_id === selectedQuest.id
+                        ).length > 0 ? (
+                          <Stack gap={3}>
+                            {materials
+                              .filter(
+                                (material) =>
+                                  material.quest_id === selectedQuest.id
+                              )
+                              .map((material) => (
+                                <Text
+                                  key={material.id}
+                                  size="xs"
+                                  c={isDarkMode ? "#f3f4f6" : "#222"}
+                                  title={`Open ${material.filename}`}
+                                  onClick={() =>
+                                    handleOpenMaterial(material)
+                                  }
+                                  style={{
+                                    cursor: "pointer",
+                                    textDecoration:
+                                      "underline dotted",
+                                  }}
+                                >
+                                  • {material.filename}
+                                </Text>
+                              ))}
+                          </Stack>
+                        ) : (
                           <Text
                             size="xs"
                             c={isDarkMode ? "#d1d5db" : "dimmed"}
                           >
-                            {selectedQuestBlocks.length > 0
-                              ? `Placed on ${formatQuestDate(
-                                selectedQuestBlocks[0]
-                                  .starts_at
-                              )} at ${formatQuestTime(
-                                selectedQuestBlocks[0]
-                                  .starts_at
-                              )} using your weekly availability and ${getPriorityLabel(
-                                selectedQuest.priority
-                              ).toLowerCase()}.`
-                              : "No scheduled block yet. Click Regenerate Plan to place this quest inside your weekly availability."}
+                            No materials attached.
                           </Text>
-                        </Paper>
-                      </Box>
+                        )}
+                      </Paper>
+                    </Box>
 
-                      {/* MATERIALS */}
+                    {/* CHECKLIST */}
+                    {selectedQuest.checklist?.length > 0 && (
                       <Box>
                         <Text
                           size="xs"
                           fw={700}
-                          mb={4}
+                          mb={3}
                           c={isDarkMode ? "#f3f4f6" : "#222"}
                         >
-                          Materials
+                          Checklist
                         </Text>
 
                         <Paper
@@ -2949,178 +3284,115 @@ export default function QuestCalendarPage() {
                           p="sm"
                           bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
                         >
-                          {materials.filter(
-                            (material) =>
-                              material.quest_id === selectedQuest.id
-                          ).length > 0 ? (
-                            <Stack gap={3}>
-                              {materials
-                                .filter(
-                                  (material) =>
-                                    material.quest_id === selectedQuest.id
-                                )
-                                .map((material) => (
-                                  <Text
-                                    key={material.id}
-                                    size="xs"
-                                    c={isDarkMode ? "#f3f4f6" : "#222"}
-                                    title={`Open ${material.filename}`}
-                                    onClick={() =>
-                                      handleOpenMaterial(material)
-                                    }
-                                    style={{
-                                      cursor: "pointer",
-                                      textDecoration:
-                                        "underline dotted",
-                                    }}
-                                  >
-                                    • {material.filename}
-                                  </Text>
-                                ))}
-                            </Stack>
-                          ) : (
-                            <Text
-                              size="xs"
-                              c={isDarkMode ? "#d1d5db" : "dimmed"}
-                            >
-                              No materials attached.
-                            </Text>
-                          )}
+                          <Stack gap={4}>
+                            {selectedQuest.checklist.map(
+                              (item, index) => (
+                                <Checkbox
+                                  key={`${selectedQuest.id}-${index}`}
+                                  size="xs"
+                                  label={item}
+                                  styles={{
+                                    label: {
+                                      color: isDarkMode
+                                        ? "#f3f4f6"
+                                        : "#222",
+                                    },
+                                  }}
+                                  onChange={() =>
+                                    handleToggleChecklist(
+                                      selectedQuest.id,
+                                      index
+                                    )
+                                  }
+                                />
+                              )
+                            )}
+                          </Stack>
                         </Paper>
                       </Box>
+                    )}
 
-                      {/* CHECKLIST */}
-                      {selectedQuest.checklist?.length > 0 && (
-                        <Box>
-                          <Text
+                    {/* ACTIONS */}
+                    <Box>
+                      <Text
+                        size="xs"
+                        fw={700}
+                        mb={5}
+                        c={isDarkMode ? "#f3f4f6" : "#222"}
+                      >
+                        Actions
+                      </Text>
+
+                      <Stack gap={10}>
+                        <Group grow gap={5}>
+                          <Button
                             size="xs"
-                            fw={700}
-                            mb={3}
-                            c={isDarkMode ? "#f3f4f6" : "#222"}
+                            radius="lg"
+                            color="blue"
+                            onClick={() =>
+                              handleAskWasi(selectedQuest)
+                            }
                           >
-                            Checklist
-                          </Text>
+                            Ask Wasi
+                          </Button>
 
-                          <Paper
-                            radius="md"
-                            p="sm"
-                            bg={isDarkMode ? "#1f2937" : "#f5f6f8"}
+                          <Button
+                            size="xs"
+                            radius="lg"
+                            variant="light"
+                            color="blue"
+                            onClick={() =>
+                              openEditQuest(selectedQuest)
+                            }
                           >
-                            <Stack gap={4}>
-                              {selectedQuest.checklist.map(
-                                (item, index) => (
-                                  <Checkbox
-                                    key={`${selectedQuest.id}-${index}`}
-                                    size="xs"
-                                    label={item}
-                                    styles={{
-                                      label: {
-                                        color: isDarkMode
-                                          ? "#f3f4f6"
-                                          : "#222",
-                                      },
-                                    }}
-                                    onChange={() =>
-                                      handleToggleChecklist(
-                                        selectedQuest.id,
-                                        index
-                                      )
-                                    }
-                                  />
-                                )
-                              )}
-                            </Stack>
-                          </Paper>
-                        </Box>
-                      )}
+                            Edit Quest
+                          </Button>
+                        </Group>
 
-                      {/* ACTIONS */}
-                      <Box>
-                        <Text
-                          size="xs"
-                          fw={700}
-                          mb={5}
-                          c={isDarkMode ? "#f3f4f6" : "#222"}
-                        >
-                          Actions
-                        </Text>
+                        {selectedQuest.status === "pending" && (
+                          <Button
+                            size="xs"
+                            radius="lg"
+                            color="blue"
+                            fullWidth
+                            loading={updatingQuest}
+                            onClick={() =>
+                              handleStartQuest(selectedQuest)
+                            }
+                          >
+                            Mark as In Progress
+                          </Button>
+                        )}
 
-                        <Stack gap={5}>
-                          {selectedQuest.status === "pending" && (
-                            <Button
-                              size="compact-xs"
-                              color="blue"
-                              fullWidth
-                              loading={updatingQuest}
-                              onClick={() =>
-                                handleStartQuest(selectedQuest)
-                              }
-                            >
-                              Mark as In Progress
-                            </Button>
-                          )}
+                        {selectedQuest.status === "in_progress" && (
+                          <Button
+                            size="xs"
+                            radius="lg"
+                            color="blue"
+                            loading={updatingQuest}
+                            onClick={() =>
+                              handleCompleteQuest(selectedQuest)
+                            }
+                          >
+                            Mark as Done
+                          </Button>
+                        )}
 
-                          <Group grow gap={5}>
-                            <Button
-                              size="compact-xs"
-                              color="blue"
-                              onClick={() =>
-                                handleAskWasi(selectedQuest)
-                              }
-                            >
-                              Ask Wasi
-                            </Button>
+                        {selectedQuest.status === "completed" && (
+                          <Badge
+                            color="green"
+                            variant="light"
+                            size="md"
+                          >
+                            Quest Completed
+                          </Badge>
+                        )}
+                      </Stack>
+                    </Box>
 
-                            <Button
-                              size="compact-xs"
-                              variant="light"
-                              color="blue"
-                              onClick={() =>
-                                openEditQuest(selectedQuest)
-                              }
-                            >
-                              Edit Quest
-                            </Button>
-                          </Group>
-
-                          {selectedQuest.status === "in_progress" && (
-                            <Button
-                              size="compact-xs"
-                              color="blue"
-                              loading={updatingQuest}
-                              onClick={() =>
-                                handleCompleteQuest(selectedQuest)
-                              }
-                            >
-                              Mark as Done
-                            </Button>
-                          )}
-
-                          {selectedQuest.status === "completed" && (
-                            <Badge
-                              color="blue"
-                              variant="light"
-                              size="sm"
-                            >
-                              Quest Completed
-                            </Badge>
-                          )}
-                        </Stack>
-                      </Box>
-
-                    </Stack>
-                  ) : (
-                    <Text
-                      size="sm"
-                      c={isDarkMode ? "#d1d5db" : "dimmed"}
-                      ta="center"
-                      py="xl"
-                    >
-                      Select a quest to view its details.
-                    </Text>
-                  )}
-                </Paper>
-              </SimpleGrid>
+                  </Stack>
+                ) : null}
+              </Drawer>
 
               {/* =================================================
                 LOWER CARDS
@@ -3298,10 +3570,13 @@ export default function QuestCalendarPage() {
                         .value
                     )
                   }
-                  w={350}
+                  w={{ base: "100%", sm: 350 }}
                 />
 
-                <Group gap="xs">
+                <Group
+                  gap="xs"
+                  w={{ base: "100%", sm: "auto" }}
+                >
                   <Select
                     size="xs"
                     placeholder="Subject"
@@ -3808,38 +4083,41 @@ export default function QuestCalendarPage() {
               placeholder="Enter quest title"
               required
               withAsterisk
+              error={questFormErrors.title}
               value={
                 newQuest.title
               }
-              onChange={(event) =>
+              onChange={(event) => {
                 setNewQuest({
                   ...newQuest,
                   title:
                     event
                       .currentTarget
                       .value,
-                })
-              }
+                });
+
+                clearQuestFormError(
+                  "title"
+                );
+              }}
             />
 
             <Textarea
               label="Description"
               placeholder="Describe the quest..."
               minRows={3}
-              required
-              withAsterisk
               value={
                 newQuest.description
               }
-              onChange={(event) =>
+              onChange={(event) => {
                 setNewQuest({
                   ...newQuest,
                   description:
                     event
                       .currentTarget
                       .value,
-                })
-              }
+                });
+              }}
             />
 
             <Select
@@ -3849,6 +4127,7 @@ export default function QuestCalendarPage() {
               clearable
               required
               withAsterisk
+              error={questFormErrors.subject}
               data={subjects.map(
                 (subject) => ({
                   value: subject,
@@ -3859,24 +4138,29 @@ export default function QuestCalendarPage() {
                 newQuest.subject ||
                 null
               }
-              onChange={(value) =>
+              onChange={(value) => {
                 setNewQuest({
                   ...newQuest,
                   subject:
                     value || "",
-                })
-              }
+                });
+
+                clearQuestFormError(
+                  "subject"
+                );
+              }}
             />
 
             {courseworkTypes.length > 0 && (
               <Select
                 label="Coursework Type"
-                description="Applies the priority rules from your setup."
+                description="Sets this quest's priority and rewards."
                 placeholder="Select coursework type"
                 searchable
                 clearable
                 required
                 withAsterisk
+                error={questFormErrors.coursework_type}
                 data={courseworkTypes.map(
                   (type) => ({
                     value: type,
@@ -3885,38 +4169,26 @@ export default function QuestCalendarPage() {
                       }`,
                   })
                 )}
-                value={courseworkType || null}
+                value={newQuest.coursework_type || null}
                 onChange={(value) => {
-                  setCourseworkType(
-                    value ?? ""
+                  setNewQuest({
+                    ...newQuest,
+                    coursework_type:
+                      value || "",
+                  });
+
+                  clearQuestFormError(
+                    "coursework_type"
                   );
-
-                  const rule = value
-                    ? (
-                      courseworkPriorities[
-                      value
-                      ] ?? "Medium"
-                    ).toLowerCase()
-                    : "";
-
-                  const mappedPriority:
-                    | QuestPriority
-                    | null =
-                    rule === "high" ||
-                      rule === "medium" ||
-                      rule === "low"
-                      ? rule
-                      : null;
-
-                  if (mappedPriority) {
-                    setNewQuest((current) => ({
-                      ...current,
-                      priority:
-                        mappedPriority,
-                    }));
-                  }
                 }}
               />
+            )}
+
+            {courseworkTypes.length === 0 && (
+              <Text size="xs" c="dimmed">
+                Add coursework types in Settings to control quest priority
+                and rewards.
+              </Text>
             )}
 
             <TextInput
@@ -3924,80 +4196,74 @@ export default function QuestCalendarPage() {
               type="datetime-local"
               required
               withAsterisk
+              error={questFormErrors.deadline}
               value={
                 newQuest.deadline
               }
-              onChange={(event) =>
+              onChange={(event) => {
                 setNewQuest({
                   ...newQuest,
                   deadline:
                     event
                       .currentTarget
                       .value,
-                })
-              }
+                });
+
+                clearQuestFormError(
+                  "deadline"
+                );
+              }}
             />
+
+            {editingQuest &&
+              newQuest.deadline &&
+              new Date(
+                newQuest.deadline
+              ).getTime() <
+              now.getTime() && (
+                <DateInput
+                  label="To-do day"
+                  description="This deadline has passed. Pick a day to work on it and it can be scheduled again."
+                  placeholder="Pick a day"
+                  clearable
+                  value={todoDay || null}
+                  onChange={(value) => {
+                    setTodoDay(
+                      value ?? ""
+                    );
+                  }}
+                />
+              )}
 
             <NumberInput
               label="Estimated Duration"
               description="How many minutes this quest should take."
               required
               withAsterisk
+              error={questFormErrors.estimated_duration}
               min={15}
               step={15}
               value={
                 newQuest.estimated_duration
               }
-              onChange={(value) =>
+              onChange={(value) => {
                 setNewQuest({
                   ...newQuest,
                   estimated_duration:
-                    typeof value ===
-                      "number"
-                      ? value
-                      : 60,
-                })
-              }
-            />
+                    value,
+                });
 
-            <Select
-              required
-              withAsterisk
-              label="Priority"
-              data={[
-                {
-                  value: "low",
-                  label:
-                    "Low Priority",
-                },
-                {
-                  value: "medium",
-                  label:
-                    "Medium Priority",
-                },
-                {
-                  value: "high",
-                  label:
-                    "High Priority",
-                },
-              ]}
-              value={
-                newQuest.priority
-              }
-              onChange={(value) =>
-                setNewQuest({
-                  ...newQuest,
-                  priority:
-                    (value ||
-                      "medium") as QuestPriority,
-                })
-              }
+                clearQuestFormError(
+                  "estimated_duration"
+                );
+              }}
             />
 
             <Box>
               <Button
                 variant="light"
-                size="compact-sm"
+                size="sm"
+                fullWidth
                 leftSection={<Upload size={14} />}
                 loading={uploadingQuestAttachment}
                 onClick={() =>

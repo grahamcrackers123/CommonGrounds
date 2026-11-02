@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { notifyUpcomingQuestDeadlines } from "@/lib/notifications";
+import { isNotificationEnabled, loadNotificationPrefs } from "@/lib/notification-prefs";
 
 export async function GET() {
   const supabase = await createClient();
@@ -22,5 +23,13 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ notifications: data });
+
+  // Hide notification types the user turned off in Settings, including
+  // ones created before the preference changed.
+  const prefs = await loadNotificationPrefs(supabase, user.id);
+  const visible = (data ?? []).filter((notification) =>
+    isNotificationEnabled(prefs, String(notification.type ?? ""))
+  );
+
+  return NextResponse.json({ notifications: visible });
 }

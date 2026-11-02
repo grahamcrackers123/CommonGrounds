@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { applyEnergyDecay } from "@/lib/pet-energy";
 import { recordBehavioralEvent } from "@/lib/interventions/events";
+import { evaluateAndNotifyRisk } from "@/lib/interventions/notify";
 import { NextResponse } from "next/server";
+import { pushToUser } from "@/lib/push/send";
+import { isNotificationEnabled, loadNotificationPrefs } from "@/lib/notification-prefs";
 
 // POST /api/focus-sessions, record a completed focus session and apply rewards (coins, pet energy, pet XP) via the complete_focus_session RPC.
 export async function POST(req: Request) {
@@ -49,20 +52,33 @@ export async function POST(req: Request) {
     duration_min: durationMin,
   });
 
+  // New study activity can clear (or change) risk flags, so re-evaluate
+  // without waiting for the next Dashboard visit.
+  await evaluateAndNotifyRisk(supabase, user.id);
+
   const sessionRewards: string[] = [];
   if ((result.earned_coins ?? 0) > 0) sessionRewards.push(`${result.earned_coins} coins`);
   if ((result.earned_streak_xp ?? 0) > 0) sessionRewards.push(`${result.earned_streak_xp} XP`);
   if ((result.earned_pet_energy ?? 0) > 0) sessionRewards.push(`${result.earned_pet_energy} energy`);
 
-  await supabase.rpc("create_notification", {
-    _user_id: user.id,
-    _type: "session_completed",
-    _title: "Focus session complete!",
-    _body:
-      sessionRewards.length > 0
-        ? `You earned ${sessionRewards.join(", ")}`
-        : "Nice work finishing a focus session!",
-  });
+  const sessionBody =
+    sessionRewards.length > 0
+      ? `You earned ${sessionRewards.join(", ")}`
+      : "Nice work finishing a focus session!";
+
+  const prefs = await loadNotificationPrefs(supabase, user.id);
+  if (isNotificationEnabled(prefs, "session_completed")) {
+    await supabase.rpc("create_notification", {
+      _user_id: user.id,
+      _type: "session_completed",
+      _title: "Focus session complete!",
+      _body: sessionBody,
+    });
+    await pushToUser(user.id, "session_completed", {
+      title: "Focus session complete!",
+      body: sessionBody,
+    });
+  }
 
   return NextResponse.json(
     {

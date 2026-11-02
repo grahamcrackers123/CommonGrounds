@@ -1,10 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import {
+  cookieOptionsForCurrentSession,
+  isSessionRemembered,
+  REMEMBER_ME_COOKIE,
+} from './cookies'
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
+
+  const remember = isSessionRemembered(
+    request.cookies.get(REMEMBER_ME_COOKIE)?.value
+  )
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
@@ -26,7 +36,15 @@ export async function updateSession(request: NextRequest) {
           })
 
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(
+              name,
+              value,
+              cookieOptionsForCurrentSession(
+                options,
+                remember,
+                value
+              )
+            )
           )
         },
       },
@@ -36,20 +54,21 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: do not run code between createServerClient and getUser().
   // A simple mistake could make it very hard to debug issues with users
   // being randomly logged out.
- const { data } =
-  await supabase.auth.getClaims()
+  const { data } =
+    await supabase.auth.getClaims()
 
-const user = data
-  ? { id: data.claims.sub }
-  : null
+  const user = data
+    ? { id: data.claims.sub }
+    : null
   const path = request.nextUrl.pathname
 
   if (
-  !user &&
-  path !== '/access' &&
-  path !== '/callback' &&
-  path !== '/reset-password'
-) {
+    !user &&
+    path !== '/access' &&
+    path !== '/callback' &&
+    path !== '/forgot-password' &&
+    path !== '/reset-password'
+  ) {
     return NextResponse.redirect(
       new URL('/access', request.url)
     )

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isQuestPriority, rewardXpForPriority } from "./quest-rewards";
+
 export type PetActivityKind = "equip" | "session" | "quest" | "purchase";
 
 export type PetActivityItem = {
@@ -32,6 +34,7 @@ type QuestRow = {
     title: string;
     completed_at: string | null;
     reward_coins: number | null;
+    priority: string | null;
 };
 
 type UserItemRow = {
@@ -79,7 +82,7 @@ export async function getPetActivity(
             .limit(20),
         supabase
             .from("quests")
-            .select("id, title, completed_at, reward_coins")
+            .select("id, title, completed_at, reward_coins, priority")
             .eq("user_id", userId)
             .not("completed_at", "is", null)
             .order("completed_at", { ascending: false })
@@ -156,9 +159,11 @@ export async function getPetActivity(
 
     for (const quest of quests) {
         if (!quest.completed_at) continue;
-        // Quest XP is granted 1:1 with reward_coins, so it is a safe fallback
-        // for completions that predate the pet_quest event metadata.
-        const xpGained = questXp.get(quest.id) ?? quest.reward_coins ?? 0;
+        // Quest XP is tied to priority, so use the same mapping as the
+        // completion endpoint for completions that predate pet_quest events.
+        const xpGained =
+            questXp.get(quest.id) ??
+            (isQuestPriority(quest.priority) ? rewardXpForPriority(quest.priority) : 0);
         const energyGained = questEnergy.get(quest.id) ?? 0;
         const rewards: string[] = [];
         if ((quest.reward_coins ?? 0) > 0) rewards.push(`+${quest.reward_coins} coins`);
